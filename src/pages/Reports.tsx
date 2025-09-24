@@ -157,18 +157,22 @@ export default function Reports() {
     const groupedEntries = new Map<string, TimeEntry[]>();
     
     entries.forEach(entry => {
-      const date = format(parseISO(entry.timestamp), 'yyyy-MM-dd');
-      const key = `${entry.employee_id}-${date}`;
-      
-      if (!groupedEntries.has(key)) {
-        groupedEntries.set(key, []);
+      try {
+        const date = format(parseISO(entry.timestamp), 'yyyy-MM-dd');
+        const key = `${entry.employee_id}|${date}`; // Use | instead of - to avoid conflicts
+        
+        if (!groupedEntries.has(key)) {
+          groupedEntries.set(key, []);
+        }
+        groupedEntries.get(key)!.push(entry);
+      } catch (error) {
+        console.error('Invalid timestamp:', entry.timestamp, error);
       }
-      groupedEntries.get(key)!.push(entry);
     });
 
     // Process each employee-date group
     groupedEntries.forEach((dayEntries, key) => {
-      const [employee_id, date] = key.split('-');
+      const [employee_id, date] = key.split('|'); // Split by | instead of -
       const sortedEntries = dayEntries.sort((a, b) => 
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
@@ -413,7 +417,7 @@ export default function Reports() {
                     <div>
                       <div className="font-medium">{workDay.employee_name}</div>
                       <div className="text-sm text-muted-foreground">
-                        {format(parseISO(workDay.date), 'EEEE d MMMM yyyy', { locale: nb })}
+                        {workDay.date ? format(parseISO(workDay.date), 'EEEE d MMMM yyyy', { locale: nb }) : 'Invalid date'}
                       </div>
                       <div className="text-sm">
                         {workDay.punch_in && workDay.punch_out && (
@@ -511,7 +515,9 @@ export default function Reports() {
                         <div className="flex justify-between items-start">
                           <div>
                             <div className="font-medium">{warning.employee_name}</div>
-                            <div className="text-sm">{format(parseISO(warning.date), 'EEEE d MMMM yyyy', { locale: nb })}</div>
+                            <div className="text-sm">
+                              {warning.date ? format(parseISO(warning.date), 'EEEE d MMMM yyyy', { locale: nb }) : 'Invalid date'}
+                            </div>
                             <div className="text-sm mt-1">{warning.description}</div>
                           </div>
                           <Badge variant={getSeverityColor(warning.severity)}>
