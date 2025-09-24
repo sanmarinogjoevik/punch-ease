@@ -216,7 +216,7 @@ const Admin = () => {
     let value = e.target.value.replace(/\D/g, ''); // Remove all non-digits
     
     if (value.length > 6) {
-      value = value.slice(0, 6) + '-' + value.slice(6, 10);
+      value = value.slice(0, 6) + '-' + value.slice(6, 11); // Allow 5 digits after dash
     }
     
     setEmployeeForm(prev => ({ ...prev, personal_number: value }));
@@ -399,11 +399,11 @@ const Admin = () => {
                       <Label htmlFor="personal_number">Personnummer</Label>
                       <Input
                         id="personal_number"
-                        placeholder="XXXXXX-XXXX"
+                        placeholder="XXXXXX-XXXXX"
                         value={employeeForm.personal_number}
                         onChange={handlePersonalNumberChange}
-                        pattern="[0-9]{6}-[0-9]{4}"
-                        maxLength={11}
+                        pattern="[0-9]{6}-[0-9]{5}"
+                        maxLength={12}
                         required
                       />
                     </div>
