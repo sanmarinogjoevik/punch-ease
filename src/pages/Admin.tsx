@@ -267,24 +267,6 @@ const Admin = () => {
         </Card>
       </div>
 
-      {/* Snabbknappar */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Hurtigknapper</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" className="flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Legg til vakt
-            </Button>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Download className="w-4 h-4" />
-              Eksporter rapport
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Dagens pass med status (utan punch tracking) */}
       <Card>
