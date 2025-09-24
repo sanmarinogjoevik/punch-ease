@@ -227,51 +227,54 @@ const Admin = () => {
     setIsSubmitting(true);
 
     try {
-      // Create user in Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: employeeForm.email,
-        password: employeeForm.password,
-        options: {
-          data: {
-            first_name: employeeForm.first_name,
-            last_name: employeeForm.last_name,
-          }
-        }
+      // Get the current session token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
+
+      // Call our Edge Function to create the employee
+      const response = await fetch(`https://eynulvphjcojanzryfyi.supabase.co/functions/v1/create-employee`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          email: employeeForm.email,
+          password: employeeForm.password,
+          first_name: employeeForm.first_name,
+          last_name: employeeForm.last_name,
+          phone: employeeForm.phone,
+          personal_number: employeeForm.personal_number,
+        }),
       });
 
-      if (authError) throw authError;
+      const result = await response.json();
 
-      if (authData.user) {
-        // Update profile with additional information
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            phone: employeeForm.phone,
-            personal_number: employeeForm.personal_number
-          })
-          .eq('user_id', authData.user.id);
-
-        if (profileError) throw profileError;
-
-        toast({
-          title: "Framgång",
-          description: "Anställd har lagts till framgångsrikt",
-        });
-
-        // Reset form and close dialog
-        setEmployeeForm({
-          first_name: '',
-          last_name: '',
-          email: '',
-          phone: '',
-          personal_number: '',
-          password: ''
-        });
-        setShowAddEmployeeDialog(false);
-        
-        // Refresh employees list
-        queryClient.invalidateQueries({ queryKey: ['admin-employees'] });
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create employee');
       }
+
+      toast({
+        title: "Framgång",
+        description: "Anställd har lagts till framgångsrikt",
+      });
+
+      // Reset form and close dialog
+      setEmployeeForm({
+        first_name: '',
+        last_name: '',
+        email: '',
+        phone: '',
+        personal_number: '',
+        password: ''
+      });
+      setShowAddEmployeeDialog(false);
+      
+      // Refresh employees list
+      queryClient.invalidateQueries({ queryKey: ['admin-employees'] });
+
     } catch (error: any) {
       toast({
         title: "Fel",
