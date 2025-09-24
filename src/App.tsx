@@ -12,6 +12,7 @@ import Employees from "./pages/Employees";
 import Schedule from "./pages/Schedule";
 import TimeEntries from "./pages/TimeEntries";
 import EmployeeSchedule from "./pages/EmployeeSchedule";
+import Timeliste from "./pages/Timeliste";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -66,6 +67,7 @@ function AppRoutes() {
         <Route path="schedule" element={<Schedule />} />
         <Route path="my-schedule" element={<EmployeeSchedule />} />
         <Route path="timesheet" element={<TimeEntries />} />
+        <Route path="timeliste" element={<Timeliste />} />
         <Route path="employees" element={<Employees />} />
         <Route path="reports" element={<div className="text-center text-muted-foreground">Reports - Coming Soon</div>} />
       </Route>

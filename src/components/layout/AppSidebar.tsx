@@ -28,6 +28,7 @@ export function AppSidebar() {
     { title: 'Dashboard', url: '/', icon: Home },
     { title: 'My Schedule', url: '/my-schedule', icon: Calendar },
     { title: 'Time Entries', url: '/timesheet', icon: Clock },
+    { title: 'Timeliste', url: '/timeliste', icon: BarChart3 },
   ];
 
   const adminItems = [
