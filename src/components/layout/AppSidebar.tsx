@@ -26,7 +26,7 @@ export function AppSidebar() {
 
   const employeeItems = [
     { title: 'Dashboard', url: '/', icon: Home },
-    { title: 'My Schedule', url: '/schedule', icon: Calendar },
+    { title: 'My Schedule', url: '/my-schedule', icon: Calendar },
     { title: 'Time Entries', url: '/timesheet', icon: Clock },
   ];
 

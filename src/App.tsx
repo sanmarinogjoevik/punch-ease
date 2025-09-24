@@ -10,6 +10,8 @@ import Admin from "./pages/Admin";
 import Auth from "./pages/Auth";
 import Employees from "./pages/Employees";
 import Schedule from "./pages/Schedule";
+import TimeEntries from "./pages/TimeEntries";
+import EmployeeSchedule from "./pages/EmployeeSchedule";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,7 +64,8 @@ function AppRoutes() {
         <Route index element={<RoleBasedRedirect />} />
         <Route path="admin" element={<Admin />} />
         <Route path="schedule" element={<Schedule />} />
-        <Route path="timesheet" element={<div className="text-center text-muted-foreground">Timesheet - Coming Soon</div>} />
+        <Route path="my-schedule" element={<EmployeeSchedule />} />
+        <Route path="timesheet" element={<TimeEntries />} />
         <Route path="employees" element={<Employees />} />
         <Route path="reports" element={<div className="text-center text-muted-foreground">Reports - Coming Soon</div>} />
       </Route>
