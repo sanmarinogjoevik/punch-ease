@@ -113,86 +113,87 @@ const Employees = () => {
         </Badge>
       </div>
 
-      {/* Employees Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {employees?.map((employee) => {
-          const userRole = employee.user_roles?.[0]?.role;
-          const isAdmin = userRole === 'admin';
-          
-          return (
-            <Card key={employee.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+      {/* Employees List */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Alla anställda</CardTitle>
+          <CardDescription>Översikt över alla anställda och deras information</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {employees?.map((employee) => {
+              const userRole = employee.user_roles?.[0]?.role;
+              const isAdmin = userRole === 'admin';
+              
+              return (
+                <div key={employee.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                       <Users className="w-5 h-5 text-primary" />
                     </div>
-                    <div>
-                      <CardTitle className="text-lg">
-                        {employee.first_name} {employee.last_name}
-                      </CardTitle>
+                    
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-medium text-lg">
+                          {employee.first_name} {employee.last_name}
+                        </h3>
+                        <Badge variant={isAdmin ? 'default' : 'secondary'}>
+                          {isAdmin ? 'Admin' : 'Anställd'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Mail className="w-4 h-4" />
+                          <span>{employee.email}</span>
+                        </div>
+                        
+                        {employee.phone && (
+                          <div className="flex items-center gap-1">
+                            <Phone className="w-4 h-4" />
+                            <span>{employee.phone}</span>
+                          </div>
+                        )}
+                        
+                        {employee.personal_number && (
+                          <div className="flex items-center gap-1">
+                            <IdCard className="w-4 h-4" />
+                            <span>{employee.personal_number}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="text-xs text-muted-foreground">
+                        Medlem sedan: {new Date(employee.created_at).toLocaleDateString('sv-SE')}
+                      </div>
                     </div>
                   </div>
-                  <Badge variant={isAdmin ? 'default' : 'secondary'}>
-                    {isAdmin ? 'Admin' : 'Anställd'}
-                  </Badge>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="space-y-4">
-                {/* Contact Information */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Mail className="w-4 h-4 text-muted-foreground" />
-                    <span>{employee.email}</span>
+
+                  <div className="flex items-center gap-2">
+                    {!isAdmin && userRole === 'admin' && (
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => makeAdmin(employee.user_id)}
+                      >
+                        <UserCheck className="w-4 h-4 mr-2" />
+                        Gör till admin
+                      </Button>
+                    )}
+                    
+                    {isAdmin && (
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <UserCheck className="w-4 h-4 mr-1" />
+                        Administratör
+                      </div>
+                    )}
                   </div>
-                  
-                  {employee.phone && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Phone className="w-4 h-4 text-muted-foreground" />
-                      <span>{employee.phone}</span>
-                    </div>
-                  )}
-                  
-                  {employee.personal_number && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <IdCard className="w-4 h-4 text-muted-foreground" />
-                      <span>{employee.personal_number}</span>
-                    </div>
-                  )}
                 </div>
-
-                {/* Actions */}
-                <div className="pt-2 border-t">
-                  {!isAdmin && userRole === 'admin' && (
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => makeAdmin(employee.user_id)}
-                      className="w-full"
-                    >
-                      <UserCheck className="w-4 h-4 mr-2" />
-                      Gör till admin
-                    </Button>
-                  )}
-                  
-                  {isAdmin && (
-                    <div className="flex items-center justify-center text-sm text-muted-foreground">
-                      <UserCheck className="w-4 h-4 mr-1" />
-                      Administratör
-                    </div>
-                  )}
-                </div>
-
-                {/* Member since */}
-                <div className="text-xs text-muted-foreground">
-                  Medlem sedan: {new Date(employee.created_at).toLocaleDateString('sv-SE')}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {(!employees || employees.length === 0) && (
         <div className="text-center py-12">
