@@ -33,7 +33,7 @@ export function AppSidebar() {
 
   const adminItems = [
     { title: 'Admin', url: '/admin', icon: Shield },
-    { title: 'Turnusplan', url: '/schedule', icon: Calendar },
+    { title: 'Vaktliste', url: '/schedule', icon: Calendar },
     { title: 'Tidsregistrering', url: '/timesheet', icon: Clock },
     { title: 'Ansatte', url: '/employees', icon: Users },
     { title: 'Rapporter', url: '/reports', icon: BarChart3 },

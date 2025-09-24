@@ -250,7 +250,7 @@ const Schedule = () => {
           <CardHeader>
             <CardTitle className="text-destructive">Tilgang nektet</CardTitle>
             <CardDescription>
-              Du har ikke tillatelse til å få tilgang til turnusplanlegging.
+              Du har ikke tillatelse til å få tilgang til vaktlisten.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -269,7 +269,7 @@ const Schedule = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-        <h1 className="text-3xl font-bold">Timeplan</h1>
+        <h1 className="text-3xl font-bold">Vaktliste</h1>
         <p className="text-muted-foreground">Administrer vakter for de neste 4 ukene</p>
         </div>
         <div className="flex items-center gap-4">
