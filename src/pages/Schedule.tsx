@@ -272,9 +272,12 @@ const Schedule = () => {
           <h1 className="text-3xl font-bold">Schema</h1>
           <p className="text-muted-foreground">Hantera pass för de närmaste 4 veckorna</p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Calendar className="w-4 h-4" />
-          {format(scheduleStart, 'dd MMM', { locale: sv })} - {format(scheduleEnd, 'dd MMM yyyy', { locale: sv })}
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-muted-foreground">24h</span>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Calendar className="w-4 h-4" />
+            {format(scheduleStart, 'dd MMM', { locale: sv })} - {format(scheduleEnd, 'dd MMM yyyy', { locale: sv })}
+          </div>
         </div>
       </div>
 
@@ -288,52 +291,49 @@ const Schedule = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-7 gap-4">
+              <div className="grid grid-cols-4 gap-6">
                 {week.map((day) => {
                   const dayShifts = getShiftsForDate(day);
                   const isToday = format(day, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
                   const isPast = day < startOfDay(today);
                   
                   return (
-                    <div key={day.toISOString()} className={`border rounded-lg p-3 min-h-[120px] ${isToday ? 'border-primary bg-primary/5' : 'border-border'} ${isPast ? 'bg-muted/50' : ''}`}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <div className="font-medium text-sm">
-                            {format(day, 'EEE', { locale: sv })}
-                          </div>
-                          <div className={`text-lg ${isToday ? 'font-bold text-primary' : ''}`}>
-                            {format(day, 'd')}
-                          </div>
+                    <div 
+                      key={day.toISOString()} 
+                      className={`border rounded-lg p-4 min-h-[140px] cursor-pointer hover:bg-accent/50 transition-colors ${isToday ? 'border-primary bg-primary/5' : 'border-border'} ${isPast ? 'bg-muted/50 cursor-not-allowed' : ''}`}
+                      onClick={() => !isPast && handleCreateShift(day)}
+                    >
+                      <div className="mb-3">
+                        <div className="font-medium text-sm text-muted-foreground">
+                          {format(day, 'EEE', { locale: sv })}
                         </div>
-                        {!isPast && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleCreateShift(day)}
-                            className="h-6 w-6 p-0"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </Button>
-                        )}
+                        <div className={`text-xl font-semibold ${isToday ? 'text-primary' : ''}`}>
+                          {format(day, 'd')}
+                        </div>
                       </div>
                       
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         {dayShifts.map((shift) => (
-                          <div key={shift.id} className="bg-primary/10 border border-primary/20 rounded p-2 text-xs">
+                          <div 
+                            key={shift.id} 
+                            className="bg-primary/10 border border-primary/20 rounded p-2 text-xs hover:bg-primary/15 transition-colors group"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <div className="flex items-center justify-between mb-1">
-                              <div className="font-medium truncate">
+                              <div className="font-medium text-sm">
                                 {shift.profiles?.first_name} {shift.profiles?.last_name}
                               </div>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleDeleteShift(shift.id)}
-                                  className="h-4 w-4 p-0 text-red-600 hover:text-red-700"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
-                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteShift(shift.id);
+                                }}
+                                className="h-5 w-5 p-0 text-red-600 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
                             </div>
                             <div className="flex items-center gap-1 text-muted-foreground">
                               <Clock className="w-3 h-3" />
