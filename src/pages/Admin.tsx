@@ -212,6 +212,16 @@ const Admin = () => {
     }
   };
 
+  const handlePersonalNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, ''); // Remove all non-digits
+    
+    if (value.length > 6) {
+      value = value.slice(0, 6) + '-' + value.slice(6, 10);
+    }
+    
+    setEmployeeForm(prev => ({ ...prev, personal_number: value }));
+  };
+
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -389,10 +399,11 @@ const Admin = () => {
                       <Label htmlFor="personal_number">Personnummer</Label>
                       <Input
                         id="personal_number"
-                        placeholder="XXXXXX-XXXXX"
+                        placeholder="XXXXXX-XXXX"
                         value={employeeForm.personal_number}
-                        onChange={(e) => setEmployeeForm(prev => ({ ...prev, personal_number: e.target.value }))}
+                        onChange={handlePersonalNumberChange}
                         pattern="[0-9]{6}-[0-9]{4}"
+                        maxLength={11}
                         required
                       />
                     </div>
