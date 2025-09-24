@@ -291,7 +291,7 @@ const Schedule = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-4 gap-6">
+              <div className="grid grid-cols-7 gap-2">
                 {week.map((day) => {
                   const dayShifts = getShiftsForDate(day);
                   const isToday = format(day, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
@@ -300,27 +300,27 @@ const Schedule = () => {
                   return (
                     <div 
                       key={day.toISOString()} 
-                      className={`border rounded-lg p-4 min-h-[140px] cursor-pointer hover:bg-accent/50 transition-colors ${isToday ? 'border-primary bg-primary/5' : 'border-border'} ${isPast ? 'bg-muted/50 cursor-not-allowed' : ''}`}
+                      className={`border rounded-lg p-2 min-h-[100px] cursor-pointer hover:bg-accent/50 transition-colors ${isToday ? 'border-primary bg-primary/5' : 'border-border'} ${isPast ? 'bg-muted/50 cursor-not-allowed' : ''}`}
                       onClick={() => !isPast && handleCreateShift(day)}
                     >
-                      <div className="mb-3">
-                        <div className="font-medium text-sm text-muted-foreground">
+                      <div className="mb-2">
+                        <div className="font-medium text-xs text-muted-foreground">
                           {format(day, 'EEE', { locale: sv })}
                         </div>
-                        <div className={`text-xl font-semibold ${isToday ? 'text-primary' : ''}`}>
+                        <div className={`text-lg font-semibold ${isToday ? 'text-primary' : ''}`}>
                           {format(day, 'd')}
                         </div>
                       </div>
                       
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         {dayShifts.map((shift) => (
                           <div 
                             key={shift.id} 
-                            className="bg-primary/10 border border-primary/20 rounded p-2 text-xs hover:bg-primary/15 transition-colors group"
+                            className="bg-primary/10 border border-primary/20 rounded p-1 text-xs hover:bg-primary/15 transition-colors group"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="flex items-center justify-between mb-1">
-                              <div className="font-medium text-sm">
+                              <div className="font-medium text-xs truncate">
                                 {shift.profiles?.first_name} {shift.profiles?.last_name}
                               </div>
                               <Button
@@ -330,23 +330,17 @@ const Schedule = () => {
                                   e.stopPropagation();
                                   handleDeleteShift(shift.id);
                                 }}
-                                className="h-5 w-5 p-0 text-red-600 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="h-4 w-4 p-0 text-red-600 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
                               >
-                                <Trash2 className="w-3 h-3" />
+                                <Trash2 className="w-2 h-2" />
                               </Button>
                             </div>
                             <div className="flex items-center gap-1 text-muted-foreground">
-                              <Clock className="w-3 h-3" />
-                              <span>
+                              <Clock className="w-2 h-2" />
+                              <span className="text-xs">
                                 {format(parseISO(shift.start_time), 'HH:mm')} - {format(parseISO(shift.end_time), 'HH:mm')}
                               </span>
                             </div>
-                            {shift.location && (
-                              <div className="flex items-center gap-1 text-muted-foreground mt-1">
-                                <MapPin className="w-3 h-3" />
-                                <span className="truncate">{shift.location}</span>
-                              </div>
-                            )}
                           </div>
                         ))}
                       </div>
