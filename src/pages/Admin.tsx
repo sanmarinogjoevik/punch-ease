@@ -14,11 +14,10 @@ import {
   Download, 
   AlertCircle,
   CheckCircle,
-  XCircle,
   Timer,
   TrendingUp
 } from "lucide-react";
-import { format, isToday, parseISO, startOfDay, endOfDay } from "date-fns";
+import { format, parseISO, startOfDay, endOfDay } from "date-fns";
 import { sv } from "date-fns/locale";
 
 interface Profile {
@@ -32,19 +31,6 @@ interface Profile {
   user_roles: Array<{ role: string }>;
 }
 
-interface TimeEntry {
-  id: string;
-  employee_id: string;
-  entry_type: 'punch_in' | 'punch_out';
-  timestamp: string;
-  created_at: string;
-  profiles: {
-    first_name: string | null;
-    last_name: string | null;
-    email: string;
-  } | null;
-}
-
 interface Shift {
   id: string;
   employee_id: string;
@@ -53,16 +39,6 @@ interface Shift {
   location: string | null;
   notes: string | null;
   created_at: string;
-  profiles: {
-    first_name: string | null;
-    last_name: string | null;
-    email: string;
-  } | null;
-}
-
-interface ActiveEmployee {
-  employee_id: string;
-  punch_in_time: string;
   profiles: {
     first_name: string | null;
     last_name: string | null;
@@ -105,60 +81,6 @@ const Admin = () => {
     enabled: userRole === 'admin'
   });
 
-  // Fetch currently active employees (clocked in)
-  const { data: activeEmployees } = useQuery({
-    queryKey: ['admin-active-employees'],
-    queryFn: async () => {
-      const { data: entries, error } = await supabase
-        .from('time_entries')
-        .select('employee_id, timestamp, entry_type')
-        .order('timestamp', { ascending: false });
-      
-      if (error) throw error;
-
-      // Group by employee and find who's currently clocked in
-      const employeeStatus = new Map();
-      
-      entries.forEach(entry => {
-        if (!employeeStatus.has(entry.employee_id)) {
-          employeeStatus.set(entry.employee_id, {
-            employee_id: entry.employee_id,
-            last_action: entry.entry_type,
-            timestamp: entry.timestamp
-          });
-        }
-      });
-
-      // Filter only those who are clocked in
-      const activeEmployeeIds = Array.from(employeeStatus.values())
-        .filter(emp => emp.last_action === 'punch_in')
-        .map(emp => ({
-          employee_id: emp.employee_id,
-          punch_in_time: emp.timestamp
-        }));
-
-      // Get profile data for active employees
-      const activeWithProfiles = await Promise.all(
-        activeEmployeeIds.map(async (emp) => {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('first_name, last_name, email')
-            .eq('user_id', emp.employee_id)
-            .single();
-          
-          return {
-            ...emp,
-            profiles: profile
-          };
-        })
-      );
-      
-      return activeWithProfiles as ActiveEmployee[];
-    },
-    enabled: userRole === 'admin',
-    refetchInterval: 30000 // Refresh every 30 seconds
-  });
-
   // Fetch today's shifts
   const { data: todaysShifts } = useQuery({
     queryKey: ['admin-todays-shifts'],
@@ -194,8 +116,7 @@ const Admin = () => {
       
       return shiftsWithProfiles as Shift[];
     },
-    enabled: userRole === 'admin',
-    refetchInterval: 60000 // Refresh every minute
+    enabled: userRole === 'admin'
   });
 
   // Fetch this week's shifts
@@ -235,22 +156,18 @@ const Admin = () => {
     enabled: userRole === 'admin'
   });
 
-  // Calculate shift status
+  // Calculate shift status (simplified - no punch tracking)
   const getShiftStatus = (shift: Shift) => {
     const now = new Date();
     const shiftStart = parseISO(shift.start_time);
     const shiftEnd = parseISO(shift.end_time);
     
-    const isActive = activeEmployees?.some(emp => emp.employee_id === shift.employee_id);
-    
     if (now < shiftStart) {
       return { status: 'upcoming', icon: Timer, label: 'Ej startat' };
     } else if (now > shiftEnd) {
       return { status: 'completed', icon: CheckCircle, label: 'Avslutat' };
-    } else if (isActive) {
-      return { status: 'active', icon: CheckCircle, label: 'Inloggad' };
     } else {
-      return { status: 'missed', icon: XCircle, label: 'Missad punch' };
+      return { status: 'active', icon: Clock, label: 'Pågår' };
     }
   };
 
@@ -308,18 +225,8 @@ const Admin = () => {
         </Badge>
       </div>
 
-      {/* 1. Dagens översikt */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Inloggade nu</CardTitle>
-            <Users className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{activeEmployees?.length || 0}</div>
-          </CardContent>
-        </Card>
-
+      {/* Dagens översikt - utan punch tracking */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Planerade pass idag</CardTitle>
@@ -351,7 +258,7 @@ const Admin = () => {
         </Card>
       </div>
 
-      {/* 2. Snabbknappar */}
+      {/* Snabbknappar */}
       <Card>
         <CardHeader>
           <CardTitle>Snabbknappar</CardTitle>
@@ -374,41 +281,7 @@ const Admin = () => {
         </CardContent>
       </Card>
 
-      {/* Aktiva anställda just nu */}
-      {activeEmployees && activeEmployees.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              Aktiva pass just nu
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {activeEmployees.map((emp) => (
-                <div key={emp.employee_id} className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <div>
-                    <p className="font-medium">
-                      {emp.profiles?.first_name} {emp.profiles?.last_name}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{emp.profiles?.email}</p>
-                  </div>
-                  <div className="text-right">
-                    <Badge variant="default" className="bg-green-600">
-                      Inloggad
-                    </Badge>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Sedan {format(parseISO(emp.punch_in_time), 'HH:mm', { locale: sv })}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Dagens pass med status */}
+      {/* Dagens pass med status (utan punch tracking) */}
       <Card>
         <CardHeader>
           <CardTitle>Dagens pass</CardTitle>
@@ -421,7 +294,6 @@ const Admin = () => {
               const statusColors = {
                 upcoming: 'text-blue-600 bg-blue-50 border-blue-200',
                 active: 'text-green-600 bg-green-50 border-green-200',
-                missed: 'text-red-600 bg-red-50 border-red-200',
                 completed: 'text-gray-600 bg-gray-50 border-gray-200'
               };
               
@@ -452,7 +324,7 @@ const Admin = () => {
         </CardContent>
       </Card>
 
-      {/* 3. Vaktlista för veckan */}
+      {/* Vaktlista för veckan */}
       <Card>
         <CardHeader>
           <CardTitle>Veckans pass</CardTitle>
@@ -480,7 +352,7 @@ const Admin = () => {
         </CardContent>
       </Card>
 
-      {/* 4. Anställda med roller */}
+      {/* Anställda med roller */}
       <Card>
         <CardHeader>
           <CardTitle>Anställda</CardTitle>
@@ -521,7 +393,7 @@ const Admin = () => {
         </CardContent>
       </Card>
 
-      {/* 5. Notiser & varningar */}
+      {/* Notiser & varningar */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -531,7 +403,6 @@ const Admin = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {/* Placeholder för varningar */}
             <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded text-yellow-800">
               <AlertCircle className="w-4 h-4" />
               <span className="text-sm">Inga varningar för tillfället</span>
@@ -540,7 +411,7 @@ const Admin = () => {
         </CardContent>
       </Card>
 
-      {/* 6. Veckans statistik */}
+      {/* Veckans statistik */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
