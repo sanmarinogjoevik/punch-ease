@@ -153,59 +153,83 @@ export default function Reports() {
   const processTimeEntriesToWorkDays = (entries: TimeEntry[]): WorkDay[] => {
     const workDayMap = new Map<string, WorkDay>();
 
+    // Group entries by employee and date
+    const groupedEntries = new Map<string, TimeEntry[]>();
+    
     entries.forEach(entry => {
       const date = format(parseISO(entry.timestamp), 'yyyy-MM-dd');
       const key = `${entry.employee_id}-${date}`;
       
-      if (!workDayMap.has(key)) {
-        workDayMap.set(key, {
-          date,
-          employee_id: entry.employee_id,
-          employee_name: `${entry.profiles.first_name} ${entry.profiles.last_name}`,
-          personal_number: entry.profiles.personal_number || '',
-          total_hours: 0,
-          punch_in: null,
-          punch_out: null,
-          overtime_hours: 0,
-          rest_period_hours: 0,
-          breaks_taken: 0,
-          compliance_issues: []
-        });
+      if (!groupedEntries.has(key)) {
+        groupedEntries.set(key, []);
       }
-
-      const workDay = workDayMap.get(key)!;
-      
-      if (entry.entry_type === 'punch_in') {
-        if (!workDay.punch_in) {
-          workDay.punch_in = entry.timestamp;
-        }
-      } else if (entry.entry_type === 'punch_out') {
-        workDay.punch_out = entry.timestamp;
-      }
+      groupedEntries.get(key)!.push(entry);
     });
 
-    // Calculate work hours and compliance issues
-    workDayMap.forEach(workDay => {
-      if (workDay.punch_in && workDay.punch_out) {
-        const totalHours = differenceInHours(parseISO(workDay.punch_out), parseISO(workDay.punch_in));
-        workDay.total_hours = totalHours;
+    // Process each employee-date group
+    groupedEntries.forEach((dayEntries, key) => {
+      const [employee_id, date] = key.split('-');
+      const sortedEntries = dayEntries.sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
 
-        // Check for daily overtime (over 9 hours)
-        if (totalHours > 9) {
-          workDay.overtime_hours = totalHours - 9;
-          workDay.compliance_issues.push('Övertid över 9 timmar per dag');
-        }
+      // Calculate total hours by pairing punch_in with punch_out
+      let totalMinutes = 0;
+      let sessions = 0;
+      let firstPunchIn: string | null = null;
+      let lastPunchOut: string | null = null;
+      let currentPunchIn: string | null = null;
 
-        // Check for excessive daily hours (over 13 hours)
-        if (totalHours > 13) {
-          workDay.compliance_issues.push('Överskrider maximal arbetstid (13 timmar)');
-        }
-
-        // Check for insufficient breaks (should have 30 min break for work over 5.5 hours)
-        if (totalHours > 5.5) {
-          workDay.compliance_issues.push('Ingen registrerad paus för arbetsdag över 5,5 timmar');
+      for (const entry of sortedEntries) {
+        if (entry.entry_type === 'punch_in') {
+          currentPunchIn = entry.timestamp;
+          if (!firstPunchIn) {
+            firstPunchIn = entry.timestamp;
+          }
+        } else if (entry.entry_type === 'punch_out' && currentPunchIn) {
+          // Calculate minutes for this session
+          const sessionMinutes = Math.round(
+            (new Date(entry.timestamp).getTime() - new Date(currentPunchIn).getTime()) / (1000 * 60)
+          );
+          totalMinutes += sessionMinutes;
+          sessions++;
+          lastPunchOut = entry.timestamp;
+          currentPunchIn = null;
         }
       }
+
+      const totalHours = totalMinutes / 60;
+      const workDay: WorkDay = {
+        date,
+        employee_id,
+        employee_name: `${sortedEntries[0].profiles.first_name} ${sortedEntries[0].profiles.last_name}`,
+        personal_number: sortedEntries[0].profiles.personal_number || '',
+        total_hours: Math.round(totalHours * 100) / 100, // Round to 2 decimals
+        punch_in: firstPunchIn,
+        punch_out: lastPunchOut,
+        overtime_hours: 0,
+        rest_period_hours: 0,
+        breaks_taken: sessions,
+        compliance_issues: []
+      };
+
+      // Check for daily overtime (over 9 hours)
+      if (totalHours > 9) {
+        workDay.overtime_hours = totalHours - 9;
+        workDay.compliance_issues.push('Övertid över 9 timmar per dag');
+      }
+
+      // Check for excessive daily hours (over 13 hours)
+      if (totalHours > 13) {
+        workDay.compliance_issues.push('Överskrider maximal arbetstid (13 timmar)');
+      }
+
+      // Check for insufficient breaks (should have 30 min break for work over 5.5 hours)
+      if (totalHours > 5.5 && sessions < 2) {
+        workDay.compliance_issues.push('Ingen registrerad paus för arbetsdag över 5,5 timmar');
+      }
+
+      workDayMap.set(key, workDay);
     });
 
     return Array.from(workDayMap.values()).sort((a, b) => b.date.localeCompare(a.date));
