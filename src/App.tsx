@@ -30,6 +30,24 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function RoleBasedRedirect() {
+  const { userRole, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-lg text-foreground">Loading...</div>
+      </div>
+    );
+  }
+  
+  if (userRole === 'admin') {
+    return <Navigate to="/admin" replace />;
+  }
+  
+  return <Dashboard />;
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -39,7 +57,7 @@ function AppRoutes() {
           <AppLayout />
         </ProtectedRoute>
       }>
-        <Route index element={<Dashboard />} />
+        <Route index element={<RoleBasedRedirect />} />
         <Route path="admin" element={<Admin />} />
         <Route path="schedule" element={<div className="text-center text-muted-foreground">Schedule - Coming Soon</div>} />
         <Route path="timesheet" element={<div className="text-center text-muted-foreground">Timesheet - Coming Soon</div>} />

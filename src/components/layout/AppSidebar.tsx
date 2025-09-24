@@ -31,7 +31,6 @@ export function AppSidebar() {
   ];
 
   const adminItems = [
-    { title: 'Dashboard', url: '/', icon: Home },
     { title: 'Admin', url: '/admin', icon: Shield },
     { title: 'Schedule', url: '/schedule', icon: Calendar },
     { title: 'Time Entries', url: '/timesheet', icon: Clock },
