@@ -16,7 +16,8 @@ interface Shift {
 
 export default function EmployeeSchedule() {
   const { user } = useAuth();
-  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [upcomingShifts, setUpcomingShifts] = useState<Shift[]>([]);
+  const [pastShifts, setPastShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,19 +28,37 @@ export default function EmployeeSchedule() {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
+      // Fetch upcoming shifts
+      const { data: upcomingData, error: upcomingError } = await supabase
         .from('shifts')
         .select('*')
         .eq('employee_id', user.id)
         .gte('end_time', new Date().toISOString())
         .order('start_time', { ascending: true });
 
-      if (error) {
-        console.error('Error fetching shifts:', error);
-        return;
+      if (upcomingError) {
+        console.error('Error fetching upcoming shifts:', upcomingError);
+      } else {
+        setUpcomingShifts(upcomingData || []);
       }
 
-      setShifts(data || []);
+      // Fetch past shifts (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const { data: pastData, error: pastError } = await supabase
+        .from('shifts')
+        .select('*')
+        .eq('employee_id', user.id)
+        .lt('end_time', new Date().toISOString())
+        .gte('start_time', thirtyDaysAgo.toISOString())
+        .order('start_time', { ascending: false });
+
+      if (pastError) {
+        console.error('Error fetching past shifts:', pastError);
+      } else {
+        setPastShifts(pastData || []);
+      }
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -47,8 +66,12 @@ export default function EmployeeSchedule() {
     }
   };
 
-  const getShiftBadge = (startTime: string) => {
+  const getShiftBadge = (startTime: string, isPast = false) => {
     const date = parseISO(startTime);
+    
+    if (isPast) {
+      return <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200">Completed</Badge>;
+    }
     
     if (isToday(date)) {
       return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Today</Badge>;
@@ -83,64 +106,89 @@ export default function EmployeeSchedule() {
     );
   }
 
+  const renderShiftCard = (shift: Shift, isPast = false) => (
+    <Card key={shift.id}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">
+            {format(parseISO(shift.start_time), 'EEEE, MMMM dd, yyyy')}
+          </CardTitle>
+          {getShiftBadge(shift.start_time, isPast)}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">
+              {formatShiftTime(shift.start_time, shift.end_time)}
+            </span>
+            <Badge variant="outline" className="ml-2">
+              {formatShiftDuration(shift.start_time, shift.end_time)}
+            </Badge>
+          </div>
+        </div>
+
+        {shift.location && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <MapPin className="h-4 w-4" />
+            <span>{shift.location}</span>
+          </div>
+        )}
+
+        {shift.notes && (
+          <div className="text-sm text-muted-foreground">
+            <strong>Notes:</strong> {shift.notes}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center gap-2">
         <Calendar className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">My Schedule</h1>
       </div>
 
-      {shifts.length === 0 ? (
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center text-muted-foreground">
-              <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No upcoming shifts scheduled.</p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4">
-          {shifts.map((shift) => (
-            <Card key={shift.id}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">
-                    {format(parseISO(shift.start_time), 'EEEE, MMMM dd, yyyy')}
-                  </CardTitle>
-                  {getShiftBadge(shift.start_time)}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">
-                      {formatShiftTime(shift.start_time, shift.end_time)}
-                    </span>
-                    <Badge variant="outline" className="ml-2">
-                      {formatShiftDuration(shift.start_time, shift.end_time)}
-                    </Badge>
-                  </div>
-                </div>
+      {/* Upcoming Shifts */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold">Upcoming Shifts</h2>
+        {upcomingShifts.length === 0 ? (
+          <Card>
+            <CardContent className="py-8">
+              <div className="text-center text-muted-foreground">
+                <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>No upcoming shifts scheduled.</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4">
+            {upcomingShifts.map((shift) => renderShiftCard(shift, false))}
+          </div>
+        )}
+      </div>
 
-                {shift.location && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <MapPin className="h-4 w-4" />
-                    <span>{shift.location}</span>
-                  </div>
-                )}
-
-                {shift.notes && (
-                  <div className="text-sm text-muted-foreground">
-                    <strong>Notes:</strong> {shift.notes}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      {/* Work History */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold">Work History (Last 30 Days)</h2>
+        {pastShifts.length === 0 ? (
+          <Card>
+            <CardContent className="py-8">
+              <div className="text-center text-muted-foreground">
+                <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>No work history found for the last 30 days.</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4">
+            {pastShifts.map((shift) => renderShiftCard(shift, true))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
