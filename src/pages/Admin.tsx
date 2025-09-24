@@ -1,10 +1,14 @@
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useState } from "react";
 import { 
   Users, 
   Clock, 
@@ -26,6 +30,8 @@ interface Profile {
   first_name: string | null;
   last_name: string | null;
   email: string;
+  phone: string | null;
+  personal_number: string | null;
   created_at: string;
   updated_at: string;
   user_roles: Array<{ role: string }>;
@@ -49,6 +55,19 @@ interface Shift {
 const Admin = () => {
   const { user, userRole } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Add Employee Dialog State
+  const [showAddEmployeeDialog, setShowAddEmployeeDialog] = useState(false);
+  const [employeeForm, setEmployeeForm] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    personal_number: '',
+    password: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch all profiles/employees
   const { data: employees } = useQuery({
@@ -193,6 +212,67 @@ const Admin = () => {
     }
   };
 
+  const handleAddEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      // Create user in Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: employeeForm.email,
+        password: employeeForm.password,
+        options: {
+          data: {
+            first_name: employeeForm.first_name,
+            last_name: employeeForm.last_name,
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        // Update profile with additional information
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            phone: employeeForm.phone,
+            personal_number: employeeForm.personal_number
+          })
+          .eq('user_id', authData.user.id);
+
+        if (profileError) throw profileError;
+
+        toast({
+          title: "Framgång",
+          description: "Anställd har lagts till framgångsrikt",
+        });
+
+        // Reset form and close dialog
+        setEmployeeForm({
+          first_name: '',
+          last_name: '',
+          email: '',
+          phone: '',
+          personal_number: '',
+          password: ''
+        });
+        setShowAddEmployeeDialog(false);
+        
+        // Refresh employees list
+        queryClient.invalidateQueries({ queryKey: ['admin-employees'] });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Fel",
+        description: error.message || "Kunde inte lägga till anställd",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (userRole !== 'admin') {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -269,10 +349,93 @@ const Admin = () => {
               <Plus className="w-4 h-4" />
               Lägg till pass
             </Button>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Lägg till anställd
-            </Button>
+            <Dialog open={showAddEmployeeDialog} onOpenChange={setShowAddEmployeeDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  Lägg till anställd
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Lägg till ny anställd</DialogTitle>
+                  <DialogDescription>
+                    Fyll i informationen nedan för att lägga till en ny anställd.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleAddEmployee}>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="first_name">Förnamn</Label>
+                        <Input
+                          id="first_name"
+                          value={employeeForm.first_name}
+                          onChange={(e) => setEmployeeForm(prev => ({ ...prev, first_name: e.target.value }))}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="last_name">Efternamn</Label>
+                        <Input
+                          id="last_name"
+                          value={employeeForm.last_name}
+                          onChange={(e) => setEmployeeForm(prev => ({ ...prev, last_name: e.target.value }))}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="personal_number">Personnummer</Label>
+                      <Input
+                        id="personal_number"
+                        placeholder="XXXXXX-XXXXX"
+                        value={employeeForm.personal_number}
+                        onChange={(e) => setEmployeeForm(prev => ({ ...prev, personal_number: e.target.value }))}
+                        pattern="[0-9]{6}-[0-9]{4}"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Telefon</Label>
+                      <Input
+                        id="phone"
+                        type="tel"
+                        value={employeeForm.phone}
+                        onChange={(e) => setEmployeeForm(prev => ({ ...prev, phone: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">E-post</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={employeeForm.email}
+                        onChange={(e) => setEmployeeForm(prev => ({ ...prev, email: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Lösenord</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={employeeForm.password}
+                        onChange={(e) => setEmployeeForm(prev => ({ ...prev, password: e.target.value }))}
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? 'Lägger till...' : 'Lägg till anställd'}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
             <Button variant="outline" className="flex items-center gap-2">
               <Download className="w-4 h-4" />
               Exportera rapport
