@@ -13,6 +13,7 @@ import Schedule from "./pages/Schedule";
 import TimeEntries from "./pages/TimeEntries";
 import EmployeeSchedule from "./pages/EmployeeSchedule";
 import Timeliste from "./pages/Timeliste";
+import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -69,7 +70,7 @@ function AppRoutes() {
         <Route path="timesheet" element={<TimeEntries />} />
         <Route path="timeliste" element={<Timeliste />} />
         <Route path="employees" element={<Employees />} />
-        <Route path="reports" element={<div className="text-center text-muted-foreground">Rapporter - Kommer snart</div>} />
+        <Route path="reports" element={<Reports />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
