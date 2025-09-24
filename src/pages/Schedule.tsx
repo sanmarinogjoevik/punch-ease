@@ -44,14 +44,12 @@ const Schedule = () => {
   // Create Shift Dialog State
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [shiftForm, setShiftForm] = useState({
-    employee_id: '',
-    date: '',
-    start_time: '',
-    end_time: '',
-    location: '',
-    notes: ''
-  });
+  const [employeeShifts, setEmployeeShifts] = useState<Array<{
+    employee_id: string;
+    start_time: string;
+    end_time: string;
+    hours: number;
+  }>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Date range for 4 weeks ahead
@@ -113,45 +111,93 @@ const Schedule = () => {
     },
   });
 
+  const calculateHours = (startTime: string, endTime: string): number => {
+    const start = new Date(`2000-01-01T${startTime}:00`);
+    const end = new Date(`2000-01-01T${endTime}:00`);
+    const diffMs = end.getTime() - start.getTime();
+    return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10; // Round to 1 decimal
+  };
+
   const handleCreateShift = (date: Date) => {
     setSelectedDate(date);
-    setShiftForm({
-      employee_id: '',
-      date: format(date, 'yyyy-MM-dd'),
-      start_time: '09:00',
-      end_time: '17:00',
-      location: '',
-      notes: ''
-    });
+    setEmployeeShifts([]);
     setShowCreateDialog(true);
   };
 
-  const handleSubmitShift = async (e: React.FormEvent) => {
+  const addEmployeeShift = () => {
+    setEmployeeShifts(prev => [...prev, {
+      employee_id: '',
+      start_time: '09:00',
+      end_time: '17:00',
+      hours: 8
+    }]);
+  };
+
+  const updateEmployeeShift = (index: number, field: string, value: string) => {
+    setEmployeeShifts(prev => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        [field]: value
+      };
+      
+      // Recalculate hours if times changed
+      if (field === 'start_time' || field === 'end_time') {
+        updated[index].hours = calculateHours(updated[index].start_time, updated[index].end_time);
+      }
+      
+      return updated;
+    });
+  };
+
+  const removeEmployeeShift = (index: number) => {
+    setEmployeeShifts(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmitShifts = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedDate) return;
+    
     setIsSubmitting(true);
 
     try {
-      const startDateTime = new Date(`${shiftForm.date}T${shiftForm.start_time}:00`);
-      const endDateTime = new Date(`${shiftForm.date}T${shiftForm.end_time}:00`);
+      const shiftsToCreate = employeeShifts
+        .filter(shift => shift.employee_id && shift.start_time && shift.end_time)
+        .map(shift => {
+          const startDateTime = new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${shift.start_time}:00`);
+          const endDateTime = new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${shift.end_time}:00`);
+          
+          return {
+            employee_id: shift.employee_id,
+            start_time: startDateTime.toISOString(),
+            end_time: endDateTime.toISOString(),
+            location: null,
+            notes: null
+          };
+        });
+
+      if (shiftsToCreate.length === 0) {
+        toast({
+          title: "Fel",
+          description: "Lägg till minst ett pass med anställd och tider",
+          variant: "destructive",
+        });
+        return;
+      }
 
       const { error } = await supabase
         .from('shifts')
-        .insert({
-          employee_id: shiftForm.employee_id,
-          start_time: startDateTime.toISOString(),
-          end_time: endDateTime.toISOString(),
-          location: shiftForm.location || null,
-          notes: shiftForm.notes || null
-        });
+        .insert(shiftsToCreate);
 
       if (error) throw error;
 
       toast({
         title: "Framgång",
-        description: "Pass har skapats framgångsrikt",
+        description: `${shiftsToCreate.length} pass har skapats framgångsrikt`,
       });
 
       setShowCreateDialog(false);
+      setEmployeeShifts([]);
       queryClient.invalidateQueries({ queryKey: ['schedule-shifts'] });
 
     } catch (error: any) {
@@ -313,83 +359,115 @@ const Schedule = () => {
         ))}
       </div>
 
-      {/* Create Shift Dialog */}
+      {/* Create Shifts Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Skapa nytt pass</DialogTitle>
+            <DialogTitle>Lägg till pass</DialogTitle>
             <DialogDescription>
-              Lägg till ett nytt pass för {selectedDate && format(selectedDate, 'EEEE d MMMM', { locale: sv })}.
+              Lägg till pass för {selectedDate && format(selectedDate, 'EEEE d MMMM', { locale: sv })}.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmitShift}>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="employee">Anställd</Label>
-                <Select value={shiftForm.employee_id} onValueChange={(value) => setShiftForm(prev => ({ ...prev, employee_id: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Välj anställd" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees?.map((employee) => (
-                      <SelectItem key={employee.user_id} value={employee.user_id}>
-                        {employee.first_name} {employee.last_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          
+          <div className="max-h-[400px] overflow-y-auto">
+            <div className="space-y-4">
+              {employeeShifts.map((shift, index) => {
+                const employee = employees?.find(e => e.user_id === shift.employee_id);
+                return (
+                  <div key={index} className="border rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">Pass {index + 1}</h4>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeEmployeeShift(index)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    
+                    <div className="grid gap-3">
+                      <div>
+                        <Label>Anställd</Label>
+                        <Select 
+                          value={shift.employee_id} 
+                          onValueChange={(value) => updateEmployeeShift(index, 'employee_id', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Välj anställd" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {employees?.map((employee) => (
+                              <SelectItem key={employee.user_id} value={employee.user_id}>
+                                {employee.first_name} {employee.last_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <Label htmlFor={`start-${index}`}>Från</Label>
+                          <Input
+                            id={`start-${index}`}
+                            type="time"
+                            value={shift.start_time}
+                            onChange={(e) => updateEmployeeShift(index, 'start_time', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor={`end-${index}`}>Till</Label>
+                          <Input
+                            id={`end-${index}`}
+                            type="time"
+                            value={shift.end_time}
+                            onChange={(e) => updateEmployeeShift(index, 'end_time', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <Label>Timmar</Label>
+                          <div className="h-10 flex items-center px-3 py-2 border rounded-md bg-muted">
+                            <span className="font-medium">{shift.hours}h</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {employee && (
+                        <div className="text-sm text-muted-foreground">
+                          {employee.first_name} {employee.last_name} • {shift.start_time} - {shift.end_time} • {shift.hours} timmar
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="start_time">Starttid</Label>
-                  <Input
-                    id="start_time"
-                    type="time"
-                    value={shiftForm.start_time}
-                    onChange={(e) => setShiftForm(prev => ({ ...prev, start_time: e.target.value }))}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="end_time">Sluttid</Label>
-                  <Input
-                    id="end_time"
-                    type="time"
-                    value={shiftForm.end_time}
-                    onChange={(e) => setShiftForm(prev => ({ ...prev, end_time: e.target.value }))}
-                    required
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="location">Plats (valfritt)</Label>
-                <Input
-                  id="location"
-                  value={shiftForm.location}
-                  onChange={(e) => setShiftForm(prev => ({ ...prev, location: e.target.value }))}
-                  placeholder="t.ex. Lager, Reception, Kök"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="notes">Anteckningar (valfritt)</Label>
-                <Textarea
-                  id="notes"
-                  value={shiftForm.notes}
-                  onChange={(e) => setShiftForm(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Extra information om passet"
-                  rows={3}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={isSubmitting || !shiftForm.employee_id}>
-                {isSubmitting ? 'Skapar...' : 'Skapa pass'}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addEmployeeShift}
+                className="w-full"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Lägg till anställd
               </Button>
-            </DialogFooter>
-          </form>
+            </div>
+          </div>
+          
+          <DialogFooter className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Totalt: {employeeShifts.reduce((total, shift) => total + shift.hours, 0)} timmar
+            </div>
+            <Button 
+              onClick={handleSubmitShifts} 
+              disabled={isSubmitting || employeeShifts.length === 0}
+            >
+              {isSubmitting ? 'Skapar...' : `Skapa ${employeeShifts.length} pass`}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
