@@ -1,4 +1,4 @@
-import { Home, Calendar, Clock, Users, BarChart3 } from 'lucide-react';
+import { Home, Calendar, Clock, Users, BarChart3, Shield } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Sidebar,
@@ -32,6 +32,7 @@ export function AppSidebar() {
 
   const adminItems = [
     { title: 'Dashboard', url: '/', icon: Home },
+    { title: 'Admin', url: '/admin', icon: Shield },
     { title: 'Schedule', url: '/schedule', icon: Calendar },
     { title: 'Time Entries', url: '/timesheet', icon: Clock },
     { title: 'Employees', url: '/employees', icon: Users },

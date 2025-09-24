@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { AppLayout } from "./components/layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
+import Admin from "./pages/Admin";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -39,6 +40,7 @@ function AppRoutes() {
         </ProtectedRoute>
       }>
         <Route index element={<Dashboard />} />
+        <Route path="admin" element={<Admin />} />
         <Route path="schedule" element={<div className="text-center text-muted-foreground">Schedule - Coming Soon</div>} />
         <Route path="timesheet" element={<div className="text-center text-muted-foreground">Timesheet - Coming Soon</div>} />
         <Route path="employees" element={<div className="text-center text-muted-foreground">Employees - Coming Soon</div>} />
