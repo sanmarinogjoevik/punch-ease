@@ -8,14 +8,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Auth() {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, user } = useAuth();
   const { toast } = useToast();
 
   // Redirect if already authenticated
@@ -28,32 +25,13 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      let result;
-      if (isLogin) {
-        result = await signIn(email, password);
-      } else {
-        if (!firstName || !lastName) {
-          toast({
-            title: 'Error',
-            description: 'Please fill in all fields',
-            variant: 'destructive',
-          });
-          setLoading(false);
-          return;
-        }
-        result = await signUp(email, password, firstName, lastName);
-      }
+      const result = await signIn(email, password);
 
       if (result.error) {
         toast({
           title: 'Error',
           description: result.error.message,
           variant: 'destructive',
-        });
-      } else if (!isLogin) {
-        toast({
-          title: 'Success',
-          description: 'Account created! Please check your email to verify your account.',
         });
       }
     } catch (error) {
@@ -72,44 +50,14 @@ export default function Auth() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">
-            {isLogin ? 'Sign In' : 'Create Account'}
+            Sign In
           </CardTitle>
           <CardDescription>
-            {isLogin 
-              ? 'Welcome back to PunchEase' 
-              : 'Join your restaurant team'
-            }
+            Welcome back to PunchEase
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name</Label>
-                    <Input
-                      id="firstName"
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      required={!isLogin}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input
-                      id="lastName"
-                      type="text"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      required={!isLogin}
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-            
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -133,22 +81,9 @@ export default function Auth() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Loading...' : (isLogin ? 'Sign In' : 'Create Account')}
+              {loading ? 'Loading...' : 'Sign In'}
             </Button>
           </form>
-
-          <div className="mt-6 text-center">
-            <Button 
-              variant="ghost" 
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm"
-            >
-              {isLogin 
-                ? "Don't have an account? Sign up" 
-                : "Already have an account? Sign in"
-              }
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>
