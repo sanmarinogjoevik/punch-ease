@@ -3,8 +3,15 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { format, isToday, isTomorrow, isThisWeek, parseISO } from 'date-fns';
-import { Calendar, Clock, MapPin } from 'lucide-react';
+import { format, isToday, isTomorrow, isThisWeek, parseISO, isSameDay } from 'date-fns';
+import { Calendar, Clock, MapPin, Users } from 'lucide-react';
+
+interface Coworker {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+}
 
 interface Shift {
   id: string;
@@ -12,6 +19,7 @@ interface Shift {
   end_time: string;
   location: string | null;
   notes: string | null;
+  coworkers?: Coworker[];
 }
 
 export default function EmployeeSchedule() {
@@ -39,7 +47,13 @@ export default function EmployeeSchedule() {
       if (upcomingError) {
         console.error('Error fetching upcoming shifts:', upcomingError);
       } else {
-        setUpcomingShifts(upcomingData || []);
+        const shiftsWithCoworkers = await Promise.all(
+          (upcomingData || []).map(async (shift) => {
+            const coworkers = await fetchCoworkersForShift(shift);
+            return { ...shift, coworkers };
+          })
+        );
+        setUpcomingShifts(shiftsWithCoworkers);
       }
 
       // Fetch past shifts (last 30 days)
@@ -57,13 +71,60 @@ export default function EmployeeSchedule() {
       if (pastError) {
         console.error('Error fetching past shifts:', pastError);
       } else {
-        setPastShifts(pastData || []);
+        const shiftsWithCoworkers = await Promise.all(
+          (pastData || []).map(async (shift) => {
+            const coworkers = await fetchCoworkersForShift(shift);
+            return { ...shift, coworkers };
+          })
+        );
+        setPastShifts(shiftsWithCoworkers);
       }
     } catch (error) {
       console.error('Error:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchCoworkersForShift = async (shift: Omit<Shift, 'coworkers'>) => {
+    const shiftDate = parseISO(shift.start_time);
+    
+    // Find other employees working on the same day
+    const { data: coworkerShifts, error } = await supabase
+      .from('shifts')
+      .select(`
+        employee_id,
+        profiles:employee_id (
+          id,
+          first_name,
+          last_name,
+          email
+        )
+      `)
+      .neq('employee_id', user!.id)
+      .gte('start_time', format(shiftDate, 'yyyy-MM-dd') + 'T00:00:00.000Z')
+      .lt('start_time', format(shiftDate, 'yyyy-MM-dd') + 'T23:59:59.999Z');
+
+    if (error) {
+      console.error('Error fetching coworkers:', error);
+      return [];
+    }
+
+    // Extract unique coworkers
+    const uniqueCoworkers = coworkerShifts?.reduce((acc: Coworker[], shift) => {
+      const profile = shift.profiles as any;
+      if (profile && !acc.find(c => c.id === profile.id)) {
+        acc.push({
+          id: profile.id,
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          email: profile.email,
+        });
+      }
+      return acc;
+    }, []) || [];
+
+    return uniqueCoworkers;
   };
 
   const getShiftBadge = (startTime: string, isPast = false) => {
@@ -133,6 +194,26 @@ export default function EmployeeSchedule() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <MapPin className="h-4 w-4" />
             <span>{shift.location}</span>
+          </div>
+        )}
+
+        {shift.coworkers && shift.coworkers.length > 0 && (
+          <div className="flex items-start gap-2 text-sm text-muted-foreground">
+            <Users className="h-4 w-4 mt-0.5" />
+            <div>
+              <div className="font-medium text-foreground mb-1">Working with:</div>
+              <div className="space-y-1">
+                {shift.coworkers.map((coworker) => (
+                  <div key={coworker.id} className="flex items-center gap-2">
+                    <span>
+                      {coworker.first_name && coworker.last_name
+                        ? `${coworker.first_name} ${coworker.last_name}`
+                        : coworker.email}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
