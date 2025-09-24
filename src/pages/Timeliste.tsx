@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format, parseISO, startOfDay, endOfDay } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { nb } from 'date-fns/locale';
 import { Clock, Calendar } from 'lucide-react';
 
 interface TimeEntry {
@@ -110,17 +110,17 @@ export default function Timeliste() {
   };
 
   const formatTime = (timestamp: string) => {
-    return format(parseISO(timestamp), 'HH:mm', { locale: sv });
+    return format(parseISO(timestamp), 'HH:mm', { locale: nb });
   };
 
   const formatDate = (dateString: string) => {
-    return format(parseISO(dateString), 'EEEE d MMMM yyyy', { locale: sv });
+    return format(parseISO(dateString), 'EEEE d MMMM yyyy', { locale: nb });
   };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-lg text-foreground">Laddar timeliste...</div>
+        <div className="text-lg text-foreground">Laster timeliste...</div>
       </div>
     );
   }
@@ -138,7 +138,7 @@ export default function Timeliste() {
             <CardContent className="p-8 text-center">
               <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-lg text-muted-foreground">
-                Inga arbetsdagar registrerade ännu.
+                Ingen arbeidsdager registrert ennå.
               </p>
             </CardContent>
           </Card>
@@ -154,7 +154,7 @@ export default function Timeliste() {
                           {formatDate(workDay.date)}
                         </h3>
                         <Badge variant="outline">
-                          {workDay.sessions} session{workDay.sessions !== 1 ? 'er' : ''}
+                          {workDay.sessions} økt{workDay.sessions !== 1 ? 'er' : ''}
                         </Badge>
                       </div>
                       
@@ -167,9 +167,9 @@ export default function Timeliste() {
                         </div>
                         
                         <div className="text-sm">
-                          <span className="text-muted-foreground">Arbetstid: </span>
+                          <span className="text-muted-foreground">Arbeidstid: </span>
                           <span className="font-medium text-foreground">
-                            {workDay.totalHours}h {workDay.totalMinutes}min
+                            {workDay.totalHours}t {workDay.totalMinutes}min
                           </span>
                         </div>
                       </div>
@@ -179,7 +179,7 @@ export default function Timeliste() {
                       <div className="text-2xl font-bold text-primary">
                         {workDay.totalHours}:{workDay.totalMinutes.toString().padStart(2, '0')}
                       </div>
-                      <div className="text-sm text-muted-foreground">timmar</div>
+                      <div className="text-sm text-muted-foreground">timer</div>
                     </div>
                   </div>
                 </CardContent>
