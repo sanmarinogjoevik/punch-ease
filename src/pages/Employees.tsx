@@ -1,11 +1,16 @@
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Phone, Mail, IdCard, UserCheck, UserX } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Users, Phone, Mail, IdCard, UserCheck, UserX, Edit, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 interface Profile {
   id: string;
@@ -23,6 +28,19 @@ interface Profile {
 const Employees = () => {
   const { userRole } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Edit Employee Dialog State
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Profile | null>(null);
+  const [editForm, setEditForm] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    personal_number: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch all profiles/employees
   const { data: employees, isLoading } = useQuery({
@@ -63,6 +81,8 @@ const Employees = () => {
 
       if (error) throw error;
       
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      
       toast({
         title: "Framgång",
         description: "Användaren är nu admin",
@@ -71,6 +91,95 @@ const Employees = () => {
       toast({
         title: "Fel",
         description: "Kunde inte göra användaren till admin",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditEmployee = (employee: Profile) => {
+    setEditingEmployee(employee);
+    setEditForm({
+      first_name: employee.first_name || '',
+      last_name: employee.last_name || '',
+      email: employee.email,
+      phone: employee.phone || '',
+      personal_number: employee.personal_number || ''
+    });
+    setShowEditDialog(true);
+  };
+
+  const handlePersonalNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, ''); // Remove all non-digits
+    
+    if (value.length > 6) {
+      value = value.slice(0, 6) + '-' + value.slice(6, 11); // Allow 5 digits after dash
+    }
+    
+    setEditForm(prev => ({ ...prev, personal_number: value }));
+  };
+
+  const handleUpdateEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEmployee) return;
+    
+    setIsSubmitting(true);
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          first_name: editForm.first_name,
+          last_name: editForm.last_name,
+          email: editForm.email,
+          phone: editForm.phone,
+          personal_number: editForm.personal_number
+        })
+        .eq('user_id', editingEmployee.user_id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Framgång",
+        description: "Anställd har uppdaterats framgångsrikt",
+      });
+
+      setShowEditDialog(false);
+      setEditingEmployee(null);
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+
+    } catch (error: any) {
+      toast({
+        title: "Fel",
+        description: error.message || "Kunde inte uppdatera anställd",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteEmployee = async (employee: Profile) => {
+    try {
+      // Call Edge Function to delete the employee
+      const { error } = await supabase.functions.invoke('delete-employee', {
+        body: { userId: employee.user_id }
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Failed to delete employee');
+      }
+
+      toast({
+        title: "Framgång",
+        description: "Anställd har tagits bort framgångsrikt",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+
+    } catch (error: any) {
+      toast({
+        title: "Fel",
+        description: error.message || "Kunde inte ta bort anställd",
         variant: "destructive",
       });
     }
@@ -170,6 +279,46 @@ const Employees = () => {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => handleEditEmployee(employee)}
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Redigera
+                    </Button>
+                    
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Ta bort
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Är du säker?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Du är på väg att ta bort {employee.first_name} {employee.last_name}. 
+                            Detta kan inte ångras och kommer att ta bort all data för denna anställd.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => handleDeleteEmployee(employee)}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            Ta bort
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+
                     {!isAdmin && userRole === 'admin' && (
                       <Button 
                         size="sm" 
@@ -204,6 +353,77 @@ const Employees = () => {
           </p>
         </div>
       )}
+
+      {/* Edit Employee Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Redigera anställd</DialogTitle>
+            <DialogDescription>
+              Uppdatera informationen för {editingEmployee?.first_name} {editingEmployee?.last_name}.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdateEmployee}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit_first_name">Förnamn</Label>
+                  <Input
+                    id="edit_first_name"
+                    value={editForm.first_name}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, first_name: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit_last_name">Efternamn</Label>
+                  <Input
+                    id="edit_last_name"
+                    value={editForm.last_name}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, last_name: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_email">E-post</Label>
+                <Input
+                  id="edit_email"
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_phone">Telefon</Label>
+                <Input
+                  id="edit_phone"
+                  type="tel"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_personal_number">Personnummer</Label>
+                <Input
+                  id="edit_personal_number"
+                  placeholder="XXXXXX-XXXXX"
+                  value={editForm.personal_number}
+                  onChange={handlePersonalNumberChange}
+                  pattern="[0-9]{6}-[0-9]{5}"
+                  maxLength={12}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Uppdaterar...' : 'Uppdatera anställd'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
