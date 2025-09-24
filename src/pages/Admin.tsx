@@ -491,8 +491,8 @@ const Admin = () => {
       {/* Vaktlista för veckan */}
       <Card>
         <CardHeader>
-          <CardTitle>Veckans pass</CardTitle>
-          <CardDescription>Översikt över kommande pass</CardDescription>
+          <CardTitle>Ukens vakter</CardTitle>
+          <CardDescription>Oversikt over kommende vakter</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
@@ -507,11 +507,11 @@ const Admin = () => {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm">Ändra</Button>
+                  <Button variant="ghost" size="sm">Endre</Button>
                   <Button variant="ghost" size="sm" className="text-red-600">Ta bort</Button>
                 </div>
               </div>
-            )) || <p className="text-center text-muted-foreground py-6">Inga pass planerade denna vecka</p>}
+            )) || <p className="text-center text-muted-foreground py-6">Ingen vakter planlagt denne uken</p>}
           </div>
         </CardContent>
       </Card>
@@ -519,8 +519,8 @@ const Admin = () => {
       {/* Anställda med roller */}
       <Card>
         <CardHeader>
-          <CardTitle>Anställda</CardTitle>
-          <CardDescription>Hantera användarroller och behörigheter</CardDescription>
+          <CardTitle>Ansatte</CardTitle>
+          <CardDescription>Administrer brukerroller og tillatelser</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -538,7 +538,7 @@ const Admin = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={isAdmin ? 'default' : 'secondary'}>
-                      {isAdmin ? 'Admin' : 'Anställd'}
+                      {isAdmin ? 'Admin' : 'Ansatt'}
                     </Badge>
                     {!isAdmin && (
                       <Button 
@@ -546,7 +546,7 @@ const Admin = () => {
                         variant="outline"
                         onClick={() => makeAdmin(employee.user_id)}
                       >
-                        Gör till admin
+                        Gjør til admin
                       </Button>
                     )}
                   </div>
@@ -562,14 +562,14 @@ const Admin = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-yellow-600" />
-            Notiser & Varningar
+            Merknader og advarsler
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
             <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded text-yellow-800">
               <AlertCircle className="w-4 h-4" />
-              <span className="text-sm">Inga varningar för tillfället</span>
+              <span className="text-sm">Ingen advarsler akkurat nå</span>
             </div>
           </div>
         </CardContent>
@@ -580,14 +580,14 @@ const Admin = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5" />
-            Veckans statistik
+            Ukens statistikk
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center p-4 bg-blue-50 rounded-lg">
               <p className="text-2xl font-bold text-blue-600">{weeklyShifts?.length || 0}</p>
-              <p className="text-sm text-blue-800">Antal pass</p>
+              <p className="text-sm text-blue-800">Antall vakter</p>
             </div>
             <div className="text-center p-4 bg-green-50 rounded-lg">
               <p className="text-2xl font-bold text-green-600">
@@ -597,11 +597,11 @@ const Admin = () => {
                   return total + (end.getTime() - start.getTime()) / (1000 * 60 * 60);
                 }, 0).toFixed(1) || '0'}h
               </p>
-              <p className="text-sm text-green-800">Totalt planerade timmar</p>
+              <p className="text-sm text-green-800">Totalt planlagte timer</p>
             </div>
             <div className="text-center p-4 bg-purple-50 rounded-lg">
               <p className="text-2xl font-bold text-purple-600">{employees?.length || 0}</p>
-              <p className="text-sm text-purple-800">Aktiva anställda</p>
+              <p className="text-sm text-purple-800">Aktive ansatte</p>
             </div>
           </div>
         </CardContent>
