@@ -15,8 +15,16 @@ interface Shift {
 
 interface TimeEntry {
   id: string;
-  entry_type: string;
+  entry_type: 'punch_in' | 'punch_out';
   timestamp: string;
+  employee_id: string;
+}
+
+interface WorkSession {
+  id: string;
+  punch_in: TimeEntry;
+  punch_out?: TimeEntry;
+  duration?: number; // in minutes
 }
 
 interface ActiveEmployee {
@@ -30,7 +38,7 @@ interface ActiveEmployee {
 export default function Dashboard() {
   const [todayShifts, setTodayShifts] = useState<Shift[]>([]);
   const [upcomingShifts, setUpcomingShifts] = useState<Shift[]>([]);
-  const [recentTimeEntries, setRecentTimeEntries] = useState<TimeEntry[]>([]);
+  const [recentWorkSessions, setRecentWorkSessions] = useState<WorkSession[]>([]);
   const [activeEmployees, setActiveEmployees] = useState<ActiveEmployee[]>([]);
   const { user, userRole } = useAuth();
 
@@ -77,20 +85,73 @@ export default function Dashboard() {
       if (upcomingError) throw upcomingError;
       setUpcomingShifts(upcomingShiftsData || []);
 
-      // Fetch recent time entries (last 10)
+      // Fetch recent time entries and group into work sessions
       const { data: timeEntriesData, error: timeEntriesError } = await supabase
         .from('time_entries')
         .select('*')
         .eq('employee_id', user.id)
         .order('timestamp', { ascending: false })
-        .limit(10);
+        .limit(20);
 
       if (timeEntriesError) throw timeEntriesError;
-      setRecentTimeEntries(timeEntriesData || []);
+      
+      // Group entries into work sessions
+      const sessions = groupIntoWorkSessions(timeEntriesData || []);
+      setRecentWorkSessions(sessions.slice(0, 5)); // Show last 5 sessions
 
     } catch (error) {
       console.error('Error fetching employee data:', error);
     }
+  };
+
+  const groupIntoWorkSessions = (entries: TimeEntry[]): WorkSession[] => {
+    const sessions: WorkSession[] = [];
+    
+    // Sort by timestamp (oldest first for pairing)
+    const sortedEntries = entries.sort((a, b) => 
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+
+    let i = 0;
+    while (i < sortedEntries.length) {
+      const entry = sortedEntries[i];
+      
+      if (entry.entry_type === 'punch_in') {
+        // Look for matching punch_out
+        let punchOut: TimeEntry | undefined;
+        let j = i + 1;
+        
+        while (j < sortedEntries.length) {
+          if (sortedEntries[j].entry_type === 'punch_out') {
+            punchOut = sortedEntries[j];
+            sortedEntries.splice(j, 1); // Remove the punch_out from array
+            break;
+          }
+          j++;
+        }
+
+        // Calculate duration if we have both punch in and out
+        let duration: number | undefined;
+        if (punchOut) {
+          const startTime = new Date(entry.timestamp);
+          const endTime = new Date(punchOut.timestamp);
+          duration = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60)); // minutes
+        }
+
+        sessions.push({
+          id: entry.id,
+          punch_in: entry,
+          punch_out: punchOut,
+          duration
+        });
+      }
+      i++;
+    }
+
+    // Sort sessions by punch_in timestamp (newest first)
+    return sessions.sort((a, b) => 
+      new Date(b.punch_in.timestamp).getTime() - new Date(a.punch_in.timestamp).getTime()
+    );
   };
 
   const fetchActiveEmployees = async () => {
@@ -150,6 +211,16 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error fetching active employees:', error);
     }
+  };
+
+  const formatDuration = (minutes: number): string => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    
+    if (hours > 0) {
+      return `${hours}h ${mins}m`;
+    }
+    return `${mins}m`;
   };
 
   const formatDateTime = (dateString: string) => {
@@ -255,27 +326,52 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            {/* Recent Time Entries */}
+            {/* Recent Work Sessions */}
             <Card className="md:col-span-2">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Clock className="h-5 w-5" />
-                  Senaste Stämplingar
+                  Senaste Arbetspass
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {recentTimeEntries.length > 0 ? (
-                  <div className="space-y-2">
-                    {recentTimeEntries.map((entry) => (
-                      <div key={entry.id} className="flex items-center justify-between p-2 rounded border">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${entry.entry_type === 'punch_in' ? 'bg-green-500' : 'bg-red-500'}`} />
-                          <span className="font-medium">
-                            {entry.entry_type === 'punch_in' ? 'In' : 'Ut'}
-                          </span>
+                {recentWorkSessions.length > 0 ? (
+                  <div className="space-y-3">
+                    {recentWorkSessions.map((session) => (
+                      <div key={session.id} className="p-3 rounded-lg border">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-green-500" />
+                            <span className="font-medium">
+                              {new Date(session.punch_in.timestamp).toLocaleDateString('sv-SE')}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {session.punch_out ? (
+                              <div className="flex items-center gap-1 text-green-600">
+                                <span className="text-sm">Avslutat</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 text-yellow-600">
+                                <span className="text-sm">Pågående</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {formatDateTime(entry.timestamp)}
+                        <div className="mt-2 flex items-center justify-between text-sm text-muted-foreground">
+                          <div>
+                            {formatTime(session.punch_in.timestamp)}
+                            {session.punch_out && (
+                              <span> - {formatTime(session.punch_out.timestamp)}</span>
+                            )}
+                          </div>
+                          <div className="font-medium">
+                            {session.duration !== undefined ? (
+                              formatDuration(session.duration)
+                            ) : (
+                              <span className="text-yellow-600">Pågående</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -283,7 +379,7 @@ export default function Dashboard() {
                 ) : (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <AlertCircle className="h-4 w-4" />
-                    Inga stämplingar ännu
+                    Inga arbetspass ännu
                   </div>
                 )}
               </CardContent>
