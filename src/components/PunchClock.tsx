@@ -62,13 +62,13 @@ export function PunchClock() {
       setLastPunchTime(new Date());
       
       toast({
-        title: 'Success',
-        description: `Successfully ${isPunchedIn ? 'punched out' : 'punched in'}!`,
+        title: 'Suksess',
+        description: `Vellykket ${isPunchedIn ? 'logget ut' : 'logget inn'}!`,
       });
     } catch (error: any) {
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to record time entry',
+        title: 'Feil',
+        description: error.message || 'Kunne ikke registrere tidsregistrering',
         variant: 'destructive',
       });
     } finally {
@@ -79,21 +79,21 @@ export function PunchClock() {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="text-center">
-        <CardTitle className="flex items-center justify-center gap-2">
-          <Clock className="h-5 w-5" />
-          Time Clock
-        </CardTitle>
+          <CardTitle className="flex items-center justify-center gap-2">
+            <Clock className="h-5 w-5" />
+            Tidsklokke
+          </CardTitle>
       </CardHeader>
       <CardContent className="text-center space-y-6">
         <div className="text-sm text-muted-foreground">
           Status: <span className={isPunchedIn ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-            {isPunchedIn ? 'Punched In' : 'Punched Out'}
+            {isPunchedIn ? 'Pålogget' : 'Avlogget'}
           </span>
         </div>
 
         {lastPunchTime && (
           <div className="text-sm text-muted-foreground">
-            Last punch: {lastPunchTime.toLocaleString()}
+            Siste registrering: {lastPunchTime.toLocaleString('nb-NO')}
           </div>
         )}
 
@@ -105,16 +105,16 @@ export function PunchClock() {
           variant={isPunchedIn ? 'destructive' : 'default'}
         >
           {loading ? (
-            'Processing...'
+            'Behandler...'
           ) : isPunchedIn ? (
             <>
               <Square className="h-6 w-6 mr-2" />
-              Punch Out
+              Logg Ut
             </>
           ) : (
             <>
               <Play className="h-6 w-6 mr-2" />
-              Punch In
+              Logg Inn
             </>
           )}
         </Button>

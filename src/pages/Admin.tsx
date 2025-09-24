@@ -22,7 +22,7 @@ import {
   TrendingUp
 } from "lucide-react";
 import { format, parseISO, startOfDay, endOfDay } from "date-fns";
-import { sv } from "date-fns/locale";
+import { nb } from "date-fns/locale";
 
 interface Profile {
   id: string;
@@ -182,9 +182,9 @@ const Admin = () => {
     const shiftEnd = parseISO(shift.end_time);
     
     if (now < shiftStart) {
-      return { status: 'upcoming', icon: Timer, label: 'Ej startat' };
+      return { status: 'upcoming', icon: Timer, label: 'Ikke startet' };
     } else if (now > shiftEnd) {
-      return { status: 'completed', icon: CheckCircle, label: 'Avslutat' };
+      return { status: 'completed', icon: CheckCircle, label: 'Avsluttet' };
     } else {
       return { status: 'active', icon: Clock, label: 'Pågår' };
     }
@@ -200,13 +200,13 @@ const Admin = () => {
       if (error) throw error;
       
       toast({
-        title: "Framgång",
-        description: "Användaren är nu admin",
+        title: "Suksess",
+        description: "Brukeren er nå admin",
       });
     } catch (error) {
       toast({
-        title: "Fel",
-        description: "Kunde inte göra användaren till admin",
+        title: "Feil",
+        description: "Kunne ikke gjøre brukeren til admin",
         variant: "destructive",
       });
     }
@@ -244,8 +244,8 @@ const Admin = () => {
       }
 
       toast({
-        title: "Framgång",
-        description: "Anställd har lagts till framgångsrikt",
+        title: "Suksess",
+        description: "Ansatt har blitt lagt til",
       });
 
       // Reset form and close dialog
@@ -264,8 +264,8 @@ const Admin = () => {
 
     } catch (error: any) {
       toast({
-        title: "Fel",
-        description: error.message || "Kunde inte lägga till anställd",
+        title: "Feil",
+        description: error.message || "Kunne ikke legge til ansatt",
         variant: "destructive",
       });
     } finally {
@@ -278,9 +278,9 @@ const Admin = () => {
       <div className="flex items-center justify-center min-h-screen">
         <Card className="w-96">
           <CardHeader>
-            <CardTitle className="text-destructive">Åtkomst nekad</CardTitle>
+            <CardTitle className="text-destructive">Tilgang nektet</CardTitle>
             <CardDescription>
-              Du har inte behörighet att komma åt adminsidan.
+              Du har ikke tillatelse til å få tilgang til administrasjonssiden.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -309,7 +309,7 @@ const Admin = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Planerade pass idag</CardTitle>
+            <CardTitle className="text-sm font-medium">Planlagte vakter i dag</CardTitle>
             <Calendar className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
@@ -319,7 +319,7 @@ const Admin = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Planerade timmar idag</CardTitle>
+            <CardTitle className="text-sm font-medium">Planlagte timer i dag</CardTitle>
             <Clock className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
@@ -329,7 +329,7 @@ const Admin = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Totalt anställda</CardTitle>
+            <CardTitle className="text-sm font-medium">Totalt ansatte</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -341,33 +341,33 @@ const Admin = () => {
       {/* Snabbknappar */}
       <Card>
         <CardHeader>
-          <CardTitle>Snabbknappar</CardTitle>
+          <CardTitle>Hurtigknapper</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" className="flex items-center gap-2">
               <Plus className="w-4 h-4" />
-              Lägg till pass
+              Legg til vakt
             </Button>
             <Dialog open={showAddEmployeeDialog} onOpenChange={setShowAddEmployeeDialog}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="flex items-center gap-2">
                   <Plus className="w-4 h-4" />
-                  Lägg till anställd
+                  Legg til ansatt
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                  <DialogTitle>Lägg till ny anställd</DialogTitle>
+                  <DialogTitle>Legg til ny ansatt</DialogTitle>
                   <DialogDescription>
-                    Fyll i informationen nedan för att lägga till en ny anställd.
+                    Fyll inn informasjonen nedenfor for å legge til en ny ansatt.
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleAddEmployee}>
                   <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="first_name">Förnamn</Label>
+                        <Label htmlFor="first_name">Fornavn</Label>
                         <Input
                           id="first_name"
                           value={employeeForm.first_name}
@@ -376,7 +376,7 @@ const Admin = () => {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="last_name">Efternamn</Label>
+                        <Label htmlFor="last_name">Etternavn</Label>
                         <Input
                           id="last_name"
                           value={employeeForm.last_name}
@@ -418,7 +418,7 @@ const Admin = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="password">Lösenord</Label>
+                      <Label htmlFor="password">Passord</Label>
                       <Input
                         id="password"
                         type="password"
@@ -431,7 +431,7 @@ const Admin = () => {
                   </div>
                   <DialogFooter>
                     <Button type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? 'Lägger till...' : 'Lägg till anställd'}
+                      {isSubmitting ? 'Legger til...' : 'Legg til ansatt'}
                     </Button>
                   </DialogFooter>
                 </form>
@@ -439,7 +439,7 @@ const Admin = () => {
             </Dialog>
             <Button variant="outline" className="flex items-center gap-2">
               <Download className="w-4 h-4" />
-              Exportera rapport
+              Eksporter rapport
             </Button>
           </div>
         </CardContent>
@@ -448,8 +448,8 @@ const Admin = () => {
       {/* Dagens pass med status (utan punch tracking) */}
       <Card>
         <CardHeader>
-          <CardTitle>Dagens pass</CardTitle>
-          <CardDescription>Översikt över alla planerade pass idag</CardDescription>
+          <CardTitle>Dagens vakter</CardTitle>
+          <CardDescription>Oversikt over alle planlagte vakter i dag</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -468,7 +468,7 @@ const Admin = () => {
                       {shift.profiles?.first_name} {shift.profiles?.last_name}
                     </p>
                     <p className="text-sm opacity-80">
-                      {format(parseISO(shift.start_time), 'HH:mm', { locale: sv })} - {format(parseISO(shift.end_time), 'HH:mm', { locale: sv })}
+                      {format(parseISO(shift.start_time), 'HH:mm', { locale: nb })} - {format(parseISO(shift.end_time), 'HH:mm', { locale: nb })}
                     </p>
                     {shift.location && (
                       <p className="text-sm opacity-70">📍 {shift.location}</p>
@@ -482,7 +482,7 @@ const Admin = () => {
               );
             })}
             {(!todaysShifts || todaysShifts.length === 0) && (
-              <p className="text-center text-muted-foreground py-6">Inga pass planerade idag</p>
+              <p className="text-center text-muted-foreground py-6">Ingen vakter planlagt i dag</p>
             )}
           </div>
         </CardContent>
@@ -503,7 +503,7 @@ const Admin = () => {
                     {shift.profiles?.first_name} {shift.profiles?.last_name}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {format(parseISO(shift.start_time), 'EEEE dd MMM, HH:mm', { locale: sv })} - {format(parseISO(shift.end_time), 'HH:mm', { locale: sv })}
+                    {format(parseISO(shift.start_time), 'EEEE dd MMM, HH:mm', { locale: nb })} - {format(parseISO(shift.end_time), 'HH:mm', { locale: nb })}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

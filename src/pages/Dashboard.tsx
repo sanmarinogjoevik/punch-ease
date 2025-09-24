@@ -239,7 +239,7 @@ export default function Dashboard() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
-          Welcome back! Here's your overview.
+          Velkommen tilbake! Her er din oversikt.
         </p>
       </div>
 
@@ -257,7 +257,7 @@ export default function Dashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5" />
-                  Dagens Pass
+                  Dagens Vakter
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -284,7 +284,7 @@ export default function Dashboard() {
                 ) : (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <AlertCircle className="h-4 w-4" />
-                    Inga pass idag
+                    Ingen vakter i dag
                   </div>
                 )}
               </CardContent>
@@ -295,7 +295,7 @@ export default function Dashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5" />
-                  Kommande Pass
+                  Kommende Vakter
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -304,7 +304,7 @@ export default function Dashboard() {
                     {upcomingShifts.map((shift) => (
                       <div key={shift.id} className="p-3 rounded-lg border">
                         <div className="font-medium">
-                          {new Date(shift.start_time).toLocaleDateString('sv-SE')}
+                          {new Date(shift.start_time).toLocaleDateString('nb-NO')}
                         </div>
                         <div className="text-sm text-muted-foreground">
                           {formatTime(shift.start_time)} - {formatTime(shift.end_time)}
@@ -320,7 +320,7 @@ export default function Dashboard() {
                 ) : (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <AlertCircle className="h-4 w-4" />
-                    Inga kommande pass
+                    Ingen kommende vakter
                   </div>
                 )}
               </CardContent>
@@ -331,7 +331,7 @@ export default function Dashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Clock className="h-5 w-5" />
-                  Senaste Arbetspass
+                  Siste Arbeidsvakter
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -343,13 +343,13 @@ export default function Dashboard() {
                           <div className="flex items-center gap-2">
                             <div className="w-2 h-2 rounded-full bg-green-500" />
                             <span className="font-medium">
-                              {new Date(session.punch_in.timestamp).toLocaleDateString('sv-SE')}
+                              {new Date(session.punch_in.timestamp).toLocaleDateString('nb-NO')}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
                             {session.punch_out ? (
                               <div className="flex items-center gap-1 text-green-600">
-                                <span className="text-sm">Avslutat</span>
+                                <span className="text-sm">Avsluttet</span>
                               </div>
                             ) : (
                               <div className="flex items-center gap-1 text-yellow-600">
@@ -379,7 +379,7 @@ export default function Dashboard() {
                 ) : (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <AlertCircle className="h-4 w-4" />
-                    Inga arbetspass ännu
+                    Ingen arbeidsvakter ennå
                   </div>
                 )}
               </CardContent>
@@ -393,10 +393,10 @@ export default function Dashboard() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                Active Employees
+                Aktive Ansatte
               </CardTitle>
               <CardDescription>
-                Employees currently punched in
+                Ansatte som for øyeblikket er pålogget
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -415,10 +415,10 @@ export default function Dashboard() {
                       <div className="text-right">
                         <div className="flex items-center gap-1 text-green-600">
                           <Clock className="h-4 w-4" />
-                          <span className="font-medium">Active</span>
+                          <span className="font-medium">Aktiv</span>
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          Since {formatTime(employee.punch_time)}
+                          Siden {formatTime(employee.punch_time)}
                         </div>
                       </div>
                     </div>
@@ -427,7 +427,7 @@ export default function Dashboard() {
               ) : (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <AlertCircle className="h-4 w-4" />
-                  No employees currently punched in
+                  Ingen ansatte er for øyeblikket pålogget
                 </div>
               )}
             </CardContent>

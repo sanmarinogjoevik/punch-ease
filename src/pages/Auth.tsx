@@ -29,15 +29,15 @@ export default function Auth() {
 
       if (result.error) {
         toast({
-          title: 'Error',
+          title: 'Feil',
           description: result.error.message,
           variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
-        title: 'Error',
-        description: 'An unexpected error occurred',
+        title: 'Feil',
+        description: 'En uventet feil oppstod',
         variant: 'destructive',
       });
     } finally {
@@ -50,16 +50,16 @@ export default function Auth() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">
-            Sign In
+            Logg inn
           </CardTitle>
           <CardDescription>
-            Welcome back to PunchEase
+            Velkommen tilbake til PunchEase
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">E-post</Label>
               <Input
                 id="email"
                 type="email"
@@ -70,7 +70,7 @@ export default function Auth() {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Passord</Label>
               <Input
                 id="password"
                 type="password"
@@ -81,7 +81,7 @@ export default function Auth() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Loading...' : 'Sign In'}
+              {loading ? 'Laster...' : 'Logg inn'}
             </Button>
           </form>
         </CardContent>

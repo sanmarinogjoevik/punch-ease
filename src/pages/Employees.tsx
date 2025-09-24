@@ -213,20 +213,20 @@ const Employees = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Anställda</h1>
-          <p className="text-muted-foreground">Hantera alla anställda och deras information</p>
+        <h1 className="text-3xl font-bold">Ansatte</h1>
+        <p className="text-muted-foreground">Administrer alle ansatte og deres informasjon</p>
         </div>
         <Badge variant="secondary" className="text-sm">
           <Users className="w-4 h-4 mr-1" />
-          {employees?.length || 0} Anställda
+          {employees?.length || 0} Ansatte
         </Badge>
       </div>
 
       {/* Employees List */}
       <Card>
         <CardHeader>
-          <CardTitle>Alla anställda</CardTitle>
-          <CardDescription>Översikt över alla anställda och deras information</CardDescription>
+          <CardTitle>Alle ansatte</CardTitle>
+          <CardDescription>Oversikt over alle ansatte og deres informasjon</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -247,7 +247,7 @@ const Employees = () => {
                           {employee.first_name} {employee.last_name}
                         </h3>
                         <Badge variant={isAdmin ? 'default' : 'secondary'}>
-                          {isAdmin ? 'Admin' : 'Anställd'}
+                          {isAdmin ? 'Admin' : 'Ansatt'}
                         </Badge>
                       </div>
                       
@@ -273,7 +273,7 @@ const Employees = () => {
                       </div>
                       
                       <div className="text-xs text-muted-foreground">
-                        Medlem sedan: {new Date(employee.created_at).toLocaleDateString('sv-SE')}
+                        Medlem siden: {new Date(employee.created_at).toLocaleDateString('nb-NO')}
                       </div>
                     </div>
                   </div>
@@ -285,7 +285,7 @@ const Employees = () => {
                       onClick={() => handleEditEmployee(employee)}
                     >
                       <Edit className="w-4 h-4 mr-2" />
-                      Redigera
+                      Rediger
                     </Button>
                     
                     <AlertDialog>
@@ -296,15 +296,15 @@ const Employees = () => {
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
-                          Ta bort
+                          Slett
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Är du säker?</AlertDialogTitle>
+                          <AlertDialogTitle>Er du sikker?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Du är på väg att ta bort {employee.first_name} {employee.last_name}. 
-                            Detta kan inte ångras och kommer att ta bort all data för denna anställd.
+                            Du er i ferd med å slette {employee.first_name} {employee.last_name}. 
+                            Dette kan ikke angres og vil fjerne all data for denne ansatte.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -313,7 +313,7 @@ const Employees = () => {
                             onClick={() => handleDeleteEmployee(employee)}
                             className="bg-red-600 hover:bg-red-700"
                           >
-                            Ta bort
+                            Slett
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -326,14 +326,14 @@ const Employees = () => {
                         onClick={() => makeAdmin(employee.user_id)}
                       >
                         <UserCheck className="w-4 h-4 mr-2" />
-                        Gör till admin
+                        Gjør til admin
                       </Button>
                     )}
                     
                     {isAdmin && (
                       <div className="flex items-center text-sm text-muted-foreground">
                         <UserCheck className="w-4 h-4 mr-1" />
-                        Administratör
+                        Administratør
                       </div>
                     )}
                   </div>

@@ -23,7 +23,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-lg text-foreground">Loading...</div>
+        <div className="text-lg text-foreground">Laster...</div>
       </div>
     );
   }
@@ -41,7 +41,7 @@ function RoleBasedRedirect() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-lg text-foreground">Loading...</div>
+        <div className="text-lg text-foreground">Laster...</div>
       </div>
     );
   }
@@ -69,7 +69,7 @@ function AppRoutes() {
         <Route path="timesheet" element={<TimeEntries />} />
         <Route path="timeliste" element={<Timeliste />} />
         <Route path="employees" element={<Employees />} />
-        <Route path="reports" element={<div className="text-center text-muted-foreground">Reports - Coming Soon</div>} />
+        <Route path="reports" element={<div className="text-center text-muted-foreground">Rapporter - Kommer snart</div>} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

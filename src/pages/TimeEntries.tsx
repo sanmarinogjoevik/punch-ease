@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { nb } from 'date-fns/locale';
 import { Clock, ArrowUp, ArrowDown } from 'lucide-react';
 
 interface TimeEntry {
@@ -163,13 +164,13 @@ export default function TimeEntries() {
     if (!session.punch_out) {
       return (
         <Badge variant="outline" className="border-yellow-200 text-yellow-700 bg-yellow-50">
-          Active
+          Aktiv
         </Badge>
       );
     }
     return (
       <Badge variant="outline" className="border-green-200 text-green-700 bg-green-50">
-        Completed
+        Fullført
       </Badge>
     );
   };
@@ -187,28 +188,28 @@ export default function TimeEntries() {
       <div className="flex items-center gap-2">
         <Clock className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-bold">
-          {userRole === 'admin' ? 'All Work Sessions' : 'My Work Sessions'}
+          {userRole === 'admin' ? 'Alle Arbeidsvakter' : 'Mine Arbeidsvakter'}
         </h1>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Work Session History</CardTitle>
+          <CardTitle>Arbeidsøkt Historikk</CardTitle>
         </CardHeader>
         <CardContent>
           {workSessions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No work sessions found.
+              Ingen arbeidsøkter funnet.
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Time Period</TableHead>
-                  <TableHead>Duration</TableHead>
+                  <TableHead>Dato</TableHead>
+                  <TableHead>Tidsperiode</TableHead>
+                  <TableHead>Varighet</TableHead>
                   <TableHead>Status</TableHead>
-                  {userRole === 'admin' && <TableHead>Employee</TableHead>}
+                  {userRole === 'admin' && <TableHead>Ansatt</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -216,7 +217,7 @@ export default function TimeEntries() {
                   <TableRow key={session.id}>
                     <TableCell>
                       <div className="font-medium">
-                        {format(new Date(session.punch_in.timestamp), 'MMM dd, yyyy')}
+                        {format(new Date(session.punch_in.timestamp), 'dd MMM yyyy', { locale: nb })}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -250,7 +251,7 @@ export default function TimeEntries() {
                     </TableCell>
                     {userRole === 'admin' && (
                       <TableCell>
-                        {session.employee_name || 'Unknown Employee'}
+                        {session.employee_name || 'Ukjent ansatt'}
                       </TableCell>
                     )}
                   </TableRow>

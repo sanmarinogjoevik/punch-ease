@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar, Plus, Clock, MapPin, User, Edit, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { format, addWeeks, startOfWeek, endOfWeek, eachDayOfInterval, parseISO, addDays, startOfDay } from "date-fns";
-import { sv } from "date-fns/locale";
+import { nb } from "date-fns/locale";
 
 interface Profile {
   id: string;
@@ -248,9 +248,9 @@ const Schedule = () => {
       <div className="flex items-center justify-center min-h-screen">
         <Card className="w-96">
           <CardHeader>
-            <CardTitle className="text-destructive">Åtkomst nekad</CardTitle>
+            <CardTitle className="text-destructive">Tilgang nektet</CardTitle>
             <CardDescription>
-              Du har inte behörighet att komma åt schemaläggningen.
+              Du har ikke tillatelse til å få tilgang til turnusplanlegging.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -269,14 +269,14 @@ const Schedule = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Schema</h1>
-          <p className="text-muted-foreground">Hantera pass för de närmaste 4 veckorna</p>
+        <h1 className="text-3xl font-bold">Timeplan</h1>
+        <p className="text-muted-foreground">Administrer vakter for de neste 4 ukene</p>
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-muted-foreground">24h</span>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Calendar className="w-4 h-4" />
-            {format(scheduleStart, 'dd MMM', { locale: sv })} - {format(scheduleEnd, 'dd MMM yyyy', { locale: sv })}
+            {format(scheduleStart, 'dd MMM', { locale: nb })} - {format(scheduleEnd, 'dd MMM yyyy', { locale: nb })}
           </div>
         </div>
       </div>
@@ -287,7 +287,7 @@ const Schedule = () => {
           <Card key={weekIndex}>
             <CardHeader>
               <CardTitle className="text-lg">
-                Vecka {format(week[0], 'w', { locale: sv })} - {format(week[0], 'MMM yyyy', { locale: sv })}
+                Uke {format(week[0], 'w', { locale: nb })} - {format(week[0], 'MMM yyyy', { locale: nb })}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -305,7 +305,7 @@ const Schedule = () => {
                     >
                       <div className="mb-2">
                         <div className="font-medium text-xs text-muted-foreground">
-                          {format(day, 'EEE', { locale: sv })}
+                          {format(day, 'EEE', { locale: nb })}
                         </div>
                         <div className={`text-lg font-semibold ${isToday ? 'text-primary' : ''}`}>
                           {format(day, 'd')}
@@ -357,10 +357,10 @@ const Schedule = () => {
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Lägg till pass</DialogTitle>
-            <DialogDescription>
-              Lägg till pass för {selectedDate && format(selectedDate, 'EEEE d MMMM', { locale: sv })}.
-            </DialogDescription>
+          <DialogTitle>Legg til vakter</DialogTitle>
+          <DialogDescription>
+            Legg til vakter for {selectedDate && format(selectedDate, 'EEEE d MMMM', { locale: nb })}.
+          </DialogDescription>
           </DialogHeader>
           
           <div className="max-h-[400px] overflow-y-auto">

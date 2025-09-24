@@ -26,17 +26,17 @@ export function AppSidebar() {
 
   const employeeItems = [
     { title: 'Dashboard', url: '/', icon: Home },
-    { title: 'My Schedule', url: '/my-schedule', icon: Calendar },
-    { title: 'Time Entries', url: '/timesheet', icon: Clock },
+    { title: 'Min Plan', url: '/my-schedule', icon: Calendar },
+    { title: 'Tidsregistrering', url: '/timesheet', icon: Clock },
     { title: 'Timeliste', url: '/timeliste', icon: BarChart3 },
   ];
 
   const adminItems = [
     { title: 'Admin', url: '/admin', icon: Shield },
-    { title: 'Schedule', url: '/schedule', icon: Calendar },
-    { title: 'Time Entries', url: '/timesheet', icon: Clock },
-    { title: 'Employees', url: '/employees', icon: Users },
-    { title: 'Reports', url: '/reports', icon: BarChart3 },
+    { title: 'Turnusplan', url: '/schedule', icon: Calendar },
+    { title: 'Tidsregistrering', url: '/timesheet', icon: Clock },
+    { title: 'Ansatte', url: '/employees', icon: Users },
+    { title: 'Rapporter', url: '/reports', icon: BarChart3 },
   ];
 
   const items = userRole === 'admin' ? adminItems : employeeItems;
@@ -54,7 +54,7 @@ export function AppSidebar() {
         
         <SidebarGroup>
           <SidebarGroupLabel>
-            {userRole === 'admin' ? 'Admin Panel' : 'Employee'}
+            {userRole === 'admin' ? 'Administrasjon' : 'Ansatt'}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
