@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, Phone, Mail, IdCard, UserCheck, UserX, Edit, Trash2 } from "lucide-react";
+import { Users, Phone, Mail, IdCard, UserCheck, UserX, Edit, Trash2, Plus } from "lucide-react";
 import { useState } from "react";
 
 interface Profile {
@@ -41,6 +41,18 @@ const Employees = () => {
     personal_number: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Add Employee Dialog State
+  const [showAddEmployeeDialog, setShowAddEmployeeDialog] = useState(false);
+  const [employeeForm, setEmployeeForm] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    personal_number: '',
+    password: ''
+  });
+  const [isAddSubmitting, setIsAddSubmitting] = useState(false);
 
   // Fetch all profiles/employees
   const { data: employees, isLoading } = useQuery({
@@ -116,6 +128,67 @@ const Employees = () => {
     }
     
     setEditForm(prev => ({ ...prev, personal_number: value }));
+  };
+
+  const handleAddPersonalNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, ''); // Remove all non-digits
+    
+    if (value.length > 6) {
+      value = value.slice(0, 6) + '-' + value.slice(6, 11); // Allow 5 digits after dash
+    }
+    
+    setEmployeeForm(prev => ({ ...prev, personal_number: value }));
+  };
+
+  const handleAddEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsAddSubmitting(true);
+
+    try {
+      // Call our Edge Function to create the employee
+      const { data, error } = await supabase.functions.invoke('create-employee', {
+        body: {
+          email: employeeForm.email,
+          password: employeeForm.password,
+          first_name: employeeForm.first_name,
+          last_name: employeeForm.last_name,
+          phone: employeeForm.phone,
+          personal_number: employeeForm.personal_number,
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Failed to create employee');
+      }
+
+      toast({
+        title: "Suksess",
+        description: "Ansatt har blitt lagt til",
+      });
+
+      // Reset form and close dialog
+      setEmployeeForm({
+        first_name: '',
+        last_name: '',
+        email: '',
+        phone: '',
+        personal_number: '',
+        password: ''
+      });
+      setShowAddEmployeeDialog(false);
+      
+      // Refresh employees list
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+
+    } catch (error: any) {
+      toast({
+        title: "Feil",
+        description: error.message || "Kunne ikke legge til ansatt",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddSubmitting(false);
+    }
   };
 
   const handleUpdateEmployee = async (e: React.FormEvent) => {
@@ -216,10 +289,100 @@ const Employees = () => {
         <h1 className="text-3xl font-bold">Ansatte</h1>
         <p className="text-muted-foreground">Administrer alle ansatte og deres informasjon</p>
         </div>
-        <Badge variant="secondary" className="text-sm">
-          <Users className="w-4 h-4 mr-1" />
-          {employees?.length || 0} Ansatte
-        </Badge>
+        <div className="flex items-center gap-4">
+          <Dialog open={showAddEmployeeDialog} onOpenChange={setShowAddEmployeeDialog}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Legg til ansatt
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Legg til ny ansatt</DialogTitle>
+                <DialogDescription>
+                  Fyll inn informasjonen nedenfor for å legge til en ny ansatt.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleAddEmployee}>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="first_name">Fornavn</Label>
+                      <Input
+                        id="first_name"
+                        value={employeeForm.first_name}
+                        onChange={(e) => setEmployeeForm(prev => ({ ...prev, first_name: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="last_name">Etternavn</Label>
+                      <Input
+                        id="last_name"
+                        value={employeeForm.last_name}
+                        onChange={(e) => setEmployeeForm(prev => ({ ...prev, last_name: e.target.value }))}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="personal_number">Personnummer</Label>
+                    <Input
+                      id="personal_number"
+                      placeholder="XXXXXX-XXXXX"
+                      value={employeeForm.personal_number}
+                      onChange={handleAddPersonalNumberChange}
+                      pattern="[0-9]{6}-[0-9]{5}"
+                      maxLength={12}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Telefon</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={employeeForm.phone}
+                      onChange={(e) => setEmployeeForm(prev => ({ ...prev, phone: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">E-post</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={employeeForm.email}
+                      onChange={(e) => setEmployeeForm(prev => ({ ...prev, email: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Passord</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={employeeForm.password}
+                      onChange={(e) => setEmployeeForm(prev => ({ ...prev, password: e.target.value }))}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="submit" disabled={isAddSubmitting}>
+                    {isAddSubmitting ? 'Legger til...' : 'Legg til ansatt'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+          <Badge variant="secondary" className="text-sm">
+            <Users className="w-4 h-4 mr-1" />
+            {employees?.length || 0} Ansatte
+          </Badge>
+        </div>
       </div>
 
       {/* Employees List */}
