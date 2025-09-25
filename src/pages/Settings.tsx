@@ -89,9 +89,12 @@ export default function Settings() {
     name: "business_hours",
   });
 
-  // Update form when data is loaded
+  // Update form when data is loaded (only on initial load, not after mutations)
+  const [hasInitialized, setHasInitialized] = React.useState(false);
+  
   React.useEffect(() => {
-    if (companySettings) {
+    if (companySettings && !hasInitialized) {
+      console.log('Initializing form with data:', companySettings);
       form.reset({
         company_name: companySettings.company_name || "",
         address: companySettings.address || "",
@@ -103,8 +106,9 @@ export default function Settings() {
         website: companySettings.website || "",
         business_hours: companySettings.business_hours || defaultBusinessHours,
       });
+      setHasInitialized(true);
     }
-  }, [companySettings, form]);
+  }, [companySettings, form, hasInitialized]);
 
   if (userRole !== 'admin') {
     return (
@@ -120,12 +124,17 @@ export default function Settings() {
 
   const onSubmit = async (data: CompanySettingsForm) => {
     console.log('Form submission data:', data);
-    console.log('Business hours:', data.business_hours);
+    console.log('Business hours before save:', data.business_hours);
     
     // Check validation errors
     const validationResult = companySettingsSchema.safeParse(data);
     if (!validationResult.success) {
       console.log('Validation errors:', validationResult.error.format());
+      toast({
+        title: 'Valideringsfel',
+        description: 'Kontrollera att alla fält är korrekt ifyllda.',
+        variant: 'destructive',
+      });
       return;
     }
     
@@ -137,15 +146,19 @@ export default function Settings() {
         business_hours: data.business_hours as BusinessHours[]
       };
       console.log('Sending to server:', settingsData);
+      console.log('Business hours being saved:', settingsData.business_hours);
+      
       await updateCompanySettings.mutateAsync(settingsData);
+      
+      console.log('Settings saved successfully!');
       toast({
-        title: 'Inställningar sparade',
-        description: 'Företagsinställningarna har uppdaterats.',
+        title: 'Inställningar sparade!',
+        description: 'Öppettider och företagsinformation har uppdaterats framgångsrikt.',
       });
     } catch (error) {
       console.error('Save error:', error);
       toast({
-        title: 'Fel',
+        title: 'Fel vid sparande',
         description: 'Kunde inte spara inställningarna. Försök igen.',
         variant: 'destructive',
       });
@@ -343,25 +356,6 @@ export default function Settings() {
               </div>
             ))}
 
-            <div className="flex gap-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  // Set standard business hours (Mon-Fri 8-17)
-                  const standardHours = fields.map(field => ({
-                    ...field,
-                    isOpen: field.day >= 1 && field.day <= 5,
-                    openTime: "08:00",
-                    closeTime: "17:00"
-                  }));
-                  form.setValue("business_hours", standardHours);
-                  form.trigger("business_hours");
-                }}
-              >
-                Standardtider (Mån-Fre 8-17)
-              </Button>
-            </div>
           </CardContent>
         </Card>
 
