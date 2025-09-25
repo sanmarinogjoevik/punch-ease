@@ -132,6 +132,9 @@ export default function Reports() {
           shift.start_time.startsWith(dateStr)
         );
         
+        // Get business hours for this day of week
+        const businessHour = companySettings?.business_hours?.find(bh => bh.day === dayOfWeek);
+        
         let punchIn = null;
         let punchOut = null;
         let total = '';
@@ -142,17 +145,29 @@ export default function Reports() {
           const shiftStart = parseISO(dayShift.start_time);
           const shiftEnd = parseISO(dayShift.end_time);
           
-          // Dynamic logic based on current time
+          // Dynamic logic based on business hours and current time
           const shiftHasStarted = now >= shiftStart;
-          const shiftHasEnded = now >= shiftEnd;
+          
+          // Determine when to show OUT time - when store closes for the day
+          let storeHasClosed = false;
+          if (businessHour && businessHour.isOpen) {
+            // Create closing time for this date
+            const [closeHour, closeMinute] = businessHour.closeTime.split(':').map(Number);
+            const storeCloseTime = new Date(date);
+            storeCloseTime.setHours(closeHour, closeMinute, 0, 0);
+            storeHasClosed = now >= storeCloseTime;
+          } else {
+            // Fallback to shift end time if no business hours configured
+            storeHasClosed = now >= shiftEnd;
+          }
           
           if (shiftHasStarted) {
             // Show IN time when shift has started
             punchIn = format(shiftStart, 'HH:mm');
             hasData = true;
             
-            if (shiftHasEnded) {
-              // Show OUT time and calculate totals when shift has ended
+            if (storeHasClosed) {
+              // Show scheduled OUT time when store closes for the day
               punchOut = format(shiftEnd, 'HH:mm');
               
               const totalMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
