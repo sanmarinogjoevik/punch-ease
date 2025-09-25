@@ -14,7 +14,7 @@ import TimeEntries from "./pages/TimeEntries";
 import EmployeeSchedule from "./pages/EmployeeSchedule";
 import Timeliste from "./pages/Timeliste";
 import Reports from "./pages/Reports";
-import { Settings } from "./pages/Settings";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

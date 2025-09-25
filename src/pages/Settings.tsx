@@ -24,7 +24,7 @@ const companySettingsSchema = z.object({
 
 type CompanySettingsForm = z.infer<typeof companySettingsSchema>;
 
-export function Settings() {
+export default function Settings() {
   const { userRole } = useAuth();
   const { data: companySettings, isLoading } = useCompanySettings();
   const updateCompanySettings = useUpdateCompanySettings();
@@ -215,5 +215,3 @@ export function Settings() {
     </div>
   );
 }
-
-export default Settings;
