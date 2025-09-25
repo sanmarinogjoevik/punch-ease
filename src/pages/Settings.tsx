@@ -1,15 +1,30 @@
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import React from 'react';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
-import { useCompanySettings, useUpdateCompanySettings } from '@/hooks/useCompanySettings';
+import { useCompanySettings, useUpdateCompanySettings, BusinessHours, CompanySettingsUpdate } from '@/hooks/useCompanySettings';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+
+const businessHoursSchema = z.object({
+  day: z.number(),
+  dayName: z.string(),
+  isOpen: z.boolean(),
+  openTime: z.string(),
+  closeTime: z.string(),
+}).refine((data) => {
+  if (!data.isOpen) return true;
+  return data.openTime < data.closeTime;
+}, {
+  message: "Stängningstid måste vara efter öppningstid",
+  path: ["closeTime"],
+});
 
 const companySettingsSchema = z.object({
   company_name: z.string().min(1, 'Företagsnamn krävs'),
@@ -20,9 +35,20 @@ const companySettingsSchema = z.object({
   phone: z.string().optional(),
   email: z.string().email('Ogiltig e-postadress').optional().or(z.literal('')),
   website: z.string().url('Ogiltig webbadress').optional().or(z.literal('')),
+  business_hours: z.array(businessHoursSchema).optional(),
 });
 
 type CompanySettingsForm = z.infer<typeof companySettingsSchema>;
+
+const defaultBusinessHours: BusinessHours[] = [
+  { day: 1, dayName: "Måndag", isOpen: true, openTime: "08:00", closeTime: "17:00" },
+  { day: 2, dayName: "Tisdag", isOpen: true, openTime: "08:00", closeTime: "17:00" },
+  { day: 3, dayName: "Onsdag", isOpen: true, openTime: "08:00", closeTime: "17:00" },
+  { day: 4, dayName: "Torsdag", isOpen: true, openTime: "08:00", closeTime: "17:00" },
+  { day: 5, dayName: "Fredag", isOpen: true, openTime: "08:00", closeTime: "17:00" },
+  { day: 6, dayName: "Lördag", isOpen: false, openTime: "09:00", closeTime: "15:00" },
+  { day: 0, dayName: "Söndag", isOpen: false, openTime: "10:00", closeTime: "14:00" },
+];
 
 export default function Settings() {
   const { userRole } = useAuth();
@@ -32,17 +58,40 @@ export default function Settings() {
 
   const form = useForm<CompanySettingsForm>({
     resolver: zodResolver(companySettingsSchema),
-    values: companySettings || {
-      company_name: 'Mitt Företag AB',
-      address: '',
-      postal_code: '',
-      city: '',
-      org_number: '',
-      phone: '',
-      email: '',
-      website: '',
+    defaultValues: {
+      company_name: "",
+      address: "",
+      postal_code: "",
+      city: "",
+      org_number: "",
+      phone: "",
+      email: "",
+      website: "",
+      business_hours: defaultBusinessHours,
     },
   });
+
+  const { fields, update } = useFieldArray({
+    control: form.control,
+    name: "business_hours",
+  });
+
+  // Update form when data is loaded
+  React.useEffect(() => {
+    if (companySettings) {
+      form.reset({
+        company_name: companySettings.company_name || "",
+        address: companySettings.address || "",
+        postal_code: companySettings.postal_code || "",
+        city: companySettings.city || "",
+        org_number: companySettings.org_number || "",
+        phone: companySettings.phone || "",
+        email: companySettings.email || "",
+        website: companySettings.website || "",
+        business_hours: companySettings.business_hours || defaultBusinessHours,
+      });
+    }
+  }, [companySettings, form]);
 
   if (userRole !== 'admin') {
     return (
@@ -58,10 +107,11 @@ export default function Settings() {
 
   const onSubmit = async (data: CompanySettingsForm) => {
     try {
-      // Ensure company_name is always present
-      const settingsData = {
+      // Ensure company_name is always present and business_hours are properly typed
+      const settingsData: CompanySettingsUpdate = {
         ...data,
-        company_name: data.company_name || 'Mitt Företag AB'
+        company_name: data.company_name || 'Mitt Företag AB',
+        business_hours: data.business_hours as BusinessHours[]
       };
       await updateCompanySettings.mutateAsync(settingsData);
       toast({
@@ -191,6 +241,82 @@ export default function Settings() {
                   </p>
                 )}
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Business Hours Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Öppettider</CardTitle>
+            <CardDescription>
+              Ställ in vilka dagar och tider företaget är öppet
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {fields.map((field, index) => (
+              <div key={field.day} className="flex items-center gap-4 p-4 border rounded-lg">
+                <div className="w-20 font-medium">
+                  {field.dayName}
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={field.isOpen}
+                    onCheckedChange={(checked) => {
+                      update(index, { ...field, isOpen: checked });
+                    }}
+                  />
+                  <Label className="text-sm">Öppet</Label>
+                </div>
+
+                {field.isOpen && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm">Från:</Label>
+                      <Input
+                        type="time"
+                        value={field.openTime}
+                        onChange={(e) => {
+                          update(index, { ...field, openTime: e.target.value });
+                        }}
+                        className="w-32"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm">Till:</Label>
+                      <Input
+                        type="time"
+                        value={field.closeTime}
+                        onChange={(e) => {
+                          update(index, { ...field, closeTime: e.target.value });
+                        }}
+                        className="w-32"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+
+            <div className="flex gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  // Set standard business hours (Mon-Fri 8-17)
+                  const standardHours = fields.map(field => ({
+                    ...field,
+                    isOpen: field.day >= 1 && field.day <= 5,
+                    openTime: "08:00",
+                    closeTime: "17:00"
+                  }));
+                  form.setValue("business_hours", standardHours);
+                }}
+              >
+                Standardtider (Mån-Fre 8-17)
+              </Button>
             </div>
           </CardContent>
         </Card>

@@ -17,6 +17,7 @@ export type Database = {
       company_settings: {
         Row: {
           address: string | null
+          business_hours: Json | null
           city: string | null
           company_name: string
           created_at: string
@@ -31,6 +32,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          business_hours?: Json | null
           city?: string | null
           company_name?: string
           created_at?: string
@@ -45,6 +47,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          business_hours?: Json | null
           city?: string | null
           company_name?: string
           created_at?: string
