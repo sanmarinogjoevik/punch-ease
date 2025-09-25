@@ -1,95 +1,78 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Calendar, Download, AlertTriangle, Clock, FileText, Users, TrendingUp, Shield, Edit, Trash2 } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ChevronLeft, ChevronRight, Download, Edit, Trash2, Printer } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, differenceInHours, parseISO } from 'date-fns';
-import { nb } from 'date-fns/locale';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay } from 'date-fns';
+import { sv } from 'date-fns/locale';
 
 interface TimeEntry {
   id: string;
   entry_type: 'punch_in' | 'punch_out';
   timestamp: string;
   employee_id: string;
-  profiles: {
-    first_name: string;
-    last_name: string;
-    personal_number: string;
-  };
 }
 
-interface WorkDay {
+interface TimelistEntry {
   date: string;
-  employee_id: string;
-  employee_name: string;
+  day: string;
+  dayName: string;
+  punchIn: string | null;
+  punchOut: string | null;
+  lunch: string;
+  total: string;
+  hasData: boolean;
+}
+
+interface Employee {
+  user_id: string;
+  first_name: string;
+  last_name: string;
   personal_number: string;
-  total_hours: number;
-  punch_in: string | null;
-  punch_out: string | null;
-  overtime_hours: number;
-  rest_period_hours: number;
-  breaks_taken: number;
-  compliance_issues: string[];
 }
 
-interface OvertimeReport {
-  employee_id: string;
-  employee_name: string;
-  weekly_overtime: number;
-  daily_overtime: number;
-  compensation_rate: number;
-  approval_status: string;
-  reason: string;
-}
+const COMPANY_INFO = {
+  name: "San Marino Pizza AS",
+  address: "Storgata 123",
+  city: "1234 Oslo",
+  orgNumber: "123456789"
+};
 
-interface ComplianceWarning {
-  type: 'max_daily' | 'max_weekly' | 'rest_period' | 'break_violation' | 'overtime_limit';
-  employee_id: string;
-  employee_name: string;
-  date: string;
-  description: string;
-  severity: 'low' | 'medium' | 'high';
-}
+const NORWEGIAN_DAYS = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
 
 export default function Reports() {
   const { user, userRole } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [dateRange, setDateRange] = useState({
-    from: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
-    to: format(endOfMonth(new Date()), 'yyyy-MM-dd')
-  });
-  const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
-  const [reportType, setReportType] = useState<string>('daily');
+  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [selectedEmployee, setSelectedEmployee] = useState<string>('');
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [timelistEntries, setTimelistEntries] = useState<TimelistEntry[]>([]);
   
-  const [workDays, setWorkDays] = useState<WorkDay[]>([]);
-  const [overtimeReports, setOvertimeReports] = useState<OvertimeReport[]>([]);
-  const [complianceWarnings, setComplianceWarnings] = useState<ComplianceWarning[]>([]);
-  const [employees, setEmployees] = useState<any[]>([]);
-
-  // Edit functionality state
+  // Edit functionality
   const [showEditDialog, setShowEditDialog] = useState(false);
-  const [editingWorkDay, setEditingWorkDay] = useState<WorkDay | null>(null);
+  const [editingDate, setEditingDate] = useState<string>('');
   const [editForm, setEditForm] = useState({
     punch_in: '',
-    punch_out: '',
-    date: ''
+    punch_out: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchEmployees();
-    generateReports();
-  }, [dateRange, selectedEmployee, reportType]);
+  }, []);
+
+  useEffect(() => {
+    if (selectedEmployee) {
+      generateTimelist();
+    }
+  }, [selectedMonth, selectedEmployee]);
 
   const fetchEmployees = async () => {
     try {
@@ -106,367 +89,226 @@ export default function Reports() {
     }
   };
 
-  const generateReports = async () => {
+  const generateTimelist = async () => {
+    if (!selectedEmployee) return;
+    
     setLoading(true);
     try {
-      await Promise.all([
-        generateWorkDayReports(),
-        generateOvertimeReports(),
-        generateComplianceWarnings()
-      ]);
+      const monthStart = startOfMonth(new Date(selectedMonth + '-01'));
+      const monthEnd = endOfMonth(monthStart);
+      
+      // Get time entries for the selected month and employee
+      const { data: timeEntries, error } = await supabase
+        .from('time_entries')
+        .select('*')
+        .eq('employee_id', selectedEmployee)
+        .gte('timestamp', format(monthStart, 'yyyy-MM-dd'))
+        .lte('timestamp', format(monthEnd, 'yyyy-MM-dd'))
+        .order('timestamp');
+
+      if (error) throw error;
+
+      // Generate all days of the month
+      const allDaysInMonth = eachDayOfInterval({
+        start: monthStart,
+        end: monthEnd
+      });
+
+      // Process time entries into daily data
+      const processedEntries = allDaysInMonth.map(date => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const dayOfWeek = getDay(date);
+        const dayEntries = (timeEntries || []).filter(entry => 
+          entry.timestamp.startsWith(dateStr)
+        );
+
+        // Find punch in and punch out for this day
+        const punchInEntry = dayEntries.find(entry => entry.entry_type === 'punch_in');
+        const punchOutEntry = dayEntries.find(entry => entry.entry_type === 'punch_out');
+        
+        const punchIn = punchInEntry ? format(parseISO(punchInEntry.timestamp), 'HH:mm') : null;
+        const punchOut = punchOutEntry ? format(parseISO(punchOutEntry.timestamp), 'HH:mm') : null;
+        
+        // Calculate total hours and lunch break
+        let total = '';
+        let lunch = '';
+        
+        if (punchIn && punchOut) {
+          const startTime = parseISO(punchInEntry!.timestamp);
+          const endTime = parseISO(punchOutEntry!.timestamp);
+          const totalMinutes = Math.floor((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+          
+          // Assume 30 min lunch for work days over 6 hours
+          const lunchMinutes = totalMinutes > 360 ? 30 : 0;
+          const workMinutes = totalMinutes - lunchMinutes;
+          
+          const hours = Math.floor(workMinutes / 60);
+          const minutes = workMinutes % 60;
+          total = `${hours}:${minutes.toString().padStart(2, '0')}`;
+          lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
+        }
+
+        return {
+          date: dateStr,
+          day: date.getDate().toString(),
+          dayName: NORWEGIAN_DAYS[dayOfWeek],
+          punchIn,
+          punchOut,
+          lunch,
+          total,
+          hasData: !!(punchIn && punchOut)
+        };
+      });
+
+      setTimelistEntries(processedEntries);
     } catch (error) {
-      console.error('Error generating reports:', error);
-      toast.error('Fel vid generering av rapporter');
+      console.error('Error generating timelist:', error);
+      toast.error('Fel vid generering av timlista');
     } finally {
       setLoading(false);
     }
   };
 
-  // Edit functionality for admins
-  const handleEditWorkDay = (workDay: WorkDay) => {
-    setEditingWorkDay(workDay);
+  const handlePreviousMonth = () => {
+    const currentDate = new Date(selectedMonth + '-01');
+    const previousMonth = new Date(currentDate.setMonth(currentDate.getMonth() - 1));
+    setSelectedMonth(format(previousMonth, 'yyyy-MM'));
+  };
+
+  const handleNextMonth = () => {
+    const currentDate = new Date(selectedMonth + '-01');
+    const nextMonth = new Date(currentDate.setMonth(currentDate.getMonth() + 1));
+    setSelectedMonth(format(nextMonth, 'yyyy-MM'));
+  };
+
+  const handleEditEntry = (entry: TimelistEntry) => {
+    setEditingDate(entry.date);
     setEditForm({
-      punch_in: workDay.punch_in ? format(parseISO(workDay.punch_in), 'HH:mm') : '',
-      punch_out: workDay.punch_out ? format(parseISO(workDay.punch_out), 'HH:mm') : '',
-      date: workDay.date
+      punch_in: entry.punchIn || '',
+      punch_out: entry.punchOut || ''
     });
     setShowEditDialog(true);
   };
 
-  const handleUpdateWorkDay = async () => {
-    if (!editingWorkDay || !editForm.punch_in || !editForm.punch_out || !editForm.date) return;
+  const handleUpdateEntry = async () => {
+    if (!editingDate || !selectedEmployee) return;
     
     setIsSubmitting(true);
     try {
-      // Create new timestamps
-      const punchInTime = `${editForm.date}T${editForm.punch_in}:00`;
-      const punchOutTime = `${editForm.date}T${editForm.punch_out}:00`;
-
-      // Delete existing time entries for this employee and date
-      const dayStart = `${editForm.date}T00:00:00`;
-      const dayEnd = `${editForm.date}T23:59:59`;
-      
+      // Delete existing entries for this day
       await supabase
         .from('time_entries')
         .delete()
-        .eq('employee_id', editingWorkDay.employee_id)
-        .gte('timestamp', dayStart)
-        .lte('timestamp', dayEnd);
+        .eq('employee_id', selectedEmployee)
+        .gte('timestamp', `${editingDate}T00:00:00`)
+        .lte('timestamp', `${editingDate}T23:59:59`);
 
-      // Insert new punch in and punch out entries
-      const { error: insertError } = await supabase
-        .from('time_entries')
-        .insert([
-          {
-            employee_id: editingWorkDay.employee_id,
-            entry_type: 'punch_in',
-            timestamp: punchInTime
-          },
-          {
-            employee_id: editingWorkDay.employee_id,
-            entry_type: 'punch_out',
-            timestamp: punchOutTime
-          }
-        ]);
+      // Insert new entries if both times are provided
+      if (editForm.punch_in && editForm.punch_out) {
+        const { error } = await supabase
+          .from('time_entries')
+          .insert([
+            {
+              employee_id: selectedEmployee,
+              entry_type: 'punch_in',
+              timestamp: `${editingDate}T${editForm.punch_in}:00`
+            },
+            {
+              employee_id: selectedEmployee,
+              entry_type: 'punch_out',
+              timestamp: `${editingDate}T${editForm.punch_out}:00`
+            }
+          ]);
 
-      if (insertError) throw insertError;
+        if (error) throw error;
+      }
 
-      toast.success('Arbetstid uppdaterad framgångsrikt');
+      toast.success('Tider uppdaterade');
       setShowEditDialog(false);
-      setEditingWorkDay(null);
-      
-      // Refresh reports
-      await generateReports();
-
+      generateTimelist();
     } catch (error: any) {
-      console.error('Error updating work day:', error);
-      toast.error(error.message || 'Fel vid uppdatering av arbetstid');
+      console.error('Error updating entry:', error);
+      toast.error(error.message || 'Fel vid uppdatering');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDeleteWorkDay = async (workDay: WorkDay) => {
+  const handleDeleteEntry = async (entry: TimelistEntry) => {
+    if (!selectedEmployee) return;
+    
     try {
-      // Delete all time entries for this employee and date
-      const dayStart = `${workDay.date}T00:00:00`;
-      const dayEnd = `${workDay.date}T23:59:59`;
-      
-      const { error } = await supabase
+      await supabase
         .from('time_entries')
         .delete()
-        .eq('employee_id', workDay.employee_id)
-        .gte('timestamp', dayStart)
-        .lte('timestamp', dayEnd);
+        .eq('employee_id', selectedEmployee)
+        .gte('timestamp', `${entry.date}T00:00:00`)
+        .lte('timestamp', `${entry.date}T23:59:59`);
 
-      if (error) throw error;
-
-      toast.success('Arbetstidspost borttagen');
-      
-      // Refresh reports
-      await generateReports();
-
+      toast.success('Post borttagen');
+      generateTimelist();
     } catch (error: any) {
-      console.error('Error deleting work day:', error);
-      toast.error(error.message || 'Fel vid borttagning av arbetstidspost');
+      console.error('Error deleting entry:', error);
+      toast.error(error.message || 'Fel vid borttagning');
     }
   };
 
-  const generateWorkDayReports = async () => {
-    try {
-      // First get time entries
-      const query = supabase
-        .from('time_entries')
-        .select('*')
-        .gte('timestamp', dateRange.from)
-        .lte('timestamp', dateRange.to)
-        .order('timestamp');
-
-      if (selectedEmployee !== 'all') {
-        query.eq('employee_id', selectedEmployee);
+  const calculateTotalHours = () => {
+    return timelistEntries.reduce((total, entry) => {
+      if (entry.total && entry.total !== '') {
+        const [hours, minutes] = entry.total.split(':').map(Number);
+        return total + (hours * 60) + minutes;
       }
-
-      const { data: timeEntries, error } = await query;
-      if (error) throw error;
-
-      // Then get profiles separately and join them
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, first_name, last_name, personal_number');
-
-      if (profilesError) throw profilesError;
-
-      // Join the data manually
-      const timeEntriesWithProfiles = (timeEntries || []).map(entry => ({
-        ...entry,
-        profiles: profiles?.find(p => p.user_id === entry.employee_id) || {
-          first_name: 'Okänd',
-          last_name: 'Anställd',
-          personal_number: ''
-        }
-      }));
-
-      const processedWorkDays = processTimeEntriesToWorkDays(timeEntriesWithProfiles);
-      setWorkDays(processedWorkDays);
-    } catch (error) {
-      console.error('Error generating work day reports:', error);
-    }
+      return total;
+    }, 0);
   };
 
-  const processTimeEntriesToWorkDays = (entries: TimeEntry[]): WorkDay[] => {
-    const workDayMap = new Map<string, WorkDay>();
-
-    // Group entries by employee and date
-    const groupedEntries = new Map<string, TimeEntry[]>();
-    
-    entries.forEach(entry => {
-      try {
-        const date = format(parseISO(entry.timestamp), 'yyyy-MM-dd');
-        const key = `${entry.employee_id}|${date}`; // Use | instead of - to avoid conflicts
-        
-        if (!groupedEntries.has(key)) {
-          groupedEntries.set(key, []);
-        }
-        groupedEntries.get(key)!.push(entry);
-      } catch (error) {
-        console.error('Invalid timestamp:', entry.timestamp, error);
-      }
-    });
-
-    // Process each employee-date group
-    groupedEntries.forEach((dayEntries, key) => {
-      const [employee_id, date] = key.split('|'); // Split by | instead of -
-      const sortedEntries = dayEntries.sort((a, b) => 
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
-
-      // Calculate total hours by pairing punch_in with punch_out
-      let totalMinutes = 0;
-      let sessions = 0;
-      let firstPunchIn: string | null = null;
-      let lastPunchOut: string | null = null;
-      let currentPunchIn: string | null = null;
-
-      for (const entry of sortedEntries) {
-        if (entry.entry_type === 'punch_in') {
-          currentPunchIn = entry.timestamp;
-          if (!firstPunchIn) {
-            firstPunchIn = entry.timestamp;
-          }
-        } else if (entry.entry_type === 'punch_out' && currentPunchIn) {
-          // Calculate minutes for this session
-          const sessionMinutes = Math.round(
-            (new Date(entry.timestamp).getTime() - new Date(currentPunchIn).getTime()) / (1000 * 60)
-          );
-          totalMinutes += sessionMinutes;
-          sessions++;
-          lastPunchOut = entry.timestamp;
-          currentPunchIn = null;
-        }
-      }
-
-      const totalHours = totalMinutes / 60;
-      const workDay: WorkDay = {
-        date,
-        employee_id,
-        employee_name: `${sortedEntries[0].profiles.first_name} ${sortedEntries[0].profiles.last_name}`,
-        personal_number: sortedEntries[0].profiles.personal_number || '',
-        total_hours: Math.round(totalHours * 100) / 100, // Round to 2 decimals
-        punch_in: firstPunchIn,
-        punch_out: lastPunchOut,
-        overtime_hours: 0,
-        rest_period_hours: 0,
-        breaks_taken: sessions,
-        compliance_issues: []
-      };
-
-      // Check for daily overtime (over 9 hours)
-      if (totalHours > 9) {
-        workDay.overtime_hours = totalHours - 9;
-        workDay.compliance_issues.push('Övertid över 9 timmar per dag');
-      }
-
-      // Check for excessive daily hours (over 13 hours)
-      if (totalHours > 13) {
-        workDay.compliance_issues.push('Överskrider maximal arbetstid (13 timmar)');
-      }
-
-      // Check for insufficient breaks (should have 30 min break for work over 5.5 hours)
-      if (totalHours > 5.5 && sessions < 2) {
-        workDay.compliance_issues.push('Ingen registrerad paus för arbetsdag över 5,5 timmar');
-      }
-
-      workDayMap.set(key, workDay);
-    });
-
-    return Array.from(workDayMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+  const formatTotalMinutes = (totalMinutes: number) => {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours}:${minutes.toString().padStart(2, '0')}`;
   };
 
-  const generateOvertimeReports = async () => {
-    // Mock data for now - would be calculated from actual time entries
-    const mockOvertimeReports: OvertimeReport[] = workDays
-      .filter(day => day.overtime_hours > 0)
-      .map(day => ({
-        employee_id: day.employee_id,
-        employee_name: day.employee_name,
-        weekly_overtime: day.overtime_hours,
-        daily_overtime: day.overtime_hours,
-        compensation_rate: day.overtime_hours <= 2 ? 1.5 : 2.0,
-        approval_status: 'Väntar på godkännande',
-        reason: 'Hög arbetsbelastning'
-      }));
-
-    setOvertimeReports(mockOvertimeReports);
-  };
-
-  const generateComplianceWarnings = async () => {
-    const warnings: ComplianceWarning[] = [];
-
-    workDays.forEach(workDay => {
-      workDay.compliance_issues.forEach(issue => {
-        let severity: 'low' | 'medium' | 'high' = 'medium';
-        let type: ComplianceWarning['type'] = 'max_daily';
-
-        if (issue.includes('13 timmar')) {
-          severity = 'high';
-          type = 'max_daily';
-        } else if (issue.includes('Övertid')) {
-          severity = 'medium';
-          type = 'overtime_limit';
-        } else if (issue.includes('paus')) {
-          severity = 'low';
-          type = 'break_violation';
-        }
-
-        warnings.push({
-          type,
-          employee_id: workDay.employee_id,
-          employee_name: workDay.employee_name,
-          date: workDay.date,
-          description: issue,
-          severity
-        });
-      });
-    });
-
-    setComplianceWarnings(warnings);
-  };
-
-  const exportToCSV = (data: any[], filename: string) => {
-    if (data.length === 0) {
-      toast.error('Ingen data att exportera');
-      return;
-    }
-
-    const headers = Object.keys(data[0]);
-    const csvContent = [
-      headers.join(','),
-      ...data.map(row => headers.map(header => `"${row[header] || ''}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${filename}-${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    link.click();
-  };
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'high': return 'destructive';
-      case 'medium': return 'secondary';
-      case 'low': return 'outline';
-      default: return 'outline';
-    }
-  };
+  const selectedEmployeeData = employees.find(emp => emp.user_id === selectedEmployee);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Rapporter</h1>
-          <p className="text-muted-foreground">Arbetstidsrapporter enligt norsk arbetsmiljölag</p>
-        </div>
-        <Button onClick={generateReports} disabled={loading}>
-          <TrendingUp className="w-4 h-4 mr-2" />
-          {loading ? 'Genererar...' : 'Uppdatera rapporter'}
-        </Button>
+    <div className="container mx-auto p-6 max-w-4xl">
+      {/* Header */}
+      <div className="text-center mb-6 border-b border-border pb-4">
+        <h1 className="text-2xl font-bold">{COMPANY_INFO.name}</h1>
+        <p className="text-sm text-muted-foreground">{COMPANY_INFO.address}</p>
+        <p className="text-sm text-muted-foreground">{COMPANY_INFO.city}</p>
+        <p className="text-sm text-muted-foreground">Org.nr: {COMPANY_INFO.orgNumber}</p>
       </div>
 
-      {/* Filterkontroller */}
-      <Card>
+      {/* Controls */}
+      <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
-            Rapportfilter
-          </CardTitle>
+          <CardTitle>Timlista</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="text-sm font-medium">Från datum</label>
-              <Input
-                type="date"
-                value={dateRange.from}
-                onChange={(e) => setDateRange(prev => ({...prev, from: e.target.value}))}
-              />
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-4 items-end">
+            {/* Month Navigation */}
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handlePreviousMonth}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="text-lg font-medium min-w-[120px] text-center">
+                {format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: sv })}
+              </div>
+              <Button variant="outline" size="sm" onClick={handleNextMonth}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-            <div>
-              <label className="text-sm font-medium">Till datum</label>
-              <Input
-                type="date"
-                value={dateRange.to}
-                onChange={(e) => setDateRange(prev => ({...prev, to: e.target.value}))}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Anställd</label>
+
+            {/* Employee Selection */}
+            <div className="flex-1">
+              <Label htmlFor="employee-select">Anställd</Label>
               <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger id="employee-select">
+                  <SelectValue placeholder="Välj anställd" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Alla anställda</SelectItem>
                   {employees.map(employee => (
                     <SelectItem key={employee.user_id} value={employee.user_id}>
                       {employee.first_name} {employee.last_name}
@@ -475,356 +317,166 @@ export default function Reports() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <label className="text-sm font-medium">Rapporttyp</label>
-              <Select value={reportType} onValueChange={setReportType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daglig</SelectItem>
-                  <SelectItem value="weekly">Veckovis</SelectItem>
-                  <SelectItem value="monthly">Månatlig</SelectItem>
-                </SelectContent>
-              </Select>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm">
+                <Printer className="h-4 w-4 mr-2" />
+                Skriv ut
+              </Button>
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Exportera
+              </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="arbetstid" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="arbetstid">Arbetstid</TabsTrigger>
-          <TabsTrigger value="overtid">Övertid</TabsTrigger>
-          <TabsTrigger value="efterlevnad">Efterlevnad</TabsTrigger>
-          <TabsTrigger value="vila">Vila & Pauser</TabsTrigger>
-          <TabsTrigger value="export">Export</TabsTrigger>
-        </TabsList>
+      {/* Employee Info */}
+      {selectedEmployeeData && (
+        <Card className="mb-6">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <strong>Namn:</strong> {selectedEmployeeData.first_name} {selectedEmployeeData.last_name}
+              </div>
+              <div>
+                <strong>Personnummer:</strong> {selectedEmployeeData.personal_number || 'Ej angivet'}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Arbetstidsrapporter */}
-        <TabsContent value="arbetstid" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="w-5 h-5" />
-                Arbetstidsregistrering
-              </CardTitle>
-              <CardDescription>
-                Grundläggande arbetstidsrapporter enligt arbeidsmiljøloven § 10-6
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {workDays.map((workDay, index) => (
-                  <div key={index} className="flex justify-between items-center p-4 border rounded-lg">
-                    <div>
-                      <div className="font-medium">{workDay.employee_name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {workDay.date ? format(parseISO(workDay.date), 'EEEE d MMMM yyyy', { locale: nb }) : 'Invalid date'}
-                      </div>
-                      <div className="text-sm">
-                        {workDay.punch_in && workDay.punch_out && (
-                          <>
-                            {format(parseISO(workDay.punch_in), 'HH:mm')} - {format(parseISO(workDay.punch_out), 'HH:mm')}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="font-medium">{workDay.total_hours.toFixed(1)}h</div>
-                        {workDay.overtime_hours > 0 && (
-                          <Badge variant="secondary">+{workDay.overtime_hours.toFixed(1)}h övertid</Badge>
-                        )}
-                        {workDay.compliance_issues.length > 0 && (
-                          <Badge variant="destructive" className="mt-1">
-                            {workDay.compliance_issues.length} varning(ar)
-                          </Badge>
-                        )}
-                      </div>
-                      
-                      {/* Admin Edit Controls */}
-                      {userRole === 'admin' && (
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => handleEditWorkDay(workDay)}
+      {/* Timelist Table */}
+      {selectedEmployee && (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-center border-r">DATUM</TableHead>
+                  <TableHead className="text-center border-r">DAG</TableHead>
+                  <TableHead className="text-center border-r">IN</TableHead>
+                  <TableHead className="text-center border-r">UT</TableHead>
+                  <TableHead className="text-center border-r">LUNCH</TableHead>
+                  <TableHead className="text-center border-r">TOTALT</TableHead>
+                  {userRole === 'admin' && (
+                    <TableHead className="text-center">ÅTGÄRD</TableHead>
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {timelistEntries.map((entry, index) => (
+                  <TableRow key={entry.date} className={index % 2 === 0 ? 'bg-muted/20' : ''}>
+                    <TableCell className="text-center border-r font-mono">{entry.day}</TableCell>
+                    <TableCell className="text-center border-r">{entry.dayName}</TableCell>
+                    <TableCell className="text-center border-r font-mono">
+                      {entry.punchIn || '-'}
+                    </TableCell>
+                    <TableCell className="text-center border-r font-mono">
+                      {entry.punchOut || '-'}
+                    </TableCell>
+                    <TableCell className="text-center border-r font-mono">
+                      {entry.lunch || '-'}
+                    </TableCell>
+                    <TableCell className="text-center border-r font-mono font-semibold">
+                      {entry.total || '-'}
+                    </TableCell>
+                    {userRole === 'admin' && (
+                      <TableCell className="text-center">
+                        <div className="flex justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditEntry(entry)}
                           >
-                            <Edit className="w-4 h-4" />
+                            <Edit className="h-4 w-4" />
                           </Button>
-                          
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Ta bort arbetstidspost?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Detta kommer att ta bort alla tidsregistreringar för {workDay.employee_name} den {workDay.date ? format(parseISO(workDay.date), 'yyyy-MM-dd') : 'Invalid date'}. 
-                                  Detta kan inte ångras.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Avbryt</AlertDialogCancel>
-                                <AlertDialogAction 
-                                  onClick={() => handleDeleteWorkDay(workDay)}
-                                  className="bg-red-600 hover:bg-red-700"
-                                >
-                                  Ta bort
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                          {entry.hasData && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteEntry(entry)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
                 ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                
+                {/* Total Row */}
+                <TableRow className="border-t-2 font-bold">
+                  <TableCell colSpan={5} className="text-right border-r">
+                    TOTALT:
+                  </TableCell>
+                  <TableCell className="text-center border-r font-mono">
+                    {formatTotalMinutes(calculateTotalHours())}
+                  </TableCell>
+                  {userRole === 'admin' && <TableCell></TableCell>}
+                </TableRow>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Övertidsrapporter */}
-        <TabsContent value="overtid" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                Övertidsrapporter
-              </CardTitle>
-              <CardDescription>
-                Spårning och dokumentation av övertidsarbete med ersättningsberäkning
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {overtimeReports.map((report, index) => (
-                  <div key={index} className="flex justify-between items-center p-4 border rounded-lg">
-                    <div>
-                      <div className="font-medium">{report.employee_name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        Orsak: {report.reason}
-                      </div>
-                      <div className="text-sm">
-                        Status: {report.approval_status}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-medium">{report.daily_overtime.toFixed(1)}h övertid</div>
-                      <div className="text-sm text-muted-foreground">
-                        Ersättning: {(report.compensation_rate * 100)}%
-                      </div>
-                      <Badge variant="outline">
-                        {report.compensation_rate === 1.5 ? 'Första 2h' : 'Över 2h'}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
+      {/* Signature Section */}
+      {selectedEmployee && (
+        <Card className="mt-6">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-2 gap-8">
+              <div>
+                <p className="mb-8">Anställds underskrift:</p>
+                <div className="border-b border-border h-8"></div>
+                <p className="text-sm text-muted-foreground mt-2">Datum</p>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              <div>
+                <p className="mb-8">Chefs underskrift:</p>
+                <div className="border-b border-border h-8"></div>
+                <p className="text-sm text-muted-foreground mt-2">Datum</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Efterlevnadsrapporter */}
-        <TabsContent value="efterlevnad" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5" />
-                Regelefterlevnad
-              </CardTitle>
-              <CardDescription>
-                Varningar och överträdelser av arbetsmiljölagens bestämmelser
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {complianceWarnings.length === 0 ? (
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      Inga regelöverträdelser upptäckta för vald period.
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  complianceWarnings.map((warning, index) => (
-                    <Alert key={index} className="border-l-4 border-l-orange-500">
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertDescription>
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="font-medium">{warning.employee_name}</div>
-                            <div className="text-sm">
-                              {warning.date ? format(parseISO(warning.date), 'EEEE d MMMM yyyy', { locale: nb }) : 'Invalid date'}
-                            </div>
-                            <div className="text-sm mt-1">{warning.description}</div>
-                          </div>
-                          <Badge variant={getSeverityColor(warning.severity)}>
-                            {warning.severity === 'high' ? 'Hög' : warning.severity === 'medium' ? 'Medel' : 'Låg'}
-                          </Badge>
-                        </div>
-                      </AlertDescription>
-                    </Alert>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Vila och pauser */}
-        <TabsContent value="vila" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="w-5 h-5" />
-                Vila och Pauser
-              </CardTitle>
-              <CardDescription>
-                Kontroll av vilotider och pausregler enligt arbetsmiljölagens krav
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="font-semibold mb-4">Daglig vila (11 timmar)</h3>
-                  <div className="space-y-2">
-                    <Alert>
-                      <AlertDescription>
-                        Kontroll av att alla anställda har minst 11 timmars sammanhängande vila mellan arbetsdagar.
-                      </AlertDescription>
-                    </Alert>
-                    <div className="text-sm text-muted-foreground">
-                      Automatisk kontroll implementeras i nästa version
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-4">Veckovila (35 timmar)</h3>
-                  <div className="space-y-2">
-                    <Alert>
-                      <AlertDescription>
-                        Kontroll av att alla anställda har minst 35 timmars sammanhängande vila per vecka.
-                      </AlertDescription>
-                    </Alert>
-                    <div className="text-sm text-muted-foreground">
-                      Automatisk kontroll implementeras i nästa version
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Export */}
-        <TabsContent value="export" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Download className="w-5 h-5" />
-                Export för myndigheter
-              </CardTitle>
-              <CardDescription>
-                Exportera rapporter för Arbeidstilsynet och andra myndigheter
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button
-                  onClick={() => exportToCSV(workDays, 'arbetstid-rapport')}
-                  className="flex items-center gap-2"
-                >
-                  <FileText className="w-4 h-4" />
-                  Arbetstidsrapport (CSV)
-                </Button>
-                <Button
-                  onClick={() => exportToCSV(overtimeReports, 'overtid-rapport')}
-                  className="flex items-center gap-2"
-                >
-                  <TrendingUp className="w-4 h-4" />
-                  Övertidsrapport (CSV)
-                </Button>
-                <Button
-                  onClick={() => exportToCSV(complianceWarnings, 'efterlevnad-rapport')}
-                  className="flex items-center gap-2"
-                >
-                  <Shield className="w-4 h-4" />
-                  Efterlevnadsrapport (CSV)
-                </Button>
-              </div>
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                <h4 className="font-semibold text-blue-900 mb-2">Information för myndigheter</h4>
-                <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• Alla arbetstidsuppgifter sparas i 2 år enligt lag</li>
-                  <li>• Rapporter innehåller nödvändig information för Arbeidstilsynet</li>
-                  <li>• Personuppgifter hanteras enligt GDPR</li>
-                  <li>• Data är tillgänglig för inspektion på begäran</li>
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Edit Work Day Dialog */}
+      {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Redigera arbetstid</DialogTitle>
-            <DialogDescription>
-              Uppdatera arbetstiden för {editingWorkDay?.employee_name} den {editingWorkDay?.date}.
-            </DialogDescription>
+            <DialogTitle>Redigera arbetstid för {editingDate}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="edit_date">Datum</Label>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="punch-in">Stämpla in</Label>
               <Input
-                id="edit_date"
-                type="date"
-                value={editForm.date}
-                onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value }))}
-                required
+                id="punch-in"
+                type="time"
+                value={editForm.punch_in}
+                onChange={(e) => setEditForm(prev => ({ ...prev, punch_in: e.target.value }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="edit_punch_in">In-stämpling</Label>
-                <Input
-                  id="edit_punch_in"
-                  type="time"
-                  value={editForm.punch_in}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, punch_in: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit_punch_out">Ut-stämpling</Label>
-                <Input
-                  id="edit_punch_out"
-                  type="time"
-                  value={editForm.punch_out}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, punch_out: e.target.value }))}
-                  required
-                />
-              </div>
+            <div>
+              <Label htmlFor="punch-out">Stämpla ut</Label>
+              <Input
+                id="punch-out"
+                type="time"
+                value={editForm.punch_out}
+                onChange={(e) => setEditForm(prev => ({ ...prev, punch_out: e.target.value }))}
+              />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
               Avbryt
             </Button>
-            <Button onClick={handleUpdateWorkDay} disabled={isSubmitting}>
-              {isSubmitting ? 'Uppdaterar...' : 'Spara ändringar'}
+            <Button onClick={handleUpdateEntry} disabled={isSubmitting}>
+              {isSubmitting ? 'Sparar...' : 'Spara'}
             </Button>
           </DialogFooter>
         </DialogContent>
