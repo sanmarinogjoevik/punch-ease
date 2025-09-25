@@ -20,11 +20,22 @@ const businessHoursSchema = z.object({
   closeTime: z.string(),
 }).refine((data) => {
   if (!data.isOpen) return true;
-  return data.openTime < data.closeTime;
+  
+  // Convert time strings to comparable format
+  const openTimeMinutes = timeToMinutes(data.openTime);
+  const closeTimeMinutes = timeToMinutes(data.closeTime);
+  
+  return openTimeMinutes < closeTimeMinutes;
 }, {
   message: "Stängningstid måste vara efter öppningstid",
   path: ["closeTime"],
 });
+
+// Helper function to convert time string to minutes
+function timeToMinutes(timeStr: string): number {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
+}
 
 const companySettingsSchema = z.object({
   company_name: z.string().min(1, 'Företagsnamn krävs'),
@@ -106,6 +117,16 @@ export default function Settings() {
   }
 
   const onSubmit = async (data: CompanySettingsForm) => {
+    console.log('Form submission data:', data);
+    console.log('Business hours:', data.business_hours);
+    
+    // Check validation errors
+    const validationResult = companySettingsSchema.safeParse(data);
+    if (!validationResult.success) {
+      console.log('Validation errors:', validationResult.error.format());
+      return;
+    }
+    
     try {
       // Ensure company_name is always present and business_hours are properly typed
       const settingsData: CompanySettingsUpdate = {
@@ -113,12 +134,14 @@ export default function Settings() {
         company_name: data.company_name || 'Mitt Företag AB',
         business_hours: data.business_hours as BusinessHours[]
       };
+      console.log('Sending to server:', settingsData);
       await updateCompanySettings.mutateAsync(settingsData);
       toast({
         title: 'Inställningar sparade',
         description: 'Företagsinställningarna har uppdaterats.',
       });
     } catch (error) {
+      console.error('Save error:', error);
       toast({
         title: 'Fel',
         description: 'Kunde inte spara inställningarna. Försök igen.',
@@ -305,6 +328,15 @@ export default function Settings() {
                       />
                     </div>
                   </>
+                )}
+                
+                {/* Show validation errors for this day */}
+                {form.formState.errors.business_hours?.[index] && (
+                  <div className="text-sm text-destructive ml-auto">
+                    {form.formState.errors.business_hours[index]?.closeTime?.message || 
+                     form.formState.errors.business_hours[index]?.openTime?.message ||
+                     'Felaktig tid'}
+                  </div>
                 )}
               </div>
             ))}
