@@ -25,9 +25,11 @@ const businessHoursSchema = z.object({
   const openTimeMinutes = timeToMinutes(data.openTime);
   const closeTimeMinutes = timeToMinutes(data.closeTime);
   
-  return openTimeMinutes < closeTimeMinutes;
+  // Allow overnight hours (e.g., 23:00 to 03:00)
+  // If close time is earlier than open time, assume it's next day
+  return openTimeMinutes !== closeTimeMinutes; // Just ensure they're not the same
 }, {
-  message: "Stängningstid måste vara efter öppningstid",
+  message: "Öppningstid och stängningstid kan inte vara samma",
   path: ["closeTime"],
 });
 
