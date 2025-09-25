@@ -74,6 +74,17 @@ export default function Reports() {
     }
   }, [selectedMonth, selectedEmployee]);
 
+  // Real-time updates - check every 30 seconds for shift changes
+  useEffect(() => {
+    if (!selectedEmployee) return;
+
+    const interval = setInterval(() => {
+      generateTimelist();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [selectedEmployee, selectedMonth]);
+
   const fetchEmployees = async () => {
     try {
       const { data, error } = await supabase
@@ -114,7 +125,8 @@ export default function Reports() {
         end: monthEnd
       });
 
-      // Process shifts into daily data
+      // Process shifts into daily data with dynamic display logic
+      const now = new Date();
       const processedEntries = allDaysInMonth.map(date => {
         const dateStr = format(date, 'yyyy-MM-dd');
         const dayOfWeek = getDay(date);
@@ -128,23 +140,37 @@ export default function Reports() {
         let punchOut = null;
         let total = '';
         let lunch = '';
+        let hasData = false;
         
         if (dayShift) {
-          punchIn = format(parseISO(dayShift.start_time), 'HH:mm');
-          punchOut = format(parseISO(dayShift.end_time), 'HH:mm');
+          const shiftStart = parseISO(dayShift.start_time);
+          const shiftEnd = parseISO(dayShift.end_time);
           
-          const startTime = parseISO(dayShift.start_time);
-          const endTime = parseISO(dayShift.end_time);
-          const totalMinutes = Math.floor((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+          // Dynamic logic based on current time
+          const shiftHasStarted = now >= shiftStart;
+          const shiftHasEnded = now >= shiftEnd;
           
-          // Automatically add 30 min pause for work days 8 hours or more (480 minutes)
-          const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
-          const workMinutes = totalMinutes - pauseMinutes;
-          
-          const hours = Math.floor(workMinutes / 60);
-          const minutes = workMinutes % 60;
-          total = `${hours}:${minutes.toString().padStart(2, '0')}`;
-          lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
+          if (shiftHasStarted) {
+            // Show IN time when shift has started
+            punchIn = format(shiftStart, 'HH:mm');
+            hasData = true;
+            
+            if (shiftHasEnded) {
+              // Show OUT time and calculate totals when shift has ended
+              punchOut = format(shiftEnd, 'HH:mm');
+              
+              const totalMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
+              
+              // Automatically add 30 min pause for work days 8 hours or more (480 minutes)
+              const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
+              const workMinutes = totalMinutes - pauseMinutes;
+              
+              const hours = Math.floor(workMinutes / 60);
+              const minutes = workMinutes % 60;
+              total = `${hours}:${minutes.toString().padStart(2, '0')}`;
+              lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
+            }
+          }
         }
 
         return {
@@ -155,7 +181,7 @@ export default function Reports() {
           punchOut,
           lunch,
           total,
-          hasData: !!dayShift
+          hasData
         };
       });
 
@@ -360,46 +386,62 @@ export default function Reports() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {timelistEntries.map((entry, index) => (
-                  <TableRow key={entry.date} className={index % 2 === 0 ? 'bg-muted/20' : ''}>
-                    <TableCell className="text-center border-r font-mono">{entry.day}</TableCell>
-                    <TableCell className="text-center border-r">{entry.dayName}</TableCell>
-                    <TableCell className="text-center border-r font-mono">
-                      {entry.punchIn || '-'}
-                    </TableCell>
-                    <TableCell className="text-center border-r font-mono">
-                      {entry.punchOut || '-'}
-                    </TableCell>
-                    <TableCell className="text-center border-r font-mono">
-                      {entry.lunch || '-'}
-                    </TableCell>
-                    <TableCell className="text-center border-r font-mono font-semibold">
-                      {entry.total || '-'}
-                    </TableCell>
-                    {userRole === 'admin' && (
-                      <TableCell className="text-center">
-                        <div className="flex justify-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditEntry(entry)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          {entry.hasData && (
+                {timelistEntries.map((entry, index) => {
+                  // Check if this is an ongoing shift
+                  const today = format(new Date(), 'yyyy-MM-dd');
+                  const isToday = entry.date === today;
+                  const isOngoing = isToday && entry.punchIn && !entry.punchOut;
+                  
+                  return (
+                    <TableRow 
+                      key={entry.date} 
+                      className={`
+                        ${index % 2 === 0 ? 'bg-muted/20' : ''} 
+                        ${isOngoing ? 'bg-primary/10 border-l-4 border-l-primary' : ''}
+                      `}
+                    >
+                      <TableCell className="text-center border-r font-mono">{entry.day}</TableCell>
+                      <TableCell className="text-center border-r">
+                        {entry.dayName}
+                        {isOngoing && <span className="ml-2 text-xs text-primary font-semibold">(Pågående)</span>}
+                      </TableCell>
+                      <TableCell className="text-center border-r font-mono">
+                        {entry.punchIn || '-'}
+                      </TableCell>
+                      <TableCell className="text-center border-r font-mono">
+                        {entry.punchOut || '-'}
+                      </TableCell>
+                      <TableCell className="text-center border-r font-mono">
+                        {entry.lunch || '-'}
+                      </TableCell>
+                      <TableCell className="text-center border-r font-mono font-semibold">
+                        {entry.total || '-'}
+                      </TableCell>
+                      {userRole === 'admin' && (
+                        <TableCell className="text-center">
+                          <div className="flex justify-center gap-1">
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDeleteEntry(entry)}
+                              onClick={() => handleEditEntry(entry)}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Edit className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
+                            {entry.hasData && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteEntry(entry)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })}
                 
                 {/* Total Row */}
                 <TableRow className="border-t-2 font-bold">
