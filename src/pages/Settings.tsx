@@ -264,7 +264,10 @@ export default function Settings() {
                   <Switch
                     checked={field.isOpen}
                     onCheckedChange={(checked) => {
-                      update(index, { ...field, isOpen: checked });
+                      const updatedField = { ...field, isOpen: checked };
+                      update(index, updatedField);
+                      // Trigger form validation
+                      form.trigger("business_hours");
                     }}
                   />
                   <Label className="text-sm">Öppet</Label>
@@ -278,7 +281,10 @@ export default function Settings() {
                         type="time"
                         value={field.openTime}
                         onChange={(e) => {
-                          update(index, { ...field, openTime: e.target.value });
+                          const updatedField = { ...field, openTime: e.target.value };
+                          update(index, updatedField);
+                          // Trigger form validation
+                          form.trigger("business_hours");
                         }}
                         className="w-32"
                       />
@@ -290,7 +296,10 @@ export default function Settings() {
                         type="time"
                         value={field.closeTime}
                         onChange={(e) => {
-                          update(index, { ...field, closeTime: e.target.value });
+                          const updatedField = { ...field, closeTime: e.target.value };
+                          update(index, updatedField);
+                          // Trigger form validation
+                          form.trigger("business_hours");
                         }}
                         className="w-32"
                       />
@@ -313,6 +322,7 @@ export default function Settings() {
                     closeTime: "17:00"
                   }));
                   form.setValue("business_hours", standardHours);
+                  form.trigger("business_hours");
                 }}
               >
                 Standardtider (Mån-Fre 8-17)
