@@ -97,14 +97,14 @@ export default function Reports() {
       const monthStart = startOfMonth(new Date(selectedMonth + '-01'));
       const monthEnd = endOfMonth(monthStart);
       
-      // Get time entries for the selected month and employee
-      const { data: timeEntries, error } = await supabase
-        .from('time_entries')
+      // Get shifts for the selected month and employee
+      const { data: shifts, error } = await supabase
+        .from('shifts')
         .select('*')
         .eq('employee_id', selectedEmployee)
-        .gte('timestamp', format(monthStart, 'yyyy-MM-dd'))
-        .lte('timestamp', format(monthEnd, 'yyyy-MM-dd'))
-        .order('timestamp');
+        .gte('start_time', format(monthStart, 'yyyy-MM-dd'))
+        .lte('start_time', format(monthEnd, 'yyyy-MM-dd'))
+        .order('start_time');
 
       if (error) throw error;
 
@@ -114,38 +114,37 @@ export default function Reports() {
         end: monthEnd
       });
 
-      // Process time entries into daily data
+      // Process shifts into daily data
       const processedEntries = allDaysInMonth.map(date => {
         const dateStr = format(date, 'yyyy-MM-dd');
         const dayOfWeek = getDay(date);
-        const dayEntries = (timeEntries || []).filter(entry => 
-          entry.timestamp.startsWith(dateStr)
+        
+        // Find shift for this day
+        const dayShift = (shifts || []).find(shift => 
+          shift.start_time.startsWith(dateStr)
         );
-
-        // Find punch in and punch out for this day
-        const punchInEntry = dayEntries.find(entry => entry.entry_type === 'punch_in');
-        const punchOutEntry = dayEntries.find(entry => entry.entry_type === 'punch_out');
         
-        const punchIn = punchInEntry ? format(parseISO(punchInEntry.timestamp), 'HH:mm') : null;
-        const punchOut = punchOutEntry ? format(parseISO(punchOutEntry.timestamp), 'HH:mm') : null;
-        
-        // Calculate total hours and lunch break
+        let punchIn = null;
+        let punchOut = null;
         let total = '';
         let lunch = '';
         
-        if (punchIn && punchOut) {
-          const startTime = parseISO(punchInEntry!.timestamp);
-          const endTime = parseISO(punchOutEntry!.timestamp);
+        if (dayShift) {
+          punchIn = format(parseISO(dayShift.start_time), 'HH:mm');
+          punchOut = format(parseISO(dayShift.end_time), 'HH:mm');
+          
+          const startTime = parseISO(dayShift.start_time);
+          const endTime = parseISO(dayShift.end_time);
           const totalMinutes = Math.floor((endTime.getTime() - startTime.getTime()) / (1000 * 60));
           
-          // Assume 30 min lunch for work days over 6 hours
-          const lunchMinutes = totalMinutes > 360 ? 30 : 0;
-          const workMinutes = totalMinutes - lunchMinutes;
+          // Automatically add 30 min pause for work days 8 hours or more (480 minutes)
+          const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
+          const workMinutes = totalMinutes - pauseMinutes;
           
           const hours = Math.floor(workMinutes / 60);
           const minutes = workMinutes % 60;
           total = `${hours}:${minutes.toString().padStart(2, '0')}`;
-          lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
+          lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
         }
 
         return {
@@ -156,7 +155,7 @@ export default function Reports() {
           punchOut,
           lunch,
           total,
-          hasData: !!(punchIn && punchOut)
+          hasData: !!dayShift
         };
       });
 
@@ -195,39 +194,32 @@ export default function Reports() {
     
     setIsSubmitting(true);
     try {
-      // Delete existing entries for this day
+      // Delete existing shift for this day
       await supabase
-        .from('time_entries')
+        .from('shifts')
         .delete()
         .eq('employee_id', selectedEmployee)
-        .gte('timestamp', `${editingDate}T00:00:00`)
-        .lte('timestamp', `${editingDate}T23:59:59`);
+        .gte('start_time', `${editingDate}T00:00:00`)
+        .lte('start_time', `${editingDate}T23:59:59`);
 
-      // Insert new entries if both times are provided
+      // Insert new shift if both times are provided
       if (editForm.punch_in && editForm.punch_out) {
         const { error } = await supabase
-          .from('time_entries')
-          .insert([
-            {
-              employee_id: selectedEmployee,
-              entry_type: 'punch_in',
-              timestamp: `${editingDate}T${editForm.punch_in}:00`
-            },
-            {
-              employee_id: selectedEmployee,
-              entry_type: 'punch_out',
-              timestamp: `${editingDate}T${editForm.punch_out}:00`
-            }
-          ]);
+          .from('shifts')
+          .insert({
+            employee_id: selectedEmployee,
+            start_time: `${editingDate}T${editForm.punch_in}:00`,
+            end_time: `${editingDate}T${editForm.punch_out}:00`
+          });
 
         if (error) throw error;
       }
 
-      toast.success('Tider uppdaterade');
+      toast.success('Vakt uppdaterad');
       setShowEditDialog(false);
       generateTimelist();
     } catch (error: any) {
-      console.error('Error updating entry:', error);
+      console.error('Error updating shift:', error);
       toast.error(error.message || 'Fel vid uppdatering');
     } finally {
       setIsSubmitting(false);
@@ -239,16 +231,16 @@ export default function Reports() {
     
     try {
       await supabase
-        .from('time_entries')
+        .from('shifts')
         .delete()
         .eq('employee_id', selectedEmployee)
-        .gte('timestamp', `${entry.date}T00:00:00`)
-        .lte('timestamp', `${entry.date}T23:59:59`);
+        .gte('start_time', `${entry.date}T00:00:00`)
+        .lte('start_time', `${entry.date}T23:59:59`);
 
-      toast.success('Post borttagen');
+      toast.success('Vakt borttagen');
       generateTimelist();
     } catch (error: any) {
-      console.error('Error deleting entry:', error);
+      console.error('Error deleting shift:', error);
       toast.error(error.message || 'Fel vid borttagning');
     }
   };
@@ -360,7 +352,7 @@ export default function Reports() {
                   <TableHead className="text-center border-r">DAG</TableHead>
                   <TableHead className="text-center border-r">IN</TableHead>
                   <TableHead className="text-center border-r">UT</TableHead>
-                  <TableHead className="text-center border-r">LUNCH</TableHead>
+                  <TableHead className="text-center border-r">PAUSE</TableHead>
                   <TableHead className="text-center border-r">TOTALT</TableHead>
                   {userRole === 'admin' && (
                     <TableHead className="text-center">ÅTGÄRD</TableHead>
@@ -448,12 +440,12 @@ export default function Reports() {
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Redigera arbetstid för {editingDate}</DialogTitle>
-          </DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Redigera vakt för {editingDate}</DialogTitle>
+        </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="punch-in">Stämpla in</Label>
+              <Label htmlFor="punch-in">Starttid</Label>
               <Input
                 id="punch-in"
                 type="time"
@@ -462,7 +454,7 @@ export default function Reports() {
               />
             </div>
             <div>
-              <Label htmlFor="punch-out">Stämpla ut</Label>
+              <Label htmlFor="punch-out">Sluttid</Label>
               <Input
                 id="punch-out"
                 type="time"
