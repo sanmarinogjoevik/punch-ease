@@ -6,7 +6,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Download, AlertTriangle, Clock, FileText, Users, TrendingUp, Shield } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Label } from '@/components/ui/label';
+import { Calendar, Download, AlertTriangle, Clock, FileText, Users, TrendingUp, Shield, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -59,7 +62,7 @@ interface ComplianceWarning {
 }
 
 export default function Reports() {
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const [loading, setLoading] = useState(false);
   const [dateRange, setDateRange] = useState({
     from: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
@@ -72,6 +75,16 @@ export default function Reports() {
   const [overtimeReports, setOvertimeReports] = useState<OvertimeReport[]>([]);
   const [complianceWarnings, setComplianceWarnings] = useState<ComplianceWarning[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
+
+  // Edit functionality state
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingWorkDay, setEditingWorkDay] = useState<WorkDay | null>(null);
+  const [editForm, setEditForm] = useState({
+    punch_in: '',
+    punch_out: '',
+    date: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchEmployees();
@@ -106,6 +119,96 @@ export default function Reports() {
       toast.error('Fel vid generering av rapporter');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Edit functionality for admins
+  const handleEditWorkDay = (workDay: WorkDay) => {
+    setEditingWorkDay(workDay);
+    setEditForm({
+      punch_in: workDay.punch_in ? format(parseISO(workDay.punch_in), 'HH:mm') : '',
+      punch_out: workDay.punch_out ? format(parseISO(workDay.punch_out), 'HH:mm') : '',
+      date: workDay.date
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateWorkDay = async () => {
+    if (!editingWorkDay || !editForm.punch_in || !editForm.punch_out || !editForm.date) return;
+    
+    setIsSubmitting(true);
+    try {
+      // Create new timestamps
+      const punchInTime = `${editForm.date}T${editForm.punch_in}:00`;
+      const punchOutTime = `${editForm.date}T${editForm.punch_out}:00`;
+
+      // Delete existing time entries for this employee and date
+      const dayStart = `${editForm.date}T00:00:00`;
+      const dayEnd = `${editForm.date}T23:59:59`;
+      
+      await supabase
+        .from('time_entries')
+        .delete()
+        .eq('employee_id', editingWorkDay.employee_id)
+        .gte('timestamp', dayStart)
+        .lte('timestamp', dayEnd);
+
+      // Insert new punch in and punch out entries
+      const { error: insertError } = await supabase
+        .from('time_entries')
+        .insert([
+          {
+            employee_id: editingWorkDay.employee_id,
+            entry_type: 'punch_in',
+            timestamp: punchInTime
+          },
+          {
+            employee_id: editingWorkDay.employee_id,
+            entry_type: 'punch_out',
+            timestamp: punchOutTime
+          }
+        ]);
+
+      if (insertError) throw insertError;
+
+      toast.success('Arbetstid uppdaterad framgångsrikt');
+      setShowEditDialog(false);
+      setEditingWorkDay(null);
+      
+      // Refresh reports
+      await generateReports();
+
+    } catch (error: any) {
+      console.error('Error updating work day:', error);
+      toast.error(error.message || 'Fel vid uppdatering av arbetstid');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteWorkDay = async (workDay: WorkDay) => {
+    try {
+      // Delete all time entries for this employee and date
+      const dayStart = `${workDay.date}T00:00:00`;
+      const dayEnd = `${workDay.date}T23:59:59`;
+      
+      const { error } = await supabase
+        .from('time_entries')
+        .delete()
+        .eq('employee_id', workDay.employee_id)
+        .gte('timestamp', dayStart)
+        .lte('timestamp', dayEnd);
+
+      if (error) throw error;
+
+      toast.success('Arbetstidspost borttagen');
+      
+      // Refresh reports
+      await generateReports();
+
+    } catch (error: any) {
+      console.error('Error deleting work day:', error);
+      toast.error(error.message || 'Fel vid borttagning av arbetstidspost');
     }
   };
 
@@ -427,15 +530,60 @@ export default function Reports() {
                         )}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-medium">{workDay.total_hours.toFixed(1)}h</div>
-                      {workDay.overtime_hours > 0 && (
-                        <Badge variant="secondary">+{workDay.overtime_hours.toFixed(1)}h övertid</Badge>
-                      )}
-                      {workDay.compliance_issues.length > 0 && (
-                        <Badge variant="destructive" className="mt-1">
-                          {workDay.compliance_issues.length} varning(ar)
-                        </Badge>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <div className="font-medium">{workDay.total_hours.toFixed(1)}h</div>
+                        {workDay.overtime_hours > 0 && (
+                          <Badge variant="secondary">+{workDay.overtime_hours.toFixed(1)}h övertid</Badge>
+                        )}
+                        {workDay.compliance_issues.length > 0 && (
+                          <Badge variant="destructive" className="mt-1">
+                            {workDay.compliance_issues.length} varning(ar)
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      {/* Admin Edit Controls */}
+                      {userRole === 'admin' && (
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleEditWorkDay(workDay)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Ta bort arbetstidspost?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Detta kommer att ta bort alla tidsregistreringar för {workDay.employee_name} den {workDay.date ? format(parseISO(workDay.date), 'yyyy-MM-dd') : 'Invalid date'}. 
+                                  Detta kan inte ångras.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                                <AlertDialogAction 
+                                  onClick={() => handleDeleteWorkDay(workDay)}
+                                  className="bg-red-600 hover:bg-red-700"
+                                >
+                                  Ta bort
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -627,6 +775,60 @@ export default function Reports() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Work Day Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Redigera arbetstid</DialogTitle>
+            <DialogDescription>
+              Uppdatera arbetstiden för {editingWorkDay?.employee_name} den {editingWorkDay?.date}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit_date">Datum</Label>
+              <Input
+                id="edit_date"
+                type="date"
+                value={editForm.date}
+                onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit_punch_in">In-stämpling</Label>
+                <Input
+                  id="edit_punch_in"
+                  type="time"
+                  value={editForm.punch_in}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, punch_in: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit_punch_out">Ut-stämpling</Label>
+                <Input
+                  id="edit_punch_out"
+                  type="time"
+                  value={editForm.punch_out}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, punch_out: e.target.value }))}
+                  required
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Avbryt
+            </Button>
+            <Button onClick={handleUpdateWorkDay} disabled={isSubmitting}>
+              {isSubmitting ? 'Uppdaterar...' : 'Spara ändringar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
