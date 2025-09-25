@@ -1,4 +1,4 @@
-import { Home, Calendar, Clock, Users, BarChart3, Shield } from 'lucide-react';
+import { Home, Calendar, Clock, Users, BarChart3, Shield, Settings } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Sidebar,
@@ -37,6 +37,7 @@ export function AppSidebar() {
     { title: 'Tidsregistrering', url: '/timesheet', icon: Clock },
     { title: 'Ansatte', url: '/employees', icon: Users },
     { title: 'Rapporter', url: '/reports', icon: BarChart3 },
+    { title: 'Inställningar', url: '/settings', icon: Settings },
   ];
 
   const items = userRole === 'admin' ? adminItems : employeeItems;

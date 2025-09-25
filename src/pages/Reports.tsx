@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ChevronLeft, ChevronRight, Download, Edit, Trash2, Printer } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -38,17 +39,12 @@ interface Employee {
   personal_number: string;
 }
 
-const COMPANY_INFO = {
-  name: "San Marino Pizza AS",
-  address: "Storgata 123",
-  city: "1234 Oslo",
-  orgNumber: "123456789"
-};
 
 const NORWEGIAN_DAYS = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
 
 export default function Reports() {
   const { user, userRole } = useAuth();
+  const { data: companySettings } = useCompanySettings();
   const [loading, setLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
@@ -293,10 +289,12 @@ export default function Reports() {
     <div className="container mx-auto p-6 max-w-4xl">
       {/* Header */}
       <div className="text-center mb-6 border-b border-border pb-4">
-        <h1 className="text-2xl font-bold">{COMPANY_INFO.name}</h1>
-        <p className="text-sm text-muted-foreground">{COMPANY_INFO.address}</p>
-        <p className="text-sm text-muted-foreground">{COMPANY_INFO.city}</p>
-        <p className="text-sm text-muted-foreground">Org.nr: {COMPANY_INFO.orgNumber}</p>
+        <h1 className="text-2xl font-bold">{companySettings?.company_name || 'Mitt Företag AB'}</h1>
+        {companySettings?.address && <p className="text-sm text-muted-foreground">{companySettings.address}</p>}
+        {(companySettings?.postal_code || companySettings?.city) && (
+          <p className="text-sm text-muted-foreground">{companySettings.postal_code} {companySettings.city}</p>
+        )}
+        {companySettings?.org_number && <p className="text-sm text-muted-foreground">Org.nr: {companySettings.org_number}</p>}
       </div>
 
       {/* Controls */}
