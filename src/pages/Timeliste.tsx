@@ -1,107 +1,99 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { useShifts } from '@/hooks/useShifts';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { format, parseISO, startOfDay, endOfDay } from 'date-fns';
+import { format, parseISO, isAfter, isSameDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
 import { Clock, Calendar } from 'lucide-react';
-
-interface TimeEntry {
-  id: string;
-  entry_type: 'punch_in' | 'punch_out';
-  timestamp: string;
-  employee_id: string;
-}
 
 interface WorkDay {
   date: string;
   totalHours: number;
   totalMinutes: number;
-  sessions: number;
-  firstPunch: string;
-  lastPunch: string;
+  shifts: number;
+  startTime: string;
+  endTime: string;
 }
 
 export default function Timeliste() {
   const { user } = useAuth();
+  const { data: shifts, isLoading: shiftsLoading } = useShifts({ employeeId: user?.id });
+  const { data: companySettings, isLoading: settingsLoading } = useCompanySettings();
   const [workDays, setWorkDays] = useState<WorkDay[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const loading = shiftsLoading || settingsLoading;
 
   useEffect(() => {
-    if (user) {
-      fetchWorkDays();
+    if (shifts && companySettings && !loading) {
+      const processedWorkDays = processShiftsIntoWorkDays(shifts, companySettings.business_hours);
+      setWorkDays(processedWorkDays);
     }
-  }, [user]);
+  }, [shifts, companySettings, loading]);
 
-  const fetchWorkDays = async () => {
-    try {
-      setLoading(true);
+  const processShiftsIntoWorkDays = (shifts: any[], businessHours: any[]): WorkDay[] => {
+    const now = new Date();
+    const dayMap = new Map<string, any[]>();
 
-      const { data: timeEntries, error } = await supabase
-        .from('time_entries')
-        .select('*')
-        .eq('employee_id', user!.id)
-        .order('timestamp', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching time entries:', error);
-        return;
-      }
-
-      const groupedByDay = groupEntriesByDay(timeEntries || []);
-      setWorkDays(groupedByDay);
-
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const groupEntriesByDay = (entries: TimeEntry[]): WorkDay[] => {
-    const dayMap = new Map<string, TimeEntry[]>();
-
-    // Group entries by date
-    entries.forEach(entry => {
-      const date = format(parseISO(entry.timestamp), 'yyyy-MM-dd');
+    // Group shifts by date
+    shifts.forEach(shift => {
+      const date = format(parseISO(shift.start_time), 'yyyy-MM-dd');
       if (!dayMap.has(date)) {
         dayMap.set(date, []);
       }
-      dayMap.get(date)!.push(entry);
+      dayMap.get(date)!.push(shift);
     });
 
     const workDays: WorkDay[] = [];
 
     // Process each day
-    dayMap.forEach((dayEntries, date) => {
-      dayEntries.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    dayMap.forEach((dayShifts, date) => {
+      const dayDate = parseISO(date);
+      const dayOfWeek = dayDate.getDay();
       
-      let totalMinutes = 0;
-      let sessions = 0;
-      let punchIn: TimeEntry | null = null;
-
-      dayEntries.forEach(entry => {
-        if (entry.entry_type === 'punch_in') {
-          punchIn = entry;
-        } else if (entry.entry_type === 'punch_out' && punchIn) {
-          const punchInTime = new Date(punchIn.timestamp);
-          const punchOutTime = new Date(entry.timestamp);
-          const sessionMinutes = (punchOutTime.getTime() - punchInTime.getTime()) / (1000 * 60);
-          totalMinutes += sessionMinutes;
-          sessions++;
-          punchIn = null;
+      // Find business hours for this day of week
+      const dayBusinessHours = businessHours.find(bh => bh.day === dayOfWeek);
+      
+      // Check if we should show shifts for this day
+      let shouldShowShifts = false;
+      
+      if (isSameDay(dayDate, now)) {
+        // For today, check if we're past closing time
+        if (dayBusinessHours && dayBusinessHours.isOpen) {
+          const [closeHour, closeMin] = dayBusinessHours.closeTime.split(':').map(Number);
+          const closingTime = new Date(now);
+          closingTime.setHours(closeHour, closeMin, 0, 0);
+          shouldShowShifts = isAfter(now, closingTime);
+        } else {
+          // If store is closed today, show shifts
+          shouldShowShifts = true;
         }
-      });
+      } else if (dayDate < now) {
+        // Past days - always show
+        shouldShowShifts = true;
+      }
+      // Future days - don't show
 
-      if (dayEntries.length > 0) {
+      if (shouldShowShifts && dayShifts.length > 0) {
+        dayShifts.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+        
+        let totalMinutes = 0;
+        
+        dayShifts.forEach(shift => {
+          const startTime = new Date(shift.start_time);
+          const endTime = new Date(shift.end_time);
+          const shiftMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
+          totalMinutes += shiftMinutes;
+        });
+
         workDays.push({
           date,
           totalHours: Math.floor(totalMinutes / 60),
           totalMinutes: Math.round(totalMinutes % 60),
-          sessions,
-          firstPunch: dayEntries[0].timestamp,
-          lastPunch: dayEntries[dayEntries.length - 1].timestamp,
+          shifts: dayShifts.length,
+          startTime: dayShifts[0].start_time,
+          endTime: dayShifts[dayShifts.length - 1].end_time,
         });
       }
     });
@@ -154,7 +146,7 @@ export default function Timeliste() {
                           {formatDate(workDay.date)}
                         </h3>
                         <Badge variant="outline">
-                          {workDay.sessions} økt{workDay.sessions !== 1 ? 'er' : ''}
+                          {workDay.shifts} vakt{workDay.shifts !== 1 ? 'er' : ''}
                         </Badge>
                       </div>
                       
@@ -162,7 +154,7 @@ export default function Timeliste() {
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4" />
                           <span>
-                            {formatTime(workDay.firstPunch)} - {formatTime(workDay.lastPunch)}
+                            {formatTime(workDay.startTime)} - {formatTime(workDay.endTime)}
                           </span>
                         </div>
                         
