@@ -19,14 +19,19 @@ export const LivePunchStatus = () => {
   const { data: employees, refetch } = useQuery({
     queryKey: ['punched-in-employees'],
     queryFn: async (): Promise<PunchedInEmployee[]> => {
-      // Get the latest time entry for each employee
+      // Get the latest time entry for each employee with profile data
       const { data: latestEntries, error } = await supabase
         .from('time_entries')
         .select(`
           employee_id,
           entry_type,
           timestamp,
-          profiles!inner(id, user_id, first_name, last_name, email)
+          profiles!inner(
+            user_id,
+            first_name,
+            last_name,
+            email
+          )
         `)
         .order('timestamp', { ascending: false });
 
