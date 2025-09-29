@@ -282,6 +282,76 @@ export default function Reports() {
     return `${hours}:${minutes.toString().padStart(2, '0')}`;
   };
 
+  const exportTimelistToCSV = () => {
+    if (!selectedEmployeeData || timelistEntries.length === 0) {
+      toast({
+        title: "Fel",
+        description: "Välj en anställd och månad för att exportera",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const headers = ['Datum', 'Dag', 'In', 'Ut', 'Pause', 'Totalt'];
+    const csvContent = [
+      // Company info
+      `${companySettings?.company_name || 'Mitt Företag AB'}`,
+      `Timelista för ${selectedEmployeeData.first_name} ${selectedEmployeeData.last_name}`,
+      `Period: ${format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb })}`,
+      '',
+      headers.join(','),
+      ...timelistEntries.map(entry => [
+        entry.day,
+        entry.dayName,
+        entry.punchIn || '',
+        entry.punchOut || '',
+        entry.lunch || '',
+        entry.total || ''
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `timelista_${selectedEmployeeData.first_name}_${selectedEmployeeData.last_name}_${selectedMonth}.csv`;
+    link.click();
+  };
+
+  const exportShiftListToCSV = () => {
+    if (!calendarShifts || calendarShifts.length === 0) {
+      toast({
+        title: "Fel",
+        description: "Inga vakter att exportera för denna period",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const headers = ['Datum', 'Anställd', 'Starttid', 'Sluttid', 'Plats', 'Anteckningar'];
+    const csvContent = [
+      // Company info
+      `${companySettings?.company_name || 'Mitt Företag AB'}`,
+      `Vaktlista`,
+      `Period: ${format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb })}`,
+      '',
+      headers.join(','),
+      ...calendarShifts.map(shift => [
+        format(parseISO(shift.start_time), 'yyyy-MM-dd'),
+        `${shift.profiles?.first_name || ''} ${shift.profiles?.last_name || ''}`,
+        format(parseISO(shift.start_time), 'HH:mm'),
+        format(parseISO(shift.end_time), 'HH:mm'),
+        shift.location || '',
+        shift.notes || ''
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `vaktlista_${selectedMonth}.csv`;
+    link.click();
+  };
+
   const getShiftsForDate = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     return calendarShifts?.filter(shift => 
@@ -365,11 +435,11 @@ export default function Reports() {
 
                 {/* Actions */}
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={() => window.print()}>
                     <Printer className="h-4 w-4 mr-2" />
                     Skriv ut
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={exportTimelistToCSV}>
                     <Download className="h-4 w-4 mr-2" />
                     Exportera
                   </Button>
@@ -526,9 +596,15 @@ export default function Reports() {
                     <ChevronRight className="w-4 h-4" />
                   </Button>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="w-4 h-4" />
-                  Månadsvy
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => window.print()}>
+                    <Printer className="w-4 w-4 mr-2" />
+                    Skriv ut
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={exportShiftListToCSV}>
+                    <Download className="w-4 w-4 mr-2" />
+                    Exportera
+                  </Button>
                 </div>
               </div>
 
