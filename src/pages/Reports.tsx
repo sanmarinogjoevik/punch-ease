@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { useEmployeeMonthShifts, useShiftMutations, useShifts, useShiftsSubscription } from '@/hooks/useShifts';
 import { useEmployees } from '@/hooks/useEmployees';
+import { useEquipment } from '@/hooks/useEquipment';
 import { useTemperatureLogs } from '@/hooks/useTemperatureLogs';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addWeeks, startOfWeek, startOfDay, subMonths, addMonths, subDays, addDays } from 'date-fns';
@@ -69,15 +70,12 @@ export default function Reports() {
     fetchTemperatureLogs 
   } = useTemperatureLogs();
   
+  const { getEquipmentOptions } = useEquipment();
+  
   // Temperature filtering states
   const [tempStartDate, setTempStartDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [tempEndDate, setTempEndDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [tempEquipment, setTempEquipment] = useState<string>('');
-  
-  const EQUIPMENT_OPTIONS = [
-    'Kyl 1', 'Kyl 2', 'Kyl 3', 'Frys A', 'Frys B', 'Frys C', 
-    'Displaykyl', 'Vinskap'
-  ];
   
   // Edit functionality
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -924,9 +922,9 @@ export default function Reports() {
                         </SelectTrigger>
                         <SelectContent className="bg-background">
                           <SelectItem value="">Alla</SelectItem>
-                          {EQUIPMENT_OPTIONS.map((equipment) => (
-                            <SelectItem key={equipment} value={equipment}>
-                              {equipment}
+                          {getEquipmentOptions().map((equipment) => (
+                            <SelectItem key={equipment.value} value={equipment.value}>
+                              {equipment.label}
                             </SelectItem>
                           ))}
                         </SelectContent>

@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useTemperatureLogs, CreateTemperatureLog } from '@/hooks/useTemperatureLogs';
 import { useEquipment } from '@/hooks/useEquipment';
@@ -17,9 +16,9 @@ import AddEquipmentDialog from '@/components/AddEquipmentDialog';
 
 export default function TemperatureLog() {
   const { toast } = useToast();
-  const { isAdmin } = useAuth();
   const { temperatureLogs, isLoading, createTemperatureLog, getTodaysLogs } = useTemperatureLogs();
-  const { equipment, isLoading: equipmentLoading } = useEquipment();
+  const { getEquipmentOptions, isLoading: equipmentLoading } = useEquipment();
+  const { isAdmin } = useAuth();
   
   const [form, setForm] = useState<CreateTemperatureLog>({
     equipment_name: '',
@@ -69,27 +68,24 @@ export default function TemperatureLog() {
     }
   };
 
-  const getEquipmentDisplayName = (equipment: any) => {
-    const typeLabel = equipment.type === 'refrigerator' ? 'Kyl' : 'Frys';
-    return `${equipment.name} (${typeLabel})`;
-  };
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Thermometer className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Temperaturlogg</h1>
-        </div>
-        {isAdmin && <AddEquipmentDialog />}
+      <div className="flex items-center gap-2">
+        <Thermometer className="h-6 w-6 text-primary" />
+        <h1 className="text-2xl font-bold">Temperaturlogg</h1>
       </div>
       
       <Card>
         <CardHeader>
-          <CardTitle>Registrera temperatur</CardTitle>
-          <CardDescription>
-            Logga temperatur för kylar och frysar
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Registrera temperatur</CardTitle>
+              <CardDescription>
+                Logga temperatur för kylar och frysar
+              </CardDescription>
+            </div>
+            {isAdmin && <AddEquipmentDialog />}
+          </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -108,14 +104,10 @@ export default function TemperatureLog() {
                       <SelectItem value="" disabled>
                         Laddar utrustning...
                       </SelectItem>
-                    ) : equipment.length === 0 ? (
-                      <SelectItem value="" disabled>
-                        Ingen utrustning tillgänglig
-                      </SelectItem>
                     ) : (
-                      equipment.map((item) => (
-                        <SelectItem key={item.id} value={item.name}>
-                          {getEquipmentDisplayName(item)}
+                      getEquipmentOptions().map((equipment) => (
+                        <SelectItem key={equipment.value} value={equipment.value}>
+                          {equipment.label}
                         </SelectItem>
                       ))
                     )}
@@ -149,7 +141,7 @@ export default function TemperatureLog() {
             
             <Button 
               type="submit" 
-              disabled={isSubmitting || !form.equipment_name}
+              disabled={isSubmitting || !form.equipment_name || equipmentLoading}
               className="w-full md:w-auto"
             >
               {isSubmitting ? 'Sparar...' : 'Registrera temperatur'}

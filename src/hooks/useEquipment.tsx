@@ -24,25 +24,33 @@ export function useEquipment() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const fetchEquipment = async () => {
+  const fetchEquipment = async (activeOnly: boolean = true) => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      const { data, error } = await supabase
+
+      let query = supabase
         .from('equipment')
         .select('*')
-        .eq('is_active', true)
-        .order('type')
-        .order('name');
+        .order('type', { ascending: true })
+        .order('name', { ascending: true });
 
-      if (error) throw error;
-      
+      if (activeOnly) {
+        query = query.eq('is_active', true);
+      }
+
+      const { data, error: fetchError } = await query;
+
+      if (fetchError) {
+        console.error('Error fetching equipment:', fetchError);
+        setError(fetchError.message);
+        return;
+      }
+
       setEquipment(data || []);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Ett fel uppstod vid hämtning av utrustning';
-      setError(errorMessage);
-      console.error('Error fetching equipment:', err);
+      console.error('Error in fetchEquipment:', err);
+      setError('Ett fel uppstod vid hämtning av utrustning');
     } finally {
       setIsLoading(false);
     }
@@ -50,105 +58,76 @@ export function useEquipment() {
 
   const createEquipment = async (equipmentData: CreateEquipment) => {
     try {
-      const { data, error } = await supabase
+      const { data, error: insertError } = await supabase
         .from('equipment')
         .insert([equipmentData])
         .select()
         .single();
 
-      if (error) throw error;
+      if (insertError) {
+        console.error('Error creating equipment:', insertError);
+        throw new Error(insertError.message);
+      }
 
       // Add to local state
-      setEquipment(prev => [...prev, data].sort((a, b) => {
-        if (a.type !== b.type) {
-          return a.type.localeCompare(b.type);
-        }
-        return a.name.localeCompare(b.name);
-      }));
-
-      toast({
-        title: 'Skapad!',
-        description: 'Utrustning har lagts till',
-      });
+      if (data) {
+        setEquipment(prev => [...prev, data].sort((a, b) => {
+          if (a.type !== b.type) {
+            return a.type.localeCompare(b.type);
+          }
+          return a.name.localeCompare(b.name);
+        }));
+      }
 
       return data;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Ett fel uppstod vid skapande av utrustning';
-      toast({
-        title: 'Fel',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+      console.error('Error in createEquipment:', err);
       throw err;
     }
   };
 
-  const updateEquipment = async (id: string, updates: Partial<CreateEquipment>) => {
+  const updateEquipment = async (id: string, updates: Partial<Equipment>) => {
     try {
-      const { data, error } = await supabase
+      const { data, error: updateError } = await supabase
         .from('equipment')
         .update(updates)
         .eq('id', id)
         .select()
         .single();
 
-      if (error) throw error;
+      if (updateError) {
+        console.error('Error updating equipment:', updateError);
+        throw new Error(updateError.message);
+      }
 
       // Update local state
-      setEquipment(prev => 
-        prev.map(item => item.id === id ? data : item)
-      );
-
-      toast({
-        title: 'Uppdaterad!',
-        description: 'Utrustning har uppdaterats',
-      });
+      if (data) {
+        setEquipment(prev => prev.map(item => 
+          item.id === id ? data : item
+        ));
+      }
 
       return data;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Ett fel uppstod vid uppdatering av utrustning';
-      toast({
-        title: 'Fel',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+      console.error('Error in updateEquipment:', err);
       throw err;
     }
   };
 
   const deactivateEquipment = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('equipment')
-        .update({ is_active: false })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      // Remove from local state
-      setEquipment(prev => prev.filter(item => item.id !== id));
-
-      toast({
-        title: 'Inaktiverad!',
-        description: 'Utrustning har inaktiverats',
-      });
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Ett fel uppstod vid inaktivering av utrustning';
-      toast({
-        title: 'Fel',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-      throw err;
-    }
+    return updateEquipment(id, { is_active: false });
   };
 
   const getActiveEquipment = () => {
     return equipment.filter(item => item.is_active);
   };
 
-  const getEquipmentByType = (type: 'refrigerator' | 'freezer') => {
-    return equipment.filter(item => item.type === type && item.is_active);
+  const getEquipmentOptions = () => {
+    return getActiveEquipment().map(item => ({
+      value: item.name,
+      label: `${item.name} (${item.type === 'refrigerator' ? 'Kyl' : 'Frys'})`,
+      type: item.type
+    }));
   };
 
   useEffect(() => {
@@ -164,6 +143,6 @@ export function useEquipment() {
     updateEquipment,
     deactivateEquipment,
     getActiveEquipment,
-    getEquipmentByType,
+    getEquipmentOptions,
   };
 }
