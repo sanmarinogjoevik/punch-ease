@@ -199,7 +199,12 @@ export default function Timeliste() {
         
         enhancedSessions.push(enhancedSession);
       } else {
-        enhancedSessions.push(session);
+        // Only show punch data if not using schedule times OR if there's a schedule for the day
+        const sessionDate = session.date;
+        const dayShifts = shiftsByDate.get(sessionDate) || [];
+        if (!useSchedule || dayShifts.length > 0) {
+          enhancedSessions.push(session);
+        }
       }
       
       processedDates.add(session.date);

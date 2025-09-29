@@ -207,7 +207,7 @@ export default function TimeEntries() {
       });
 
       if (matchingShifts.length === 0) {
-        return session; // No schedule found, keep punch times
+        return null; // No schedule found, filter out after closing
       }
 
       // For simplicity, use the first shift (could be enhanced to match by time)
@@ -239,7 +239,7 @@ export default function TimeEntries() {
           employee_name: session.employee_name
         }
       };
-    });
+    }).filter(session => session !== null);
   };
 
   const formatDuration = (minutes: number): string => {
