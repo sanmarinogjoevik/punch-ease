@@ -101,7 +101,7 @@ export default function TemperatureLog() {
                   </SelectTrigger>
                   <SelectContent className="bg-background">
                     {equipmentLoading ? (
-                      <SelectItem value="" disabled>
+                      <SelectItem value="loading" disabled>
                         Laddar utrustning...
                       </SelectItem>
                     ) : (

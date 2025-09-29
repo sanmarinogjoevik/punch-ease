@@ -75,7 +75,7 @@ export default function Reports() {
   // Temperature filtering states
   const [tempStartDate, setTempStartDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [tempEndDate, setTempEndDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
-  const [tempEquipment, setTempEquipment] = useState<string>('');
+  const [tempEquipment, setTempEquipment] = useState<string>('all');
   
   // Edit functionality
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -113,7 +113,7 @@ export default function Reports() {
   // Fetch temperature logs on tab change
   useEffect(() => {
     if (activeTab === 'temperatur') {
-      fetchTemperatureLogs(tempStartDate, tempEndDate + 'T23:59:59', tempEquipment || undefined);
+      fetchTemperatureLogs(tempStartDate, tempEndDate + 'T23:59:59', tempEquipment === 'all' ? undefined : tempEquipment);
     }
   }, [activeTab, fetchTemperatureLogs]);
 
@@ -921,7 +921,7 @@ export default function Reports() {
                           <SelectValue placeholder="Alla" />
                         </SelectTrigger>
                         <SelectContent className="bg-background">
-                          <SelectItem value="">Alla</SelectItem>
+                          <SelectItem value="all">Alla</SelectItem>
                           {getEquipmentOptions().map((equipment) => (
                             <SelectItem key={equipment.value} value={equipment.value}>
                               {equipment.label}
@@ -933,7 +933,7 @@ export default function Reports() {
                     
                     <div className="flex items-end">
                       <Button 
-                        onClick={() => fetchTemperatureLogs(tempStartDate, tempEndDate + 'T23:59:59', tempEquipment || undefined)}
+                        onClick={() => fetchTemperatureLogs(tempStartDate, tempEndDate + 'T23:59:59', tempEquipment === 'all' ? undefined : tempEquipment)}
                         className="w-full"
                       >
                         Sök
