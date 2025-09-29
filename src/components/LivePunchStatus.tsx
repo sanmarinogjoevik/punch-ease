@@ -19,50 +19,62 @@ export const LivePunchStatus = () => {
   const { data: employees, refetch } = useQuery({
     queryKey: ['punched-in-employees'],
     queryFn: async (): Promise<PunchedInEmployee[]> => {
-      // Get the latest time entry for each employee with profile data
-      const { data: latestEntries, error } = await supabase
+      // First get all time entries
+      const { data: timeEntries, error: timeEntriesError } = await supabase
         .from('time_entries')
-        .select(`
-          employee_id,
-          entry_type,
-          timestamp,
-          profiles!inner(
-            user_id,
-            first_name,
-            last_name,
-            email
-          )
-        `)
+        .select('employee_id, entry_type, timestamp')
         .order('timestamp', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching time entries:', error);
-        throw error;
+      if (timeEntriesError) {
+        console.error('Error fetching time entries:', timeEntriesError);
+        throw timeEntriesError;
+      }
+
+      if (!timeEntries || timeEntries.length === 0) {
+        return [];
       }
 
       // Group by employee and find latest entry for each
       const employeeLatestEntries = new Map();
       
-      latestEntries?.forEach(entry => {
+      timeEntries.forEach(entry => {
         if (!employeeLatestEntries.has(entry.employee_id)) {
           employeeLatestEntries.set(entry.employee_id, entry);
         }
       });
 
-      // Filter employees who are currently punched in (latest entry is punch_in)
-      const punchedIn: PunchedInEmployee[] = [];
+      // Find employees who are currently punched in
+      const punchedInEmployeeIds: string[] = [];
       employeeLatestEntries.forEach(entry => {
         if (entry.entry_type === 'punch_in') {
-          punchedIn.push({
-            id: entry.profiles.user_id,
-            first_name: entry.profiles.first_name,
-            last_name: entry.profiles.last_name,
-            email: entry.profiles.email
-          });
+          punchedInEmployeeIds.push(entry.employee_id);
         }
       });
 
-      return punchedIn;
+      if (punchedInEmployeeIds.length === 0) {
+        return [];
+      }
+
+      // Get profile information for punched in employees
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, first_name, last_name, email')
+        .in('user_id', punchedInEmployeeIds);
+
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        throw profilesError;
+      }
+
+      // Map profiles to PunchedInEmployee format
+      const punchedInEmployees: PunchedInEmployee[] = profiles?.map(profile => ({
+        id: profile.user_id,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        email: profile.email
+      })) || [];
+
+      return punchedInEmployees;
     },
     refetchInterval: 30000, // Refetch every 30 seconds as backup
   });
