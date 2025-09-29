@@ -13,7 +13,7 @@ import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { useEmployeeMonthShifts, useShiftMutations, useShifts, useShiftsSubscription } from '@/hooks/useShifts';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addWeeks, startOfWeek, startOfDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addWeeks, startOfWeek, startOfDay, subMonths, addMonths, subDays, addDays } from 'date-fns';
 import { nb } from 'date-fns/locale';
 
 interface TimeEntry {
@@ -69,21 +69,25 @@ export default function Reports() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Calendar view logic
+  // Calendar view logic - Monthly
   const today = new Date();
-  const monthDate = new Date(selectedMonth + '-01');
-  const weekStart = startOfWeek(monthDate, { weekStartsOn: 1 });
-  const scheduleEnd = addWeeks(weekStart, 4);
-  const scheduleStart = weekStart;
+  const currentMonth = new Date(selectedMonth + '-01');
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
   
-  const weekDays = eachDayOfInterval({
-    start: scheduleStart,
-    end: scheduleEnd
+  // Get the start of the week containing the first day of the month
+  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  // Get 6 weeks worth of days to ensure we show the full month
+  const calendarEnd = addDays(calendarStart, 41); // 6 weeks = 42 days - 1
+  
+  const calendarDays = eachDayOfInterval({
+    start: calendarStart,
+    end: calendarEnd
   });
 
   const { data: calendarShifts } = useShifts({
-    startDate: scheduleStart.toISOString(),
-    endDate: scheduleEnd.toISOString()
+    startDate: calendarStart.toISOString(),
+    endDate: calendarEnd.toISOString()
   });
 
   // Enable real-time subscription
@@ -285,10 +289,10 @@ export default function Reports() {
     ) || [];
   };
 
-  // Group days by weeks for calendar view
+  // Group days by weeks for calendar view (6 weeks for full month view)
   const weeks = [];
-  for (let i = 0; i < weekDays.length; i += 7) {
-    weeks.push(weekDays.slice(i, i + 7));
+  for (let i = 0; i < calendarDays.length; i += 7) {
+    weeks.push(calendarDays.slice(i, i + 7));
   }
 
   const selectedEmployeeData = employees.find(emp => emp.user_id === selectedEmployee);
@@ -512,7 +516,7 @@ export default function Reports() {
                     <ChevronLeft className="w-4 h-4" />
                   </Button>
                   <h3 className="text-lg font-semibold">
-                    {format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb })}
+                    {format(currentMonth, 'MMMM yyyy', { locale: nb })}
                   </h3>
                   <Button
                     variant="outline"
@@ -524,66 +528,67 @@ export default function Reports() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Calendar className="w-4 h-4" />
-                  {format(scheduleStart, 'dd MMM', { locale: nb })} - {format(scheduleEnd, 'dd MMM yyyy', { locale: nb })}
+                  Månadsvy
                 </div>
               </div>
 
-              {/* Weekly Schedule Grid */}
-              <div className="space-y-6">
-                {weeks.map((week, weekIndex) => (
-                  <Card key={weekIndex}>
-                    <CardHeader>
-                      <CardTitle className="text-lg">
-                        Uke {format(week[0], 'w', { locale: nb })} - {format(week[0], 'MMM yyyy', { locale: nb })}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-7 gap-2">
-                        {week.map((day) => {
-                          const dayShifts = getShiftsForDate(day);
-                          const isToday = format(day, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
-                          const isPast = day < startOfDay(today);
-                          
-                          return (
-                            <div 
-                              key={day.toISOString()} 
-                              className={`border rounded-lg p-2 min-h-[100px] ${isToday ? 'border-primary bg-primary/5' : 'border-border'} ${isPast ? 'bg-muted/50' : ''}`}
-                            >
-                              <div className="mb-2">
-                                <div className="font-medium text-xs text-muted-foreground">
-                                  {format(day, 'EEE', { locale: nb })}
-                                </div>
-                                <div className={`text-lg font-semibold ${isToday ? 'text-primary' : ''}`}>
-                                  {format(day, 'd')}
-                                </div>
-                              </div>
-                              
-                              <div className="space-y-1">
-                                {dayShifts.map((shift) => (
-                                  <div 
-                                    key={shift.id} 
-                                    className="bg-primary/10 border border-primary/20 rounded p-1 text-xs"
-                                  >
-                                    <div className="font-medium text-xs truncate">
-                                      {shift.profiles?.first_name} {shift.profiles?.last_name}
-                                    </div>
-                                    <div className="flex items-center gap-1 text-muted-foreground">
-                                      <Clock className="w-2 h-2" />
-                                      <span className="text-xs">
-                                        {format(parseISO(shift.start_time), 'HH:mm')} - {format(parseISO(shift.end_time), 'HH:mm')}
-                                      </span>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
+              {/* Monthly Calendar Grid */}
+              <Card>
+                <CardHeader>
+                  <div className="grid grid-cols-7 gap-2 text-center">
+                    {['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'].map(day => (
+                      <div key={day} className="font-medium text-sm text-muted-foreground p-2">
+                        {day}
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                    ))}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-7 gap-2">
+                    {calendarDays.map((day) => {
+                      const dayShifts = getShiftsForDate(day);
+                      const isToday = format(day, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+                      const isCurrentMonth = format(day, 'yyyy-MM') === selectedMonth;
+                      
+                      return (
+                        <div 
+                          key={day.toISOString()} 
+                          className={`
+                            border rounded-lg p-2 min-h-[120px] transition-colors cursor-pointer hover:bg-muted/50
+                            ${isToday ? 'border-primary bg-primary/5' : 'border-border'}
+                            ${!isCurrentMonth ? 'bg-muted/30 text-muted-foreground' : ''}
+                          `}
+                        >
+                          <div className="mb-2">
+                            <div className={`text-sm font-semibold ${isToday ? 'text-primary' : ''}`}>
+                              {format(day, 'd')}
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            {dayShifts.map((shift) => (
+                              <div 
+                                key={shift.id} 
+                                className="bg-primary/10 border border-primary/20 rounded p-1 text-xs"
+                              >
+                                <div className="font-medium text-xs truncate">
+                                  {shift.profiles?.first_name} {shift.profiles?.last_name}
+                                </div>
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                  <Clock className="w-2 h-2" />
+                                  <span className="text-xs">
+                                    {format(parseISO(shift.start_time), 'HH:mm')} - {format(parseISO(shift.end_time), 'HH:mm')}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </CardContent>
