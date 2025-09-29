@@ -215,8 +215,8 @@ const Employees = () => {
 
       if (error) throw error;
 
-      // Update password if provided
-      if (editForm.password && editForm.password.length > 0) {
+      // Update password if provided (must be at least 6 characters due to Supabase Auth requirement)
+      if (editForm.password && editForm.password.length >= 6) {
         const { error: passwordError } = await supabase.functions.invoke('update-employee-password', {
           body: {
             userId: editingEmployee.user_id,
@@ -385,6 +385,8 @@ const Employees = () => {
                       value={employeeForm.password}
                       onChange={(e) => setEmployeeForm(prev => ({ ...prev, password: e.target.value }))}
                       required
+                      minLength={6}
+                      placeholder="Minst 6 tecken (Supabase-krav)"
                     />
                   </div>
                 </div>
@@ -603,12 +605,16 @@ const Employees = () => {
                   type="password"
                   value={editForm.password}
                   onChange={(e) => setEditForm(prev => ({ ...prev, password: e.target.value }))}
-                  placeholder="Lämna tomt för att behålla nuvarande lösenord"
+                  minLength={6}
+                  placeholder="Minst 6 tecken (Supabase-krav)"
                 />
+                {editForm.password && editForm.password.length > 0 && editForm.password.length < 6 && (
+                  <p className="text-sm text-red-600">Supabase kräver minst 6 tecken för lösenord</p>
+                )}
               </div>
             </div>
                 <DialogFooter>
-                  <Button type="submit" disabled={isSubmitting}>
+                  <Button type="submit" disabled={isSubmitting || (editForm.password && editForm.password.length > 0 && editForm.password.length < 6)}>
                     {isSubmitting ? 'Uppdaterar...' : 'Uppdatera anställd'}
                   </Button>
                 </DialogFooter>
