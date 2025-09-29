@@ -236,8 +236,6 @@ const Admin = () => {
         </Badge>
       </div>
 
-      {/* Live Punch Status */}
-      <LivePunchStatus />
 
       {/* Dagens översikt - utan punch tracking */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

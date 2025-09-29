@@ -8,6 +8,7 @@ import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { LivePunchStatus } from '@/components/LivePunchStatus';
 
 interface Shift {
   id: string;
@@ -388,6 +389,11 @@ export default function Dashboard() {
           Velkommen tilbake! Her er din oversikt.
         </p>
       </div>
+
+      {/* Live Punch Status for Admins */}
+      {userRole === 'admin' && (
+        <LivePunchStatus />
+      )}
 
       <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {/* Punch Clock - Always visible */}
