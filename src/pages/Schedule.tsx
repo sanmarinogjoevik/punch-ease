@@ -9,9 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Plus, Clock, MapPin, User, Edit, Trash2 } from "lucide-react";
+import { Calendar, Plus, Clock, MapPin, User, Edit, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { format, addWeeks, startOfWeek, endOfWeek, eachDayOfInterval, parseISO, addDays, startOfDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
 import { nb } from "date-fns/locale";
 
 interface Profile {
@@ -52,15 +52,21 @@ const Schedule = () => {
   }>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Date range for 4 weeks ahead
-  const today = new Date();
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 }); // Monday start
-  const scheduleEnd = addWeeks(weekStart, 4);
-  const scheduleStart = weekStart;
+  // Current month state
+  const [currentMonth, setCurrentMonth] = useState(new Date());
   
-  const weekDays = eachDayOfInterval({
-    start: scheduleStart,
-    end: scheduleEnd
+  // Month calculations
+  const today = new Date();
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+  
+  // Get the calendar grid (6 weeks to show complete month view)
+  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 }); // Monday start
+  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+  
+  const calendarDays = eachDayOfInterval({
+    start: calendarStart,
+    end: calendarEnd
   });
 
   // Fetch all employees
@@ -78,15 +84,15 @@ const Schedule = () => {
     enabled: userRole === 'admin'
   });
 
-  // Fetch shifts for the next 4 weeks
+  // Fetch shifts for the current month
   const { data: shifts } = useQuery({
-    queryKey: ['schedule-shifts'],
+    queryKey: ['schedule-shifts', format(currentMonth, 'yyyy-MM')],
     queryFn: async () => {
       const { data: shifts, error } = await supabase
         .from('shifts')
         .select('*')
-        .gte('start_time', scheduleStart.toISOString())
-        .lte('start_time', scheduleEnd.toISOString())
+        .gte('start_time', monthStart.toISOString())
+        .lte('start_time', monthEnd.toISOString())
         .order('start_time', { ascending: true });
       
       if (error) throw error;
@@ -198,7 +204,7 @@ const Schedule = () => {
 
       setShowCreateDialog(false);
       setEmployeeShifts([]);
-      queryClient.invalidateQueries({ queryKey: ['schedule-shifts'] });
+      queryClient.invalidateQueries({ queryKey: ['schedule-shifts', format(currentMonth, 'yyyy-MM')] });
 
     } catch (error: any) {
       toast({
@@ -225,7 +231,7 @@ const Schedule = () => {
         description: "Pass har tagits bort",
       });
 
-      queryClient.invalidateQueries({ queryKey: ['schedule-shifts'] });
+      queryClient.invalidateQueries({ queryKey: ['schedule-shifts', format(currentMonth, 'yyyy-MM')] });
 
     } catch (error: any) {
       toast({
@@ -243,6 +249,14 @@ const Schedule = () => {
     ) || [];
   };
 
+  const goToPreviousMonth = () => {
+    setCurrentMonth(prev => subMonths(prev, 1));
+  };
+
+  const goToNextMonth = () => {
+    setCurrentMonth(prev => addMonths(prev, 1));
+  };
+
   if (userRole !== 'admin') {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -258,10 +272,10 @@ const Schedule = () => {
     );
   }
 
-  // Group days by weeks
+  // Group days by weeks for calendar grid
   const weeks = [];
-  for (let i = 0; i < weekDays.length; i += 7) {
-    weeks.push(weekDays.slice(i, i + 7));
+  for (let i = 0; i < calendarDays.length; i += 7) {
+    weeks.push(calendarDays.slice(i, i + 7));
   }
 
   return (
@@ -269,45 +283,73 @@ const Schedule = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-        <h1 className="text-3xl font-bold">Vaktliste</h1>
-        <p className="text-muted-foreground">Administrer vakter for de neste 4 ukene</p>
+          <h1 className="text-3xl font-bold">Vaktliste</h1>
+          <p className="text-muted-foreground">Administrer vakter för {format(currentMonth, 'MMMM yyyy', { locale: nb })}</p>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground">24h</span>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar className="w-4 h-4" />
-            {format(scheduleStart, 'dd MMM', { locale: nb })} - {format(scheduleEnd, 'dd MMM yyyy', { locale: nb })}
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={goToPreviousMonth}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <div className="flex items-center gap-2 text-sm font-medium min-w-[140px] justify-center">
+              <Calendar className="w-4 h-4" />
+              {format(currentMonth, 'MMMM yyyy', { locale: nb })}
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={goToNextMonth}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Weekly Schedule Grid */}
-      <div className="space-y-6">
-        {weeks.map((week, weekIndex) => (
-          <Card key={weekIndex}>
-            <CardHeader>
-              <CardTitle className="text-lg">
-                Uke {format(week[0], 'w', { locale: nb })} - {format(week[0], 'MMM yyyy', { locale: nb })}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-7 gap-2">
+      {/* Monthly Calendar Grid */}
+      <Card>
+        <CardContent className="p-6">
+          {/* Weekday Headers */}
+          <div className="grid grid-cols-7 gap-2 mb-4">
+            {['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'].map((day) => (
+              <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
+                {day}
+              </div>
+            ))}
+          </div>
+          
+          {/* Calendar Days */}
+          <div className="space-y-2">
+            {weeks.map((week, weekIndex) => (
+              <div key={weekIndex} className="grid grid-cols-7 gap-2">
                 {week.map((day) => {
                   const dayShifts = getShiftsForDate(day);
                   const isToday = format(day, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
-                  const isPast = day < startOfDay(today);
+                  const isCurrentMonth = format(day, 'MM') === format(currentMonth, 'MM');
                   
                   return (
                     <div 
                       key={day.toISOString()} 
-                      className={`border rounded-lg p-2 min-h-[100px] cursor-pointer hover:bg-accent/50 transition-colors ${isToday ? 'border-primary bg-primary/5' : 'border-border'} ${isPast ? 'bg-muted/50 cursor-not-allowed' : ''}`}
-                      onClick={() => !isPast && handleCreateShift(day)}
+                      className={`border rounded-lg p-2 min-h-[120px] cursor-pointer hover:bg-accent/50 transition-colors ${
+                        isToday ? 'border-primary bg-primary/5' : 'border-border'
+                      } ${
+                        !isCurrentMonth ? 'bg-muted/30 text-muted-foreground' : ''
+                      }`}
+                      onClick={() => handleCreateShift(day)}
                     >
                       <div className="mb-2">
                         <div className="font-medium text-xs text-muted-foreground">
                           {format(day, 'EEE', { locale: nb })}
                         </div>
-                        <div className={`text-lg font-semibold ${isToday ? 'text-primary' : ''}`}>
+                        <div className={`text-lg font-semibold ${
+                          isToday ? 'text-primary' : isCurrentMonth ? '' : 'text-muted-foreground'
+                        }`}>
                           {format(day, 'd')}
                         </div>
                       </div>
@@ -348,10 +390,10 @@ const Schedule = () => {
                   );
                 })}
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Create Shifts Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
