@@ -283,55 +283,63 @@ export default function Dashboard() {
 
   const applyHybridLogic = (sessions: WorkSession[], shifts: Shift[]): WorkSession[] => {
     const resultSessions: WorkSession[] = [];
-    const processedDates = new Set<string>();
+    const allProcessedDates = new Set<string>();
+
+    // Create a map of shifts by date
+    const shiftDateMap = new Map<string, Shift[]>();
+    shifts.forEach(shift => {
+      const shiftDate = new Date(shift.start_time).toDateString();
+      if (!shiftDateMap.has(shiftDate)) {
+        shiftDateMap.set(shiftDate, []);
+      }
+      shiftDateMap.get(shiftDate)!.push(shift);
+    });
 
     // Process existing punch sessions
     sessions.forEach(session => {
       const sessionDate = new Date(session.punch_in.timestamp);
       const sessionDateStr = sessionDate.toDateString();
-      processedDates.add(sessionDateStr);
+      allProcessedDates.add(sessionDateStr);
       
       const useScheduleTimes = shouldUseScheduleTimes(sessionDate);
       
       if (useScheduleTimes) {
-        // After closing: Use ONLY schedule times, ignore punch data completely
-        const matchingShift = shifts.find(shift => {
-          const shiftDate = new Date(shift.start_time);
-          return shiftDate.toDateString() === sessionDateStr;
-        });
-
-        if (matchingShift) {
-          const duration = Math.round((new Date(matchingShift.end_time).getTime() - new Date(matchingShift.start_time).getTime()) / (1000 * 60));
+        // After closing: COMPLETELY IGNORE punch data, use ONLY schedule if it exists
+        const dayShifts = shiftDateMap.get(sessionDateStr);
+        if (dayShifts && dayShifts.length > 0) {
+          const shift = dayShifts[0];
+          const duration = Math.round((new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60));
 
           resultSessions.push({
-            id: 'schedule_' + matchingShift.id,
+            id: 'schedule_' + shift.id,
             punch_in: {
               ...session.punch_in,
-              id: 'schedule_in_' + matchingShift.id,
-              timestamp: matchingShift.start_time
+              id: 'schedule_in_' + shift.id,
+              timestamp: shift.start_time
             },
             punch_out: {
               ...session.punch_in,
-              id: 'schedule_out_' + matchingShift.id,
+              id: 'schedule_out_' + shift.id,
               entry_type: 'punch_out' as const,
-              timestamp: matchingShift.end_time
+              timestamp: shift.end_time
             },
             duration
           });
         }
+        // If no schedule exists for this date after closing, don't show anything
       } else {
-        // During the day: Use ONLY punch times, ignore schedule completely
+        // During the day: Use ONLY punch times, completely ignore schedule
         resultSessions.push(session);
       }
     });
 
-    // Add schedule-only entries for days without punch data (after closing only)
-    shifts.forEach(shift => {
-      const shiftDate = new Date(shift.start_time);
-      const shiftDateStr = shiftDate.toDateString();
+    // Add schedule-only entries for dates without any punch data (after closing only)
+    shiftDateMap.forEach((dayShifts, shiftDateStr) => {
+      const shiftDate = new Date(dayShifts[0].start_time);
       const useScheduleTimes = shouldUseScheduleTimes(shiftDate);
 
-      if (useScheduleTimes && !processedDates.has(shiftDateStr)) {
+      if (useScheduleTimes && !allProcessedDates.has(shiftDateStr)) {
+        const shift = dayShifts[0];
         const duration = Math.round((new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60));
 
         resultSessions.push({
@@ -353,7 +361,9 @@ export default function Dashboard() {
       }
     });
 
-    return resultSessions;
+    return resultSessions.sort((a, b) => 
+      new Date(b.punch_in.timestamp).getTime() - new Date(a.punch_in.timestamp).getTime()
+    );
   };
 
   return (

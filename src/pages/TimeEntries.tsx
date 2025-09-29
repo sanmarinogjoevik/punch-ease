@@ -189,24 +189,32 @@ export default function TimeEntries() {
     if (!shiftsData || !companySettings) return sessions;
 
     const resultSessions: WorkSession[] = [];
-    const processedDates = new Set<string>();
+    const allProcessedDates = new Set<string>();
+
+    // First, create a map of all dates that have shifts
+    const shiftDateMap = new Map<string, any[]>();
+    shiftsData.forEach(shift => {
+      if (userRole === 'admin' || shift.employee_id === user?.id) {
+        const shiftDate = format(new Date(shift.start_time), 'yyyy-MM-dd');
+        if (!shiftDateMap.has(shiftDate)) {
+          shiftDateMap.set(shiftDate, []);
+        }
+        shiftDateMap.get(shiftDate)!.push(shift);
+      }
+    });
 
     // Process existing punch sessions
     sessions.forEach(session => {
       const sessionDate = format(new Date(session.punch_in.timestamp), 'yyyy-MM-dd');
-      processedDates.add(sessionDate);
+      allProcessedDates.add(sessionDate);
       
       const useScheduleTimes = shouldUseScheduleTimes(sessionDate);
       
       if (useScheduleTimes) {
-        // After closing: Use ONLY schedule times, ignore punch data completely
-        const matchingShifts = shiftsData.filter(shift => {
-          const shiftDate = format(new Date(shift.start_time), 'yyyy-MM-dd');
-          return shiftDate === sessionDate && shift.employee_id === session.punch_in.employee_id;
-        });
-
-        if (matchingShifts.length > 0) {
-          const shift = matchingShifts[0];
+        // After closing: COMPLETELY IGNORE punch data, use ONLY schedule if it exists
+        const dayShifts = shiftDateMap.get(sessionDate);
+        if (dayShifts && dayShifts.length > 0) {
+          const shift = dayShifts[0];
           const shiftDuration = Math.round(
             (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
           );
@@ -231,49 +239,48 @@ export default function TimeEntries() {
             employee_name: session.employee_name
           });
         }
+        // If no schedule exists for this date after closing, don't show anything
       } else {
-        // During the day: Use ONLY punch times, ignore schedule completely
+        // During the day: Use ONLY punch times, completely ignore schedule
         resultSessions.push(session);
       }
     });
 
-    // Add schedule-only entries for days without punch data (after closing only)
-    if (shiftsData && userRole !== 'admin') {
-      shiftsData.forEach(shift => {
-        const shiftDate = format(new Date(shift.start_time), 'yyyy-MM-dd');
-        const useScheduleTimes = shouldUseScheduleTimes(shiftDate);
+    // Add schedule-only entries for dates without any punch data (after closing only)
+    shiftDateMap.forEach((dayShifts, shiftDate) => {
+      const useScheduleTimes = shouldUseScheduleTimes(shiftDate);
+      
+      if (useScheduleTimes && !allProcessedDates.has(shiftDate)) {
+        const shift = dayShifts[0];
+        const shiftDuration = Math.round(
+          (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
+        );
 
-        if (useScheduleTimes && 
-            !processedDates.has(shiftDate) && 
-            shift.employee_id === user?.id) {
-          const shiftDuration = Math.round(
-            (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
-          );
+        resultSessions.push({
+          id: 'schedule_only_' + shift.id,
+          punch_in: {
+            id: 'schedule_in_' + shift.id,
+            entry_type: 'punch_in' as const,
+            timestamp: shift.start_time,
+            employee_id: shift.employee_id,
+            employee_name: userRole === 'admin' ? 'Anställd' : (user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name)
+          },
+          punch_out: {
+            id: 'schedule_out_' + shift.id,
+            entry_type: 'punch_out' as const,
+            timestamp: shift.end_time,
+            employee_id: shift.employee_id,
+            employee_name: userRole === 'admin' ? 'Anställd' : (user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name)
+          },
+          duration: shiftDuration,
+          employee_name: userRole === 'admin' ? 'Anställd' : (user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name)
+        });
+      }
+    });
 
-          resultSessions.push({
-            id: 'schedule_only_' + shift.id,
-            punch_in: {
-              id: 'schedule_in_' + shift.id,
-              entry_type: 'punch_in' as const,
-              timestamp: shift.start_time,
-              employee_id: shift.employee_id,
-              employee_name: user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name
-            },
-            punch_out: {
-              id: 'schedule_out_' + shift.id,
-              entry_type: 'punch_out' as const,
-              timestamp: shift.end_time,
-              employee_id: shift.employee_id,
-              employee_name: user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name
-            },
-            duration: shiftDuration,
-            employee_name: user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name
-          });
-        }
-      });
-    }
-
-    return resultSessions;
+    return resultSessions.sort((a, b) => 
+      new Date(b.punch_in.timestamp).getTime() - new Date(a.punch_in.timestamp).getTime()
+    );
   };
 
   const formatDuration = (minutes: number): string => {

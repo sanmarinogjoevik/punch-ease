@@ -169,14 +169,14 @@ export default function Timeliste() {
     });
 
     const resultSessions: WorkSession[] = [];
-    const processedDates = new Set<string>();
+    const allProcessedDates = new Set<string>();
 
     // Process existing punch sessions
     sessions.forEach(session => {
       const useSchedule = shouldUseScheduleTimes(session.date, businessHours);
       const dayShifts = shiftsByDate.get(session.date) || [];
       
-      processedDates.add(session.date);
+      allProcessedDates.add(session.date);
       
       if (useSchedule && dayShifts.length > 0) {
         // After closing: Use ONLY schedule times, ignore punch data completely
@@ -206,7 +206,7 @@ export default function Timeliste() {
     shiftsByDate.forEach((dayShifts, date) => {
       const useSchedule = shouldUseScheduleTimes(date, businessHours);
       
-      if (useSchedule && !processedDates.has(date)) {
+      if (useSchedule && !allProcessedDates.has(date)) {
         dayShifts.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
         
         const scheduledStart = new Date(dayShifts[0].start_time);
