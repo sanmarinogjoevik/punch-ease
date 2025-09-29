@@ -4,6 +4,9 @@ import { PunchClock } from '@/components/PunchClock';
 import { Calendar, Clock, Users, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Shift {
   id: string;
@@ -25,6 +28,11 @@ interface WorkSession {
   punch_in: TimeEntry;
   punch_out?: TimeEntry;
   duration?: number; // in minutes
+  isAdjusted?: boolean;
+  originalStartTime?: string;
+  originalEndTime?: string;
+  scheduledStart?: string;
+  scheduledEnd?: string;
 }
 
 interface ActiveEmployee {
@@ -41,6 +49,7 @@ export default function Dashboard() {
   const [recentWorkSessions, setRecentWorkSessions] = useState<WorkSession[]>([]);
   const [activeEmployees, setActiveEmployees] = useState<ActiveEmployee[]>([]);
   const { user, userRole } = useAuth();
+  const { data: companySettings } = useCompanySettings();
 
   useEffect(() => {
     if (user) {
@@ -55,8 +64,12 @@ export default function Dashboard() {
     if (!user) return;
 
     try {
-      // Get today's date range
+      // Get date range for last 30 days to current day
       const today = new Date();
+      const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
+      const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+      
+      // Get today's date range
       const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
       const endOfToday = new Date(startOfToday);
       endOfToday.setDate(endOfToday.getDate() + 1);
@@ -85,19 +98,30 @@ export default function Dashboard() {
       if (upcomingError) throw upcomingError;
       setUpcomingShifts(upcomingShiftsData || []);
 
-      // Fetch recent time entries and group into work sessions
+      // Fetch recent time entries
       const { data: timeEntriesData, error: timeEntriesError } = await supabase
         .from('time_entries')
         .select('*')
         .eq('employee_id', user.id)
-        .order('timestamp', { ascending: false })
-        .limit(20);
+        .gte('timestamp', startDate.toISOString())
+        .order('timestamp', { ascending: false });
 
       if (timeEntriesError) throw timeEntriesError;
+
+      // Fetch shifts for the same period
+      const { data: shiftsData, error: shiftsError } = await supabase
+        .from('shifts')
+        .select('*')
+        .eq('employee_id', user.id)
+        .gte('start_time', startDate.toISOString())
+        .order('start_time', { ascending: false });
+
+      if (shiftsError) throw shiftsError;
       
-      // Group entries into work sessions
+      // Group entries into work sessions and apply hybrid logic
       const sessions = groupIntoWorkSessions(timeEntriesData || []);
-      setRecentWorkSessions(sessions.slice(0, 5)); // Show last 5 sessions
+      const hybridSessions = applyHybridLogic(sessions, shiftsData || []);
+      setRecentWorkSessions(hybridSessions.slice(0, 5)); // Show last 5 sessions
 
     } catch (error) {
       console.error('Error fetching employee data:', error);
@@ -234,6 +258,70 @@ export default function Dashboard() {
     });
   };
 
+  const shouldUseScheduleTimes = (date: Date): boolean => {
+    if (!companySettings?.business_hours) return false;
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const targetDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    
+    // For past days, always use schedule times
+    if (targetDate < today) {
+      return true;
+    }
+    
+    // For today, check if store has closed
+    if (targetDate.getTime() === today.getTime()) {
+      const dayOfWeek = now.getDay();
+      const todayHours = companySettings.business_hours.find(h => h.day === dayOfWeek);
+      
+      if (!todayHours?.isOpen) return true;
+      
+      const [closeHour, closeMinute] = todayHours.closeTime.split(':').map(Number);
+      const closeTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), closeHour, closeMinute);
+      
+      return now >= closeTime;
+    }
+    
+    return false;
+  };
+
+  const applyHybridLogic = (sessions: WorkSession[], shifts: Shift[]): WorkSession[] => {
+    return sessions.map(session => {
+      const sessionDate = new Date(session.punch_in.timestamp);
+      
+      if (!shouldUseScheduleTimes(sessionDate)) {
+        return session;
+      }
+      
+      // Find matching shift for this session
+      const matchingShift = shifts.find(shift => {
+        const shiftDate = new Date(shift.start_time);
+        return shiftDate.toDateString() === sessionDate.toDateString();
+      });
+      
+      if (!matchingShift) {
+        // No shift found - filter out this session
+        return null;
+      }
+      
+      // Apply hybrid logic - use scheduled times
+      const scheduledStartTime = new Date(matchingShift.start_time);
+      const scheduledEndTime = new Date(matchingShift.end_time);
+      const duration = Math.round((scheduledEndTime.getTime() - scheduledStartTime.getTime()) / (1000 * 60));
+      
+      return {
+        ...session,
+        isAdjusted: true,
+        originalStartTime: session.punch_in.timestamp,
+        originalEndTime: session.punch_out?.timestamp,
+        scheduledStart: matchingShift.start_time,
+        scheduledEnd: matchingShift.end_time,
+        duration
+      };
+    }).filter(Boolean) as WorkSession[];
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -336,46 +424,79 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 {recentWorkSessions.length > 0 ? (
-                  <div className="space-y-3">
-                    {recentWorkSessions.map((session) => (
-                      <div key={session.id} className="p-3 rounded-lg border">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-green-500" />
-                            <span className="font-medium">
-                              {new Date(session.punch_in.timestamp).toLocaleDateString('nb-NO')}
-                            </span>
+                  <TooltipProvider>
+                    <div className="space-y-3">
+                      {recentWorkSessions.map((session) => (
+                        <div key={session.id} className="p-3 rounded-lg border">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-green-500" />
+                              <span className="font-medium">
+                                {new Date(session.isAdjusted ? session.scheduledStart! : session.punch_in.timestamp).toLocaleDateString('nb-NO')}
+                              </span>
+                              {session.isAdjusted && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Enligt schema
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {session.punch_out ? (
+                                <div className="flex items-center gap-1 text-green-600">
+                                  <span className="text-sm">Avsluttet</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 text-yellow-600">
+                                  <span className="text-sm">Pågående</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {session.punch_out ? (
-                              <div className="flex items-center gap-1 text-green-600">
-                                <span className="text-sm">Avsluttet</span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-1 text-yellow-600">
-                                <span className="text-sm">Pågående</span>
-                              </div>
-                            )}
+                          <div className="mt-2 flex items-center justify-between text-sm text-muted-foreground">
+                            <div>
+                              {session.isAdjusted ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="cursor-help underline decoration-dotted">
+                                      {formatTime(session.scheduledStart!)}
+                                      {session.scheduledEnd && (
+                                        <span> - {formatTime(session.scheduledEnd)}</span>
+                                      )}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <div className="text-sm">
+                                      <div className="font-medium">Ursprungliga punch-tider:</div>
+                                      <div>
+                                        {formatTime(session.originalStartTime!)}
+                                        {session.originalEndTime && (
+                                          <span> - {formatTime(session.originalEndTime)}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <>
+                                  {formatTime(session.punch_in.timestamp)}
+                                  {session.punch_out && (
+                                    <span> - {formatTime(session.punch_out.timestamp)}</span>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                            <div className="font-medium">
+                              {session.duration !== undefined ? (
+                                formatDuration(session.duration)
+                              ) : (
+                                <span className="text-yellow-600">Pågående</span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <div className="mt-2 flex items-center justify-between text-sm text-muted-foreground">
-                          <div>
-                            {formatTime(session.punch_in.timestamp)}
-                            {session.punch_out && (
-                              <span> - {formatTime(session.punch_out.timestamp)}</span>
-                            )}
-                          </div>
-                          <div className="font-medium">
-                            {session.duration !== undefined ? (
-                              formatDuration(session.duration)
-                            ) : (
-                              <span className="text-yellow-600">Pågående</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  </TooltipProvider>
                 ) : (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <AlertCircle className="h-4 w-4" />
