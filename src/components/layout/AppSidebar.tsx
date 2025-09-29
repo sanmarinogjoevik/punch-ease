@@ -38,6 +38,7 @@ export function AppSidebar() {
     { title: 'Admin', url: '/admin', icon: Shield },
     { title: 'Vaktliste', url: '/schedule', icon: Calendar },
     { title: 'Tidsregistrering', url: '/timesheet', icon: Clock },
+    { title: 'Temperaturlogg', url: '/temperature-log', icon: Thermometer },
     { title: 'Ansatte', url: '/employees', icon: Users },
     { title: 'Rapporter', url: '/reports', icon: BarChart3 },
     { title: 'Inställningar', url: '/settings', icon: Settings },
