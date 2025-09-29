@@ -53,14 +53,6 @@ serve(async (req) => {
       )
     }
 
-    // Validate password length
-    if (newPassword.length < 6) {
-      return new Response(
-        JSON.stringify({ error: 'Password must be at least 6 characters long' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
     // Create admin client for user management
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',

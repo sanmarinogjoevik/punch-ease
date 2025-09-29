@@ -215,9 +215,23 @@ const Employees = () => {
 
       if (error) throw error;
 
+      // Update password if provided
+      if (editForm.password && editForm.password.length > 0) {
+        const { error: passwordError } = await supabase.functions.invoke('update-employee-password', {
+          body: {
+            userId: editingEmployee.user_id,
+            newPassword: editForm.password
+          }
+        });
+
+        if (passwordError) {
+          throw new Error(passwordError.message || 'Failed to update password');
+        }
+      }
+
       toast({
         title: "Framgång",
-        description: "Anställd har uppdaterats framgångsrikt",
+        description: editForm.password ? "Anställd och lösenord har uppdaterats framgångsrikt" : "Anställd har uppdaterats framgångsrikt",
       });
 
       setShowEditDialog(false);
@@ -371,7 +385,6 @@ const Employees = () => {
                       value={employeeForm.password}
                       onChange={(e) => setEmployeeForm(prev => ({ ...prev, password: e.target.value }))}
                       required
-                      minLength={6}
                     />
                   </div>
                 </div>
@@ -590,16 +603,12 @@ const Employees = () => {
                   type="password"
                   value={editForm.password}
                   onChange={(e) => setEditForm(prev => ({ ...prev, password: e.target.value }))}
-                  minLength={6}
                   placeholder="Lämna tomt för att behålla nuvarande lösenord"
                 />
-                {editForm.password && editForm.password.length > 0 && editForm.password.length < 6 && (
-                  <p className="text-sm text-red-600">Lösenord måste vara minst 6 tecken</p>
-                )}
               </div>
             </div>
                 <DialogFooter>
-                  <Button type="submit" disabled={isSubmitting || (editForm.password && editForm.password.length > 0 && editForm.password.length < 6)}>
+                  <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? 'Uppdaterar...' : 'Uppdatera anställd'}
                   </Button>
                 </DialogFooter>
