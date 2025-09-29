@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
+import { LivePunchStatus } from "@/components/LivePunchStatus";
 import { 
   Users, 
   Clock, 
@@ -233,6 +234,9 @@ const Admin = () => {
           Admin
         </Badge>
       </div>
+
+      {/* Live Punch Status */}
+      <LivePunchStatus />
 
       {/* Dagens översikt - utan punch tracking */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
