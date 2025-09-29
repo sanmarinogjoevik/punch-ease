@@ -10,6 +10,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { format, isAfter, parseISO, startOfDay, endOfDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
 import { Clock, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface TimeEntry {
   id: string;
@@ -33,6 +35,7 @@ export default function TimeEntries() {
   const { data: companySettings } = useCompanySettings();
   const [workSessions, setWorkSessions] = useState<WorkSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     fetchTimeEntries();
@@ -349,80 +352,86 @@ export default function TimeEntries() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <div className="flex items-center gap-2">
         <Clock className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold">
+        <h1 className={`font-bold ${isMobile ? 'text-xl' : 'text-2xl'}`}>
           {userRole === 'admin' ? 'Alle Arbeidsvakter' : 'Mine Arbeidsvakter'}
         </h1>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Arbeidsøkt Historikk</CardTitle>
+          <CardTitle className={isMobile ? 'text-lg' : ''}>Arbeidsøkt Historikk</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0 md:p-6">
           {workSessions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               Ingen arbeidsøkter funnet.
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Dato</TableHead>
-                  <TableHead>Tidsperiode</TableHead>
-                  <TableHead>Varighet</TableHead>
-                  <TableHead>Status</TableHead>
-                  {userRole === 'admin' && <TableHead>Ansatt</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {workSessions.map((session) => (
-                  <TableRow key={session.id}>
-                    <TableCell>
-                      <div className="font-medium">
-                        {format(new Date(session.punch_in.timestamp), 'dd MMM yyyy', { locale: nb })}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <ArrowUp className="h-4 w-4 text-green-600" />
-                        <span className="text-sm">
-                          {format(new Date(session.punch_in.timestamp), 'HH:mm:ss')}
-                        </span>
-                        {session.punch_out && (
-                          <>
-                            <span className="text-muted-foreground">→</span>
-                            <ArrowDown className="h-4 w-4 text-red-600" />
-                            <span className="text-sm">
-                              {format(new Date(session.punch_out.timestamp), 'HH:mm:ss')}
-                            </span>
-                          </>
+            <div className={isMobile ? 'overflow-x-auto' : ''}>
+              <ScrollArea className={isMobile ? 'w-full' : ''}>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className={isMobile ? 'min-w-[100px]' : ''}>Dato</TableHead>
+                      <TableHead className={isMobile ? 'min-w-[150px]' : ''}>Tidsperiode</TableHead>
+                      <TableHead className={isMobile ? 'min-w-[80px]' : ''}>Varighet</TableHead>
+                      <TableHead className={isMobile ? 'min-w-[80px]' : ''}>Status</TableHead>
+                      {userRole === 'admin' && <TableHead className={isMobile ? 'min-w-[120px]' : ''}>Ansatt</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {workSessions.map((session) => (
+                      <TableRow key={session.id}>
+                        <TableCell>
+                          <div className="font-medium text-sm">
+                            {format(new Date(session.punch_in.timestamp), isMobile ? 'dd/MM' : 'dd MMM yyyy', { locale: nb })}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className={`flex items-center gap-2 ${isMobile ? 'flex-col items-start gap-1' : ''}`}>
+                            <div className="flex items-center gap-1">
+                              <ArrowUp className="h-3 w-3 text-green-600" />
+                              <span className="text-xs">
+                                {format(new Date(session.punch_in.timestamp), 'HH:mm')}
+                              </span>
+                            </div>
+                            {session.punch_out && (
+                              <div className="flex items-center gap-1">
+                                {!isMobile && <span className="text-muted-foreground">→</span>}
+                                <ArrowDown className="h-3 w-3 text-red-600" />
+                                <span className="text-xs">
+                                  {format(new Date(session.punch_out.timestamp), 'HH:mm')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium text-sm">
+                            {session.duration !== undefined ? (
+                              formatDuration(session.duration)
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {getSessionBadge(session)}
+                        </TableCell>
+                        {userRole === 'admin' && (
+                          <TableCell className="text-sm">
+                            {session.employee_name || 'Ukjent ansatt'}
+                          </TableCell>
                         )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium">
-                        {session.duration !== undefined ? (
-                          formatDuration(session.duration)
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {getSessionBadge(session)}
-                    </TableCell>
-                    {userRole === 'admin' && (
-                      <TableCell>
-                        {session.employee_name || 'Ukjent ansatt'}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Users, Phone, Mail, IdCard, UserCheck, UserX, Edit, Trash2, Plus } from "lucide-react";
 import { useState } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Profile {
   id: string;
@@ -29,6 +30,7 @@ const Employees = () => {
   const { userRole } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   
   // Edit Employee Dialog State
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -282,14 +284,14 @@ const Employees = () => {
   }
 
   return (
-    <div className="container mx-auto p-6">
+    <div className="container mx-auto p-4 md:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className={`flex ${isMobile ? 'flex-col gap-4' : 'items-center justify-between'} mb-6`}>
         <div>
-        <h1 className="text-3xl font-bold">Ansatte</h1>
+        <h1 className={`font-bold ${isMobile ? 'text-2xl' : 'text-3xl'}`}>Ansatte</h1>
         <p className="text-muted-foreground">Administrer alle ansatte og deres informasjon</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className={`flex items-center gap-4 ${isMobile ? 'self-start' : ''}`}>
           <Dialog open={showAddEmployeeDialog} onOpenChange={setShowAddEmployeeDialog}>
             <DialogTrigger asChild>
               <Button className="flex items-center gap-2">

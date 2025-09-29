@@ -13,6 +13,8 @@ import { Calendar, Plus, Clock, MapPin, User, Edit, Trash2, ChevronLeft, Chevron
 import { useState } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
 import { nb } from "date-fns/locale";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Profile {
   id: string;

@@ -5,6 +5,7 @@ import { Clock, Play, Square } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export function PunchClock() {
   const [isPunchedIn, setIsPunchedIn] = useState(false);
@@ -12,6 +13,7 @@ export function PunchClock() {
   const [lastPunchTime, setLastPunchTime] = useState<Date | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (user) {
@@ -79,12 +81,12 @@ export function PunchClock() {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="text-center">
-          <CardTitle className="flex items-center justify-center gap-2">
+          <CardTitle className={`flex items-center justify-center gap-2 ${isMobile ? 'text-lg' : ''}`}>
             <Clock className="h-5 w-5" />
             Tidsklokke
           </CardTitle>
       </CardHeader>
-      <CardContent className="text-center space-y-6">
+      <CardContent className={`text-center ${isMobile ? 'space-y-4' : 'space-y-6'}`}>
         <div className="text-sm text-muted-foreground">
           Status: <span className={isPunchedIn ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
             {isPunchedIn ? 'Pålogget' : 'Avlogget'}
@@ -100,20 +102,20 @@ export function PunchClock() {
         <Button
           onClick={handlePunch}
           disabled={loading}
-          size="lg"
-          className="w-full h-16 text-lg"
+          size={isMobile ? "default" : "lg"}
+          className={`w-full ${isMobile ? 'h-12 text-base' : 'h-16 text-lg'}`}
           variant={isPunchedIn ? 'destructive' : 'default'}
         >
           {loading ? (
             'Behandler...'
           ) : isPunchedIn ? (
             <>
-              <Square className="h-6 w-6 mr-2" />
+              <Square className={`${isMobile ? 'h-4 w-4' : 'h-6 w-6'} mr-2`} />
               Logg Ut
             </>
           ) : (
             <>
-              <Play className="h-6 w-6 mr-2" />
+              <Play className={`${isMobile ? 'h-4 w-4' : 'h-6 w-6'} mr-2`} />
               Logg Inn
             </>
           )}

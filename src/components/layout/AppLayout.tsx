@@ -4,9 +4,11 @@ import { AppSidebar } from './AppSidebar';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export function AppLayout() {
   const { signOut } = useAuth();
+  const isMobile = useIsMobile();
 
   return (
     <SidebarProvider>
@@ -14,20 +16,20 @@ export function AppLayout() {
         <AppSidebar />
         
         <div className="flex-1 flex flex-col">
-          <header className="h-14 border-b bg-background flex items-center justify-between px-4">
+          <header className="h-14 border-b bg-background flex items-center justify-between px-4 md:px-6">
             <SidebarTrigger />
             <Button 
               variant="ghost" 
-              size="sm" 
+              size={isMobile ? "sm" : "sm"}
               onClick={signOut}
               className="text-muted-foreground hover:text-foreground"
             >
               <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
+              {!isMobile && <span>Sign Out</span>}
             </Button>
           </header>
           
-          <main className="flex-1 p-6">
+          <main className="flex-1 p-4 md:p-6">
             <Outlet />
           </main>
         </div>

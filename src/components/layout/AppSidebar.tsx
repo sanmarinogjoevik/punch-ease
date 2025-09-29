@@ -12,11 +12,13 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
   const { userRole } = useAuth();
+  const isMobile = useIsMobile();
   const collapsed = state === 'collapsed';
   
   const currentPath = location.pathname;
@@ -43,7 +45,10 @@ export function AppSidebar() {
   const items = userRole === 'admin' ? adminItems : employeeItems;
 
   return (
-    <Sidebar className={collapsed ? 'w-14' : 'w-60'} collapsible="icon">
+    <Sidebar 
+      className={collapsed ? (isMobile ? 'w-0' : 'w-14') : (isMobile ? 'w-80' : 'w-60')} 
+      collapsible="icon"
+    >
       <SidebarContent>
         <div className="p-4">
           {!collapsed && (
@@ -61,10 +66,10 @@ export function AppSidebar() {
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton asChild size={isMobile ? "lg" : "default"}>
                     <NavLink to={item.url} end className={getNavCls}>
-                      <item.icon className="h-4 w-4 mr-2" />
-                      {!collapsed && <span>{item.title}</span>}
+                      <item.icon className={`h-4 w-4 ${isMobile ? 'mr-3' : 'mr-2'}`} />
+                      {!collapsed && <span className={isMobile ? 'text-base' : ''}>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Shift {
   id: string;
@@ -45,6 +46,7 @@ export default function Dashboard() {
   const [activeEmployees, setActiveEmployees] = useState<ActiveEmployee[]>([]);
   const { user, userRole } = useAuth();
   const { data: companySettings } = useCompanySettings();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (user) {
@@ -379,17 +381,17 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className={`font-bold tracking-tight ${isMobile ? 'text-2xl' : 'text-3xl'}`}>Dashboard</h1>
         <p className="text-muted-foreground">
           Velkommen tilbake! Her er din oversikt.
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {/* Punch Clock - Always visible */}
-        <div className="md:col-span-2 lg:col-span-1">
+        <div className="col-span-1 md:col-span-2 lg:col-span-1">
           <PunchClock />
         </div>
 
@@ -471,7 +473,7 @@ export default function Dashboard() {
             </Card>
 
             {/* Recent Work Sessions */}
-            <Card className="md:col-span-2">
+            <Card className="col-span-1 md:col-span-2">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Clock className="h-5 w-5" />
