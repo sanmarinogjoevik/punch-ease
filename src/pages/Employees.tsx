@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, Phone, Mail, IdCard, UserCheck, UserX, Edit, Trash2, Plus, Key } from "lucide-react";
+import { Users, Phone, Mail, IdCard, UserCheck, UserX, Edit, Trash2, Plus } from "lucide-react";
 import { useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -40,7 +40,8 @@ const Employees = () => {
     last_name: '',
     email: '',
     phone: '',
-    personal_number: ''
+    personal_number: '',
+    password: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -55,12 +56,6 @@ const Employees = () => {
     password: ''
   });
   const [isAddSubmitting, setIsAddSubmitting] = useState(false);
-
-  // Change Password Dialog State
-  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
-  const [passwordEmployee, setPasswordEmployee] = useState<Profile | null>(null);
-  const [newPassword, setNewPassword] = useState('');
-  const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false);
 
   // Fetch all profiles/employees
   const { data: employees, isLoading } = useQuery({
@@ -123,7 +118,8 @@ const Employees = () => {
       last_name: employee.last_name || '',
       email: employee.email,
       phone: employee.phone || '',
-      personal_number: employee.personal_number || ''
+      personal_number: employee.personal_number || '',
+      password: ''
     });
     setShowEditDialog(true);
   };
@@ -266,49 +262,6 @@ const Employees = () => {
     }
   };
 
-  const handleChangePassword = (employee: Profile) => {
-    setPasswordEmployee(employee);
-    setNewPassword('');
-    setShowPasswordDialog(true);
-  };
-
-  const handlePasswordUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!passwordEmployee || !newPassword) return;
-    
-    setIsPasswordSubmitting(true);
-
-    try {
-      const { error } = await supabase.functions.invoke('update-employee-password', {
-        body: {
-          userId: passwordEmployee.user_id,
-          newPassword: newPassword
-        }
-      });
-
-      if (error) {
-        throw new Error(error.message || 'Failed to update password');
-      }
-
-      toast({
-        title: "Framgång",
-        description: "Lösenordet har uppdaterats framgångsrikt",
-      });
-
-      setShowPasswordDialog(false);
-      setPasswordEmployee(null);
-      setNewPassword('');
-
-    } catch (error: any) {
-      toast({
-        title: "Fel",
-        description: error.message || "Kunde inte uppdatera lösenordet",
-        variant: "destructive",
-      });
-    } finally {
-      setIsPasswordSubmitting(false);
-    }
-  };
 
   if (userRole !== 'admin') {
     return (
@@ -503,16 +456,6 @@ const Employees = () => {
                       Rediger
                     </Button>
                     
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => handleChangePassword(employee)}
-                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                    >
-                      <Key className="w-4 h-4 mr-2" />
-                      Ändra lösenord
-                    </Button>
-                    
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button 
@@ -641,44 +584,11 @@ const Employees = () => {
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Uppdaterar...' : 'Uppdatera anställd'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Change Password Dialog */}
-      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Ändra lösenord</DialogTitle>
-            <DialogDescription>
-              Ändra lösenordet för {passwordEmployee?.first_name} {passwordEmployee?.last_name}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handlePasswordUpdate}>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="new_password">Nytt lösenord</Label>
-                <Input
-                  id="new_password"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                  minLength={6}
-                  placeholder="Minst 6 tecken"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={isPasswordSubmitting}>
-                {isPasswordSubmitting ? 'Uppdaterar...' : 'Uppdatera lösenord'}
-              </Button>
-            </DialogFooter>
+                <DialogFooter>
+                  <Button type="submit" disabled={isSubmitting || (editForm.password && editForm.password.length > 0 && editForm.password.length < 6)}>
+                    {isSubmitting ? 'Uppdaterar...' : 'Uppdatera anställd'}
+                  </Button>
+                </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
