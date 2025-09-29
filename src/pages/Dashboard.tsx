@@ -28,11 +28,6 @@ interface WorkSession {
   punch_in: TimeEntry;
   punch_out?: TimeEntry;
   duration?: number; // in minutes
-  isAdjusted?: boolean;
-  originalStartTime?: string;
-  originalEndTime?: string;
-  scheduledStart?: string;
-  scheduledEnd?: string;
 }
 
 interface ActiveEmployee {
@@ -287,39 +282,78 @@ export default function Dashboard() {
   };
 
   const applyHybridLogic = (sessions: WorkSession[], shifts: Shift[]): WorkSession[] => {
-    return sessions.map(session => {
+    const resultSessions: WorkSession[] = [];
+    const processedDates = new Set<string>();
+
+    // Process existing punch sessions
+    sessions.forEach(session => {
       const sessionDate = new Date(session.punch_in.timestamp);
+      const sessionDateStr = sessionDate.toDateString();
+      processedDates.add(sessionDateStr);
       
-      if (!shouldUseScheduleTimes(sessionDate)) {
-        return session;
+      const useScheduleTimes = shouldUseScheduleTimes(sessionDate);
+      
+      if (useScheduleTimes) {
+        // After closing: Use ONLY schedule times, ignore punch data completely
+        const matchingShift = shifts.find(shift => {
+          const shiftDate = new Date(shift.start_time);
+          return shiftDate.toDateString() === sessionDateStr;
+        });
+
+        if (matchingShift) {
+          const duration = Math.round((new Date(matchingShift.end_time).getTime() - new Date(matchingShift.start_time).getTime()) / (1000 * 60));
+
+          resultSessions.push({
+            id: 'schedule_' + matchingShift.id,
+            punch_in: {
+              ...session.punch_in,
+              id: 'schedule_in_' + matchingShift.id,
+              timestamp: matchingShift.start_time
+            },
+            punch_out: {
+              ...session.punch_in,
+              id: 'schedule_out_' + matchingShift.id,
+              entry_type: 'punch_out' as const,
+              timestamp: matchingShift.end_time
+            },
+            duration
+          });
+        }
+      } else {
+        // During the day: Use ONLY punch times, ignore schedule completely
+        resultSessions.push(session);
       }
-      
-      // Find matching shift for this session
-      const matchingShift = shifts.find(shift => {
-        const shiftDate = new Date(shift.start_time);
-        return shiftDate.toDateString() === sessionDate.toDateString();
-      });
-      
-      if (!matchingShift) {
-        // No shift found - filter out this session
-        return null;
+    });
+
+    // Add schedule-only entries for days without punch data (after closing only)
+    shifts.forEach(shift => {
+      const shiftDate = new Date(shift.start_time);
+      const shiftDateStr = shiftDate.toDateString();
+      const useScheduleTimes = shouldUseScheduleTimes(shiftDate);
+
+      if (useScheduleTimes && !processedDates.has(shiftDateStr)) {
+        const duration = Math.round((new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60));
+
+        resultSessions.push({
+          id: 'schedule_only_' + shift.id,
+          punch_in: {
+            id: 'schedule_in_' + shift.id,
+            entry_type: 'punch_in' as const,
+            timestamp: shift.start_time,
+            employee_id: user?.id || ''
+          },
+          punch_out: {
+            id: 'schedule_out_' + shift.id,
+            entry_type: 'punch_out' as const,
+            timestamp: shift.end_time,
+            employee_id: user?.id || ''
+          },
+          duration
+        });
       }
-      
-      // Apply hybrid logic - use scheduled times
-      const scheduledStartTime = new Date(matchingShift.start_time);
-      const scheduledEndTime = new Date(matchingShift.end_time);
-      const duration = Math.round((scheduledEndTime.getTime() - scheduledStartTime.getTime()) / (1000 * 60));
-      
-      return {
-        ...session,
-        isAdjusted: true,
-        originalStartTime: session.punch_in.timestamp,
-        originalEndTime: session.punch_out?.timestamp,
-        scheduledStart: matchingShift.start_time,
-        scheduledEnd: matchingShift.end_time,
-        duration
-      };
-    }).filter(Boolean) as WorkSession[];
+    });
+
+    return resultSessions;
   };
 
   return (
@@ -432,13 +466,8 @@ export default function Dashboard() {
                             <div className="flex items-center gap-2">
                               <div className="w-2 h-2 rounded-full bg-green-500" />
                               <span className="font-medium">
-                                {new Date(session.isAdjusted ? session.scheduledStart! : session.punch_in.timestamp).toLocaleDateString('nb-NO')}
+                                {new Date(session.punch_in.timestamp).toLocaleDateString('nb-NO')}
                               </span>
-                              {session.isAdjusted && (
-                                <Badge variant="secondary" className="text-xs">
-                                  Enligt schema
-                                </Badge>
-                              )}
                             </div>
                             <div className="flex items-center gap-2">
                               {session.punch_out ? (

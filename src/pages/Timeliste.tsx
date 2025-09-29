@@ -27,10 +27,8 @@ interface WorkSession {
   scheduledStart?: string;
   scheduledEnd?: string;
   duration: number;
-  status: 'active' | 'completed' | 'scheduled_only' | 'punch_only' | 'adjusted';
+  status: 'active' | 'completed' | 'scheduled_only';
   isAdjusted: boolean;
-  originalPunchIn?: string;
-  originalPunchOut?: string;
   employeeName?: string;
 }
 
@@ -41,9 +39,6 @@ interface WorkDay {
   shifts: number;
   startTime: string;
   endTime: string;
-  isAdjusted: boolean;
-  originalStartTime?: string;
-  originalEndTime?: string;
   sessions: WorkSession[];
 }
 
@@ -173,53 +168,53 @@ export default function Timeliste() {
       shiftsByDate.get(date)!.push(shift);
     });
 
-    const enhancedSessions: WorkSession[] = [];
+    const resultSessions: WorkSession[] = [];
     const processedDates = new Set<string>();
 
+    // Process existing punch sessions
     sessions.forEach(session => {
       const useSchedule = shouldUseScheduleTimes(session.date, businessHours);
       const dayShifts = shiftsByDate.get(session.date) || [];
       
-      if (dayShifts.length > 0 && useSchedule) {
-        dayShifts.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-        
-        const enhancedSession: WorkSession = {
-          ...session,
-          scheduledStart: dayShifts[0].start_time,
-          scheduledEnd: dayShifts[dayShifts.length - 1].end_time,
-          isAdjusted: true,
-          originalPunchIn: session.punchIn,
-          originalPunchOut: session.punchOut,
-          status: 'adjusted'
-        };
-
-        const scheduledStart = new Date(enhancedSession.scheduledStart!);
-        const scheduledEnd = new Date(enhancedSession.scheduledEnd!);
-        enhancedSession.duration = Math.round((scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60));
-        
-        enhancedSessions.push(enhancedSession);
-      } else {
-        // Only show punch data if not using schedule times OR if there's a schedule for the day
-        const sessionDate = session.date;
-        const dayShifts = shiftsByDate.get(sessionDate) || [];
-        if (!useSchedule || dayShifts.length > 0) {
-          enhancedSessions.push(session);
-        }
-      }
-      
       processedDates.add(session.date);
-    });
-
-    shiftsByDate.forEach((dayShifts, date) => {
-      if (!processedDates.has(date)) {
+      
+      if (useSchedule && dayShifts.length > 0) {
+        // After closing: Use ONLY schedule times, ignore punch data completely
         dayShifts.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
         
         const scheduledStart = new Date(dayShifts[0].start_time);
         const scheduledEnd = new Date(dayShifts[dayShifts.length - 1].end_time);
         const duration = Math.round((scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60));
         
-        enhancedSessions.push({
-          id: `scheduled-${date}`,
+        resultSessions.push({
+          id: `schedule-${session.date}`,
+          date: session.date,
+          scheduledStart: dayShifts[0].start_time,
+          scheduledEnd: dayShifts[dayShifts.length - 1].end_time,
+          duration,
+          status: 'completed',
+          isAdjusted: false,
+          employeeName: session.employeeName
+        });
+      } else if (!useSchedule) {
+        // During the day: Use ONLY punch times, ignore schedule completely
+        resultSessions.push(session);
+      }
+    });
+
+    // Add schedule-only entries for days without punch data (after closing only)
+    shiftsByDate.forEach((dayShifts, date) => {
+      const useSchedule = shouldUseScheduleTimes(date, businessHours);
+      
+      if (useSchedule && !processedDates.has(date)) {
+        dayShifts.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+        
+        const scheduledStart = new Date(dayShifts[0].start_time);
+        const scheduledEnd = new Date(dayShifts[dayShifts.length - 1].end_time);
+        const duration = Math.round((scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60));
+        
+        resultSessions.push({
+          id: `scheduled-only-${date}`,
           date,
           scheduledStart: dayShifts[0].start_time,
           scheduledEnd: dayShifts[dayShifts.length - 1].end_time,
@@ -230,7 +225,7 @@ export default function Timeliste() {
       }
     });
 
-    return enhancedSessions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return resultSessions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 
   const processIntoWorkDays = (timeEntries: TimeEntry[], shifts: any[], businessHours: any[]): WorkDay[] => {
@@ -250,21 +245,9 @@ export default function Timeliste() {
     
     workDayMap.forEach((sessions, date) => {
       let totalMinutes = 0;
-      let hasAdjusted = false;
-      let originalStartTime: string | undefined;
-      let originalEndTime: string | undefined;
       
       sessions.forEach(session => {
         totalMinutes += session.duration;
-        if (session.isAdjusted) {
-          hasAdjusted = true;
-          if (!originalStartTime && session.originalPunchIn) {
-            originalStartTime = session.originalPunchIn;
-          }
-          if (session.originalPunchOut) {
-            originalEndTime = session.originalPunchOut;
-          }
-        }
       });
 
       const firstSession = sessions[0];
@@ -280,9 +263,6 @@ export default function Timeliste() {
         shifts: sessions.length,
         startTime,
         endTime,
-        isAdjusted: hasAdjusted,
-        originalStartTime,
-        originalEndTime,
         sessions
       });
     });
@@ -299,35 +279,7 @@ export default function Timeliste() {
   };
 
   const getWorkDayBadge = (workDay: WorkDay) => {
-    if (workDay.isAdjusted) {
-      return (
-        <Badge variant="secondary" className="text-xs">
-          <Info className="h-3 w-3 mr-1" />
-          Justerat enligt schema
-        </Badge>
-      );
-    }
-    
-    const hasScheduled = workDay.sessions.some(s => s.scheduledStart);
-    const hasPunch = workDay.sessions.some(s => s.punchIn);
-    
-    if (hasScheduled && !hasPunch) {
-      return (
-        <Badge variant="outline" className="text-xs">
-          Endast schema
-        </Badge>
-      );
-    }
-    
-    if (hasPunch && !hasScheduled) {
-      return (
-        <Badge variant="default" className="text-xs">
-          Punch-tider
-        </Badge>
-      );
-    }
-    
-    return null;
+    return null; // No badges shown anymore
   };
 
   if (loading) {

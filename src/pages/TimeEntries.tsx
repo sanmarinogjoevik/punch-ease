@@ -25,11 +25,6 @@ interface WorkSession {
   punch_out?: TimeEntry;
   duration?: number; // in minutes
   employee_name?: string;
-  isAdjusted?: boolean; // true if times were replaced with schedule
-  scheduleStartTime?: string;
-  scheduleEndTime?: string;
-  originalPunchIn?: TimeEntry;
-  originalPunchOut?: TimeEntry;
 }
 
 export default function TimeEntries() {
@@ -193,77 +188,70 @@ export default function TimeEntries() {
   const applyHybridLogic = (sessions: WorkSession[]): WorkSession[] => {
     if (!shiftsData || !companySettings) return sessions;
 
-    const adjustedSessions = sessions.map(session => {
+    const resultSessions: WorkSession[] = [];
+    const processedDates = new Set<string>();
+
+    // Process existing punch sessions
+    sessions.forEach(session => {
       const sessionDate = format(new Date(session.punch_in.timestamp), 'yyyy-MM-dd');
+      processedDates.add(sessionDate);
       
-      if (!shouldUseScheduleTimes(sessionDate)) {
-        return session; // Keep original punch times
-      }
+      const useScheduleTimes = shouldUseScheduleTimes(sessionDate);
+      
+      if (useScheduleTimes) {
+        // After closing: Use ONLY schedule times, ignore punch data completely
+        const matchingShifts = shiftsData.filter(shift => {
+          const shiftDate = format(new Date(shift.start_time), 'yyyy-MM-dd');
+          return shiftDate === sessionDate && shift.employee_id === session.punch_in.employee_id;
+        });
 
-      // Find matching shift for this session
-      const matchingShifts = shiftsData.filter(shift => {
-        const shiftDate = format(new Date(shift.start_time), 'yyyy-MM-dd');
-        return shiftDate === sessionDate && shift.employee_id === session.punch_in.employee_id;
-      });
+        if (matchingShifts.length > 0) {
+          const shift = matchingShifts[0];
+          const shiftDuration = Math.round(
+            (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
+          );
 
-      if (matchingShifts.length === 0) {
-        return null; // No schedule found, filter out after closing
-      }
-
-      // For simplicity, use the first shift (could be enhanced to match by time)
-      const shift = matchingShifts[0];
-      const shiftDuration = Math.round(
-        (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
-      );
-
-      return {
-        ...session,
-        isAdjusted: true,
-        scheduleStartTime: shift.start_time,
-        scheduleEndTime: shift.end_time,
-        originalPunchIn: session.punch_in,
-        originalPunchOut: session.punch_out,
-        duration: shiftDuration,
-        punch_in: {
-          ...session.punch_in,
-          timestamp: shift.start_time
-        },
-        punch_out: session.punch_out ? {
-          ...session.punch_out,
-          timestamp: shift.end_time
-        } : {
-          id: 'schedule_' + shift.id,
-          entry_type: 'punch_out' as const,
-          timestamp: shift.end_time,
-          employee_id: shift.employee_id,
-          employee_name: session.employee_name
+          resultSessions.push({
+            id: 'schedule_' + shift.id,
+            punch_in: {
+              id: 'schedule_in_' + shift.id,
+              entry_type: 'punch_in' as const,
+              timestamp: shift.start_time,
+              employee_id: shift.employee_id,
+              employee_name: session.employee_name
+            },
+            punch_out: {
+              id: 'schedule_out_' + shift.id,
+              entry_type: 'punch_out' as const,
+              timestamp: shift.end_time,
+              employee_id: shift.employee_id,
+              employee_name: session.employee_name
+            },
+            duration: shiftDuration,
+            employee_name: session.employee_name
+          });
         }
-      };
-    }).filter(session => session !== null) as WorkSession[];
+      } else {
+        // During the day: Use ONLY punch times, ignore schedule completely
+        resultSessions.push(session);
+      }
+    });
 
-    // Add schedule-only sessions for days without punch data
-    if (shiftsData) {
-      const processedDates = new Set(
-        sessions.map(session => format(new Date(session.punch_in.timestamp), 'yyyy-MM-dd'))
-      );
-
+    // Add schedule-only entries for days without punch data (after closing only)
+    if (shiftsData && userRole !== 'admin') {
       shiftsData.forEach(shift => {
         const shiftDate = format(new Date(shift.start_time), 'yyyy-MM-dd');
-        const shouldUseSchedule = shouldUseScheduleTimes(shiftDate);
+        const useScheduleTimes = shouldUseScheduleTimes(shiftDate);
 
-        // Only add schedule-only entry if:
-        // 1. We should use schedule times for this date
-        // 2. No punch data exists for this date 
-        // 3. This shift belongs to the current user (for non-admin view)
-        if (shouldUseSchedule && 
+        if (useScheduleTimes && 
             !processedDates.has(shiftDate) && 
             shift.employee_id === user?.id) {
           const shiftDuration = Math.round(
             (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
           );
 
-          adjustedSessions.push({
-            id: 'schedule_' + shift.id,
+          resultSessions.push({
+            id: 'schedule_only_' + shift.id,
             punch_in: {
               id: 'schedule_in_' + shift.id,
               entry_type: 'punch_in' as const,
@@ -279,13 +267,13 @@ export default function TimeEntries() {
               employee_name: user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name
             },
             duration: shiftDuration,
-            isAdjusted: false
+            employee_name: user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name
           });
         }
       });
     }
 
-    return adjustedSessions;
+    return resultSessions;
   };
 
   const formatDuration = (minutes: number): string => {
@@ -378,24 +366,6 @@ export default function TimeEntries() {
                               {format(new Date(session.punch_out.timestamp), 'HH:mm:ss')}
                             </span>
                           </>
-                        )}
-                        {session.isAdjusted && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <Calendar className="h-4 w-4 text-blue-600 ml-2" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <div className="text-sm">
-                                  <p>Visar schemalagda tider</p>
-                                  <p>Ursprunglig punch in: {session.originalPunchIn && format(new Date(session.originalPunchIn.timestamp), 'HH:mm:ss')}</p>
-                                  {session.originalPunchOut && (
-                                    <p>Ursprunglig punch ut: {format(new Date(session.originalPunchOut.timestamp), 'HH:mm:ss')}</p>
-                                  )}
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
                         )}
                       </div>
                     </TableCell>
