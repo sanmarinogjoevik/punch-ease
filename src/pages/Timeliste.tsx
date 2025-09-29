@@ -180,15 +180,14 @@ export default function Timeliste() {
     const resultSessions: WorkSession[] = [];
     const allProcessedDates = new Set<string>();
 
-    // Process existing punch sessions
-    sessions.forEach(session => {
-      const useSchedule = shouldUseScheduleTimes(session.date, businessHours);
-      const dayShifts = shiftsByDate.get(session.date) || [];
-      
-      allProcessedDates.add(session.date);
+    // Process dates that have punch data
+    sessionsByDate.forEach((dateSessions, date) => {
+      allProcessedDates.add(date);
+      const useSchedule = shouldUseScheduleTimes(date, businessHours);
+      const dayShifts = shiftsByDate.get(date) || [];
       
       if (useSchedule && dayShifts.length > 0) {
-        // After closing: Use ONLY schedule times, ignore punch data completely
+        // After closing: Create ONLY ONE entry per date from schedule, ignore all punch data
         dayShifts.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
         
         const scheduledStart = new Date(dayShifts[0].start_time);
@@ -196,19 +195,22 @@ export default function Timeliste() {
         const duration = Math.round((scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60));
         
         resultSessions.push({
-          id: `schedule-${session.date}`,
-          date: session.date,
+          id: `schedule-date-${date}`,
+          date: date,
           scheduledStart: dayShifts[0].start_time,
           scheduledEnd: dayShifts[dayShifts.length - 1].end_time,
           duration,
           status: 'completed',
           isAdjusted: false,
-          employeeName: session.employeeName
+          employeeName: dateSessions[0].employeeName
         });
       } else if (!useSchedule) {
-        // During the day: Use ONLY punch times, ignore schedule completely
-        resultSessions.push(session);
+        // During the day: Show all punch sessions as they are
+        dateSessions.forEach(session => {
+          resultSessions.push(session);
+        });
       }
+      // If useSchedule is true but no shifts exist, don't show anything (no duplicates)
     });
 
     // Add schedule-only entries for days without punch data (after closing only)
