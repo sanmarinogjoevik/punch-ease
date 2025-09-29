@@ -376,25 +376,9 @@ export default function Timeliste() {
                         <div className="flex items-center gap-6 text-sm text-muted-foreground">
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4" />
-                            {workDay.isAdjusted && workDay.originalStartTime && workDay.originalEndTime ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className="cursor-help">
-                                    {formatTime(workDay.startTime)} - {formatTime(workDay.endTime)}
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Schemalagd tid</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    Ursprunglig punch: {formatTime(workDay.originalStartTime)} - {formatTime(workDay.originalEndTime)}
-                                  </p>
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : (
-                              <span>
-                                {formatTime(workDay.startTime)} - {formatTime(workDay.endTime)}
-                              </span>
-                            )}
+                            <span>
+                              {formatTime(workDay.startTime)} - {formatTime(workDay.endTime)}
+                            </span>
                           </div>
                           
                           <div className="text-sm">

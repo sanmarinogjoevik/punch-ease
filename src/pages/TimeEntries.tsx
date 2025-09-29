@@ -269,27 +269,6 @@ export default function TimeEntries() {
       );
     }
 
-    if (session.isAdjusted) {
-      badges.push(
-        <TooltipProvider key="adjusted">
-          <Tooltip>
-            <TooltipTrigger>
-              <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50 ml-2">
-                <Calendar className="h-3 w-3 mr-1" />
-                Justerat enligt schema
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              <div className="text-sm">
-                <p>Ursprungliga tider:</p>
-                <p>In: {session.originalPunchIn && format(new Date(session.originalPunchIn.timestamp), 'HH:mm:ss')}</p>
-                <p>Ut: {session.originalPunchOut && format(new Date(session.originalPunchOut.timestamp), 'HH:mm:ss')}</p>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      );
-    }
 
     return <div className="flex flex-wrap gap-1">{badges}</div>;
   };

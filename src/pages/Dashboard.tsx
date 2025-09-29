@@ -454,35 +454,9 @@ export default function Dashboard() {
                           </div>
                           <div className="mt-2 flex items-center justify-between text-sm text-muted-foreground">
                             <div>
-                              {session.isAdjusted ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="cursor-help underline decoration-dotted">
-                                      {formatTime(session.scheduledStart!)}
-                                      {session.scheduledEnd && (
-                                        <span> - {formatTime(session.scheduledEnd)}</span>
-                                      )}
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <div className="text-sm">
-                                      <div className="font-medium">Ursprungliga punch-tider:</div>
-                                      <div>
-                                        {formatTime(session.originalStartTime!)}
-                                        {session.originalEndTime && (
-                                          <span> - {formatTime(session.originalEndTime)}</span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </TooltipContent>
-                                </Tooltip>
-                              ) : (
-                                <>
-                                  {formatTime(session.punch_in.timestamp)}
-                                  {session.punch_out && (
-                                    <span> - {formatTime(session.punch_out.timestamp)}</span>
-                                  )}
-                                </>
+                              {formatTime(session.punch_in.timestamp)}
+                              {session.punch_out && (
+                                <span> - {formatTime(session.punch_out.timestamp)}</span>
                               )}
                             </div>
                             <div className="font-medium">
