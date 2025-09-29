@@ -6,14 +6,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronLeft, ChevronRight, Download, Edit, Trash2, Printer } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ChevronLeft, ChevronRight, Download, Edit, Trash2, Printer, Calendar, Clock, FileText } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
-import { useEmployeeMonthShifts, useShiftMutations } from '@/hooks/useShifts';
+import { useEmployeeMonthShifts, useShiftMutations, useShifts, useShiftsSubscription } from '@/hooks/useShifts';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addWeeks, startOfWeek, startOfDay } from 'date-fns';
+import { nb } from 'date-fns/locale';
 
 interface TimeEntry {
   id: string;
@@ -40,7 +41,6 @@ interface Employee {
   personal_number: string;
 }
 
-
 const NORWEGIAN_DAYS = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
 
 export default function Reports() {
@@ -50,6 +50,7 @@ export default function Reports() {
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [timelistEntries, setTimelistEntries] = useState<TimelistEntry[]>([]);
+  const [activeTab, setActiveTab] = useState<'timelista' | 'vaktlista'>('timelista');
   
   // Use the new hooks
   const { data: employees = [], isLoading: employeesLoading } = useEmployees();
@@ -67,6 +68,26 @@ export default function Reports() {
     punch_out: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Calendar view logic
+  const today = new Date();
+  const monthDate = new Date(selectedMonth + '-01');
+  const weekStart = startOfWeek(monthDate, { weekStartsOn: 1 });
+  const scheduleEnd = addWeeks(weekStart, 4);
+  const scheduleStart = weekStart;
+  
+  const weekDays = eachDayOfInterval({
+    start: scheduleStart,
+    end: scheduleEnd
+  });
+
+  const { data: calendarShifts } = useShifts({
+    startDate: scheduleStart.toISOString(),
+    endDate: scheduleEnd.toISOString()
+  });
+
+  // Enable real-time subscription
+  useShiftsSubscription();
 
   const loading = employeesLoading || shiftsLoading;
 
@@ -214,10 +235,6 @@ export default function Reports() {
           start_time: `${editingDate}T${editForm.punch_in}:00`,
           end_time: `${editingDate}T${editForm.punch_out}:00`
         });
-      } else if (editForm.punch_in && editForm.punch_out) {
-        // Create new shift - we'll need to import createShift from mutations
-        // For now, let's handle this case later in a separate PR
-        console.warn('Creating new shifts not yet implemented with mutations');
       }
 
       setShowEditDialog(false);
@@ -261,232 +278,355 @@ export default function Reports() {
     return `${hours}:${minutes.toString().padStart(2, '0')}`;
   };
 
+  const getShiftsForDate = (date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    return calendarShifts?.filter(shift => 
+      format(parseISO(shift.start_time), 'yyyy-MM-dd') === dateStr
+    ) || [];
+  };
+
+  // Group days by weeks for calendar view
+  const weeks = [];
+  for (let i = 0; i < weekDays.length; i += 7) {
+    weeks.push(weekDays.slice(i, i + 7));
+  }
+
   const selectedEmployeeData = employees.find(emp => emp.user_id === selectedEmployee);
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
-      {/* Header */}
-      <div className="text-center mb-6 border-b border-border pb-4">
-        <h1 className="text-2xl font-bold">{companySettings?.company_name || 'Mitt Företag AB'}</h1>
-        {companySettings?.address && <p className="text-sm text-muted-foreground">{companySettings.address}</p>}
-        {(companySettings?.postal_code || companySettings?.city) && (
-          <p className="text-sm text-muted-foreground">{companySettings.postal_code} {companySettings.city}</p>
-        )}
-        {companySettings?.org_number && <p className="text-sm text-muted-foreground">Org.nr: {companySettings.org_number}</p>}
-      </div>
-
-      {/* Controls */}
-      <Card className="mb-6">
+    <div className="container mx-auto p-6">
+      <Card>
         <CardHeader>
-          <CardTitle>Timlista</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 items-end">
-            {/* Month Navigation */}
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={handlePreviousMonth}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <div className="text-lg font-medium min-w-[120px] text-center">
-                {format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: sv })}
-              </div>
-              <Button variant="outline" size="sm" onClick={handleNextMonth}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Employee Selection */}
-            <div className="flex-1">
-              <Label htmlFor="employee-select">Anställd</Label>
-              <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                <SelectTrigger id="employee-select">
-                  <SelectValue placeholder="Välj anställd" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map(employee => (
-                    <SelectItem key={employee.user_id} value={employee.user_id}>
-                      {employee.first_name} {employee.last_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                <Printer className="h-4 w-4 mr-2" />
-                Skriv ut
-              </Button>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Exportera
-              </Button>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Rapporter
+              </CardTitle>
+              <p className="text-muted-foreground">
+                Visa tidrapporter och vaktlistor för anställda
+              </p>
             </div>
           </div>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'timelista' | 'vaktlista')} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="timelista">Timelista</TabsTrigger>
+              <TabsTrigger value="vaktlista">Vaktlista</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="timelista" className="space-y-6">
+              {/* Header */}
+              <div className="text-center mb-6 border-b border-border pb-4">
+                <h1 className="text-2xl font-bold">{companySettings?.company_name || 'Mitt Företag AB'}</h1>
+                {companySettings?.address && <p className="text-sm text-muted-foreground">{companySettings.address}</p>}
+                {(companySettings?.postal_code || companySettings?.city) && (
+                  <p className="text-sm text-muted-foreground">{companySettings.postal_code} {companySettings.city}</p>
+                )}
+                {companySettings?.org_number && <p className="text-sm text-muted-foreground">Org.nr: {companySettings.org_number}</p>}
+              </div>
+
+              {/* Controls */}
+              <div className="flex flex-col md:flex-row gap-4 items-end">
+                {/* Month Navigation */}
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handlePreviousMonth}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="text-lg font-medium min-w-[120px] text-center">
+                    {format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb })}
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleNextMonth}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Employee Selection */}
+                <div className="flex-1">
+                  <Label htmlFor="employee-select">Anställd</Label>
+                  <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                    <SelectTrigger id="employee-select">
+                      <SelectValue placeholder="Välj anställd" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.map(employee => (
+                        <SelectItem key={employee.user_id} value={employee.user_id}>
+                          {employee.first_name} {employee.last_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm">
+                    <Printer className="h-4 w-4 mr-2" />
+                    Skriv ut
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <Download className="h-4 w-4 mr-2" />
+                    Exportera
+                  </Button>
+                </div>
+              </div>
+
+              {/* Employee Info */}
+              {selectedEmployeeData && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <strong>Namn:</strong> {selectedEmployeeData.first_name} {selectedEmployeeData.last_name}
+                      </div>
+                      <div>
+                        <strong>Personnummer:</strong> {selectedEmployeeData.personal_number || 'Ej angivet'}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Timelist Table */}
+              {selectedEmployee && (
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-center border-r">DATUM</TableHead>
+                          <TableHead className="text-center border-r">DAG</TableHead>
+                          <TableHead className="text-center border-r">IN</TableHead>
+                          <TableHead className="text-center border-r">UT</TableHead>
+                          <TableHead className="text-center border-r">PAUSE</TableHead>
+                          <TableHead className="text-center border-r">TOTALT</TableHead>
+                          {userRole === 'admin' && (
+                            <TableHead className="text-center">ÅTGÄRD</TableHead>
+                          )}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {timelistEntries.map((entry, index) => {
+                          // Check if this is an ongoing shift
+                          const todayStr = format(new Date(), 'yyyy-MM-dd');
+                          const isToday = entry.date === todayStr;
+                          const isOngoing = isToday && entry.punchIn && !entry.punchOut;
+                          
+                          return (
+                            <TableRow 
+                              key={entry.date} 
+                              className={`
+                                ${index % 2 === 0 ? 'bg-muted/20' : ''} 
+                                ${isOngoing ? 'bg-primary/10 border-l-4 border-l-primary' : ''}
+                              `}
+                            >
+                              <TableCell className="text-center border-r font-mono">{entry.day}</TableCell>
+                              <TableCell className="text-center border-r">
+                                {entry.dayName}
+                                {isOngoing && <span className="ml-2 text-xs text-primary font-semibold">(Pågående)</span>}
+                              </TableCell>
+                              <TableCell className="text-center border-r font-mono">
+                                {entry.punchIn || '-'}
+                              </TableCell>
+                              <TableCell className="text-center border-r font-mono">
+                                {entry.punchOut || '-'}
+                              </TableCell>
+                              <TableCell className="text-center border-r font-mono">
+                                {entry.lunch || '-'}
+                              </TableCell>
+                              <TableCell className="text-center border-r font-mono font-semibold">
+                                {entry.total || '-'}
+                              </TableCell>
+                              {userRole === 'admin' && (
+                                <TableCell className="text-center">
+                                  <div className="flex justify-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleEditEntry(entry)}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    {entry.hasData && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteEntry(entry)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          );
+                        })}
+                        
+                        {/* Total Row */}
+                        <TableRow className="border-t-2 font-bold">
+                          <TableCell colSpan={5} className="text-right border-r">
+                            TOTALT:
+                          </TableCell>
+                          <TableCell className="text-center border-r font-mono">
+                            {formatTotalMinutes(calculateTotalHours())}
+                          </TableCell>
+                          {userRole === 'admin' && <TableCell></TableCell>}
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Signature Section */}
+              {selectedEmployee && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="grid grid-cols-2 gap-8">
+                      <div>
+                        <p className="mb-8">Anställds underskrift:</p>
+                        <div className="border-b border-border h-8"></div>
+                        <p className="text-sm text-muted-foreground mt-2">Datum</p>
+                      </div>
+                      <div>
+                        <p className="mb-8">Chefs underskrift:</p>
+                        <div className="border-b border-border h-8"></div>
+                        <p className="text-sm text-muted-foreground mt-2">Datum</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="vaktlista" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePreviousMonth}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <h3 className="text-lg font-semibold">
+                    {format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb })}
+                  </h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleNextMonth}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Calendar className="w-4 h-4" />
+                  {format(scheduleStart, 'dd MMM', { locale: nb })} - {format(scheduleEnd, 'dd MMM yyyy', { locale: nb })}
+                </div>
+              </div>
+
+              {/* Weekly Schedule Grid */}
+              <div className="space-y-6">
+                {weeks.map((week, weekIndex) => (
+                  <Card key={weekIndex}>
+                    <CardHeader>
+                      <CardTitle className="text-lg">
+                        Uke {format(week[0], 'w', { locale: nb })} - {format(week[0], 'MMM yyyy', { locale: nb })}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-7 gap-2">
+                        {week.map((day) => {
+                          const dayShifts = getShiftsForDate(day);
+                          const isToday = format(day, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+                          const isPast = day < startOfDay(today);
+                          
+                          return (
+                            <div 
+                              key={day.toISOString()} 
+                              className={`border rounded-lg p-2 min-h-[100px] ${isToday ? 'border-primary bg-primary/5' : 'border-border'} ${isPast ? 'bg-muted/50' : ''}`}
+                            >
+                              <div className="mb-2">
+                                <div className="font-medium text-xs text-muted-foreground">
+                                  {format(day, 'EEE', { locale: nb })}
+                                </div>
+                                <div className={`text-lg font-semibold ${isToday ? 'text-primary' : ''}`}>
+                                  {format(day, 'd')}
+                                </div>
+                              </div>
+                              
+                              <div className="space-y-1">
+                                {dayShifts.map((shift) => (
+                                  <div 
+                                    key={shift.id} 
+                                    className="bg-primary/10 border border-primary/20 rounded p-1 text-xs"
+                                  >
+                                    <div className="font-medium text-xs truncate">
+                                      {shift.profiles?.first_name} {shift.profiles?.last_name}
+                                    </div>
+                                    <div className="flex items-center gap-1 text-muted-foreground">
+                                      <Clock className="w-2 h-2" />
+                                      <span className="text-xs">
+                                        {format(parseISO(shift.start_time), 'HH:mm')} - {format(parseISO(shift.end_time), 'HH:mm')}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
-
-      {/* Employee Info */}
-      {selectedEmployeeData && (
-        <Card className="mb-6">
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <strong>Namn:</strong> {selectedEmployeeData.first_name} {selectedEmployeeData.last_name}
-              </div>
-              <div>
-                <strong>Personnummer:</strong> {selectedEmployeeData.personal_number || 'Ej angivet'}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Timelist Table */}
-      {selectedEmployee && (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-center border-r">DATUM</TableHead>
-                  <TableHead className="text-center border-r">DAG</TableHead>
-                  <TableHead className="text-center border-r">IN</TableHead>
-                  <TableHead className="text-center border-r">UT</TableHead>
-                  <TableHead className="text-center border-r">PAUSE</TableHead>
-                  <TableHead className="text-center border-r">TOTALT</TableHead>
-                  {userRole === 'admin' && (
-                    <TableHead className="text-center">ÅTGÄRD</TableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {timelistEntries.map((entry, index) => {
-                  // Check if this is an ongoing shift
-                  const today = format(new Date(), 'yyyy-MM-dd');
-                  const isToday = entry.date === today;
-                  const isOngoing = isToday && entry.punchIn && !entry.punchOut;
-                  
-                  return (
-                    <TableRow 
-                      key={entry.date} 
-                      className={`
-                        ${index % 2 === 0 ? 'bg-muted/20' : ''} 
-                        ${isOngoing ? 'bg-primary/10 border-l-4 border-l-primary' : ''}
-                      `}
-                    >
-                      <TableCell className="text-center border-r font-mono">{entry.day}</TableCell>
-                      <TableCell className="text-center border-r">
-                        {entry.dayName}
-                        {isOngoing && <span className="ml-2 text-xs text-primary font-semibold">(Pågående)</span>}
-                      </TableCell>
-                      <TableCell className="text-center border-r font-mono">
-                        {entry.punchIn || '-'}
-                      </TableCell>
-                      <TableCell className="text-center border-r font-mono">
-                        {entry.punchOut || '-'}
-                      </TableCell>
-                      <TableCell className="text-center border-r font-mono">
-                        {entry.lunch || '-'}
-                      </TableCell>
-                      <TableCell className="text-center border-r font-mono font-semibold">
-                        {entry.total || '-'}
-                      </TableCell>
-                      {userRole === 'admin' && (
-                        <TableCell className="text-center">
-                          <div className="flex justify-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditEntry(entry)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            {entry.hasData && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteEntry(entry)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  );
-                })}
-                
-                {/* Total Row */}
-                <TableRow className="border-t-2 font-bold">
-                  <TableCell colSpan={5} className="text-right border-r">
-                    TOTALT:
-                  </TableCell>
-                  <TableCell className="text-center border-r font-mono">
-                    {formatTotalMinutes(calculateTotalHours())}
-                  </TableCell>
-                  {userRole === 'admin' && <TableCell></TableCell>}
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Signature Section */}
-      {selectedEmployee && (
-        <Card className="mt-6">
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-2 gap-8">
-              <div>
-                <p className="mb-8">Anställds underskrift:</p>
-                <div className="border-b border-border h-8"></div>
-                <p className="text-sm text-muted-foreground mt-2">Datum</p>
-              </div>
-              <div>
-                <p className="mb-8">Chefs underskrift:</p>
-                <div className="border-b border-border h-8"></div>
-                <p className="text-sm text-muted-foreground mt-2">Datum</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Redigera vakt för {editingDate}</DialogTitle>
-        </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="punch-in">Starttid</Label>
+          <DialogHeader>
+            <DialogTitle>Redigera tider för {editingDate}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="punch_in" className="text-right">
+                IN-tid
+              </Label>
               <Input
-                id="punch-in"
+                id="punch_in"
                 type="time"
                 value={editForm.punch_in}
                 onChange={(e) => setEditForm(prev => ({ ...prev, punch_in: e.target.value }))}
+                className="col-span-3"
               />
             </div>
-            <div>
-              <Label htmlFor="punch-out">Sluttid</Label>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="punch_out" className="text-right">
+                UT-tid
+              </Label>
               <Input
-                id="punch-out"
+                id="punch_out"
                 type="time"
                 value={editForm.punch_out}
                 onChange={(e) => setEditForm(prev => ({ ...prev, punch_out: e.target.value }))}
+                className="col-span-3"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-              Avbryt
-            </Button>
-            <Button onClick={handleUpdateEntry} disabled={isSubmitting}>
-              {isSubmitting ? 'Sparar...' : 'Spara'}
+            <Button 
+              onClick={handleUpdateEntry} 
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Uppdaterar...' : 'Spara ändringar'}
             </Button>
           </DialogFooter>
         </DialogContent>
