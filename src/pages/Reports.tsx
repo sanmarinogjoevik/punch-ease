@@ -15,6 +15,7 @@ import { useEmployees } from '@/hooks/useEmployees';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addWeeks, startOfWeek, startOfDay, subMonths, addMonths, subDays, addDays } from 'date-fns';
 import { nb } from 'date-fns/locale';
+import html2pdf from 'html2pdf.js';
 
 interface TimeEntry {
   id: string;
@@ -282,7 +283,7 @@ export default function Reports() {
     return `${hours}:${minutes.toString().padStart(2, '0')}`;
   };
 
-  const exportTimelistToCSV = () => {
+  const exportTimelistToPDF = () => {
     if (!selectedEmployeeData || timelistEntries.length === 0) {
       toast({
         title: "Fel",
@@ -292,32 +293,65 @@ export default function Reports() {
       return;
     }
 
-    const headers = ['Datum', 'Dag', 'In', 'Ut', 'Pause', 'Totalt'];
-    const csvContent = [
-      // Company info
-      `${companySettings?.company_name || 'Mitt Företag AB'}`,
-      `Timelista för ${selectedEmployeeData.first_name} ${selectedEmployeeData.last_name}`,
-      `Period: ${format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb })}`,
-      '',
-      headers.join(','),
-      ...timelistEntries.map(entry => [
-        entry.day,
-        entry.dayName,
-        entry.punchIn || '',
-        entry.punchOut || '',
-        entry.lunch || '',
-        entry.total || ''
-      ].join(','))
-    ].join('\n');
+    const element = document.getElementById('timelist-content');
+    if (!element) return;
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `timelista_${selectedEmployeeData.first_name}_${selectedEmployeeData.last_name}_${selectedMonth}.csv`;
-    link.click();
+    const opt = {
+      margin: 1,
+      filename: `timelista_${selectedEmployeeData.first_name}_${selectedEmployeeData.last_name}_${selectedMonth}.pdf`,
+      image: { type: 'jpeg' as const, quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' as const }
+    };
+
+    html2pdf().set(opt).from(element).save();
   };
 
-  const exportShiftListToCSV = () => {
+  const printTimelist = () => {
+    if (!selectedEmployeeData || timelistEntries.length === 0) {
+      toast({
+        title: "Fel",
+        description: "Välj en anställd och månad för att skriva ut",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const element = document.getElementById('timelist-content');
+    if (!element) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Timelista - ${selectedEmployeeData.first_name} ${selectedEmployeeData.last_name}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+            th { background-color: #f5f5f5; font-weight: bold; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .employee-info { margin-bottom: 20px; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>
+          ${element.innerHTML}
+        </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
+
+  const exportShiftListToPDF = () => {
     if (!calendarShifts || calendarShifts.length === 0) {
       toast({
         title: "Fel",
@@ -327,29 +361,62 @@ export default function Reports() {
       return;
     }
 
-    const headers = ['Datum', 'Anställd', 'Starttid', 'Sluttid', 'Plats', 'Anteckningar'];
-    const csvContent = [
-      // Company info
-      `${companySettings?.company_name || 'Mitt Företag AB'}`,
-      `Vaktlista`,
-      `Period: ${format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb })}`,
-      '',
-      headers.join(','),
-      ...calendarShifts.map(shift => [
-        format(parseISO(shift.start_time), 'yyyy-MM-dd'),
-        `${shift.profiles?.first_name || ''} ${shift.profiles?.last_name || ''}`,
-        format(parseISO(shift.start_time), 'HH:mm'),
-        format(parseISO(shift.end_time), 'HH:mm'),
-        shift.location || '',
-        shift.notes || ''
-      ].join(','))
-    ].join('\n');
+    const element = document.getElementById('shiftlist-content');
+    if (!element) return;
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `vaktlista_${selectedMonth}.csv`;
-    link.click();
+    const opt = {
+      margin: 1,
+      filename: `vaktlista_${selectedMonth}.pdf`,
+      image: { type: 'jpeg' as const, quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' as const }
+    };
+
+    html2pdf().set(opt).from(element).save();
+  };
+
+  const printShiftList = () => {
+    if (!calendarShifts || calendarShifts.length === 0) {
+      toast({
+        title: "Fel",
+        description: "Inga vakter att skriva ut för denna period",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const element = document.getElementById('shiftlist-content');
+    if (!element) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Vaktlista - ${format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb })}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+            .calendar-day { border: 1px solid #ddd; padding: 8px; min-height: 100px; }
+            .calendar-day-header { background-color: #f5f5f5; font-weight: bold; text-align: center; padding: 10px; }
+            .shift-item { background-color: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; padding: 4px; margin: 2px 0; font-size: 12px; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>
+          ${element.innerHTML}
+        </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
   };
 
   const getShiftsForDate = (date: Date) => {
@@ -435,21 +502,36 @@ export default function Reports() {
 
                 {/* Actions */}
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => window.print()}>
+                  <Button variant="outline" size="sm" onClick={printTimelist}>
                     <Printer className="h-4 w-4 mr-2" />
                     Skriv ut
                   </Button>
-                  <Button variant="outline" size="sm" onClick={exportTimelistToCSV}>
+                  <Button variant="outline" size="sm" onClick={exportTimelistToPDF}>
                     <Download className="h-4 w-4 mr-2" />
-                    Exportera
+                    Exportera PDF
                   </Button>
                 </div>
               </div>
 
-              {/* Employee Info */}
-              {selectedEmployeeData && (
-                <Card>
-                  <CardContent className="pt-6">
+              {/* Employee Info and Timelist - This is what gets exported/printed */}
+              <div id="timelist-content">
+                {/* Header for export */}
+                <div className="header text-center mb-6 border-b border-border pb-4">
+                  <h1 className="text-2xl font-bold">{companySettings?.company_name || 'Mitt Företag AB'}</h1>
+                  {companySettings?.address && <p className="text-sm text-muted-foreground">{companySettings.address}</p>}
+                  {(companySettings?.postal_code || companySettings?.city) && (
+                    <p className="text-sm text-muted-foreground">{companySettings.postal_code} {companySettings.city}</p>
+                  )}
+                  {companySettings?.org_number && <p className="text-sm text-muted-foreground">Org.nr: {companySettings.org_number}</p>}
+                  <h2 className="text-xl font-semibold mt-4">
+                    Timelista - {format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb })}
+                  </h2>
+                </div>
+
+                {/* Employee Info */}
+                {selectedEmployeeData && (
+                  <div className="employee-info mb-6">
+                    <h3 className="text-lg font-semibold mb-2">Anställd</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <strong>Namn:</strong> {selectedEmployeeData.first_name} {selectedEmployeeData.last_name}
@@ -458,9 +540,8 @@ export default function Reports() {
                         <strong>Personnummer:</strong> {selectedEmployeeData.personal_number || 'Ej angivet'}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  </div>
+                )}
 
               {/* Timelist Table */}
               {selectedEmployee && (
@@ -552,12 +633,21 @@ export default function Reports() {
                     </Table>
                   </CardContent>
                 </Card>
-              )}
 
-              {/* Signature Section */}
-              {selectedEmployee && (
-                <Card>
-                  <CardContent className="pt-6">
+                )}
+
+                {/* Total Hours Summary */}
+                {timelistEntries.some(e => e.total) && (
+                  <div className="mt-6 text-right">
+                    <div className="text-lg font-semibold">
+                      Totalt antal timmar: {formatTotalMinutes(calculateTotalHours())}
+                    </div>
+                  </div>
+                )}
+
+                {/* Signature Section */}
+                {selectedEmployee && (
+                  <div className="mt-6">
                     <div className="grid grid-cols-2 gap-8">
                       <div>
                         <p className="mb-8">Anställds underskrift:</p>
@@ -570,10 +660,11 @@ export default function Reports() {
                         <p className="text-sm text-muted-foreground mt-2">Datum</p>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  </div>
+                )}
+              </div>
             </TabsContent>
+
 
             <TabsContent value="vaktlista" className="space-y-6">
               <div className="flex items-center justify-between">
@@ -597,16 +688,31 @@ export default function Reports() {
                   </Button>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => window.print()}>
+                  <Button variant="outline" size="sm" onClick={printShiftList}>
                     <Printer className="w-4 w-4 mr-2" />
                     Skriv ut
                   </Button>
-                  <Button variant="outline" size="sm" onClick={exportShiftListToCSV}>
+                  <Button variant="outline" size="sm" onClick={exportShiftListToPDF}>
                     <Download className="w-4 w-4 mr-2" />
-                    Exportera
+                    Exportera PDF
                   </Button>
                 </div>
               </div>
+
+              {/* Shift List Content - This is what gets exported/printed */}
+              <div id="shiftlist-content">
+                {/* Header for export */}
+                <div className="header text-center mb-6">
+                  <h1 className="text-2xl font-bold">{companySettings?.company_name || 'Mitt Företag AB'}</h1>
+                  {companySettings?.address && <p className="text-sm text-muted-foreground">{companySettings.address}</p>}
+                  {(companySettings?.postal_code || companySettings?.city) && (
+                    <p className="text-sm text-muted-foreground">{companySettings.postal_code} {companySettings.city}</p>
+                  )}
+                  {companySettings?.org_number && <p className="text-sm text-muted-foreground">Org.nr: {companySettings.org_number}</p>}
+                  <h2 className="text-xl font-semibold mt-4">
+                    Vaktlista - {format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb })}
+                  </h2>
+                </div>
 
               {/* Monthly Calendar Grid */}
               <Card>
@@ -665,11 +771,13 @@ export default function Reports() {
                   </div>
                 </CardContent>
               </Card>
+              </div>
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
 
+      {/* Edit Dialog */}
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent>
