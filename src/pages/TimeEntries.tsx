@@ -189,9 +189,18 @@ export default function TimeEntries() {
     if (!shiftsData || !companySettings) return sessions;
 
     const resultSessions: WorkSession[] = [];
-    const allProcessedDates = new Set<string>();
+    
+    // Group sessions by date
+    const sessionsByDate = new Map<string, WorkSession[]>();
+    sessions.forEach(session => {
+      const sessionDate = format(new Date(session.punch_in.timestamp), 'yyyy-MM-dd');
+      if (!sessionsByDate.has(sessionDate)) {
+        sessionsByDate.set(sessionDate, []);
+      }
+      sessionsByDate.get(sessionDate)!.push(session);
+    });
 
-    // First, create a map of all dates that have shifts
+    // Create a map of shifts by date
     const shiftDateMap = new Map<string, any[]>();
     shiftsData.forEach(shift => {
       if (userRole === 'admin' || shift.employee_id === user?.id) {
@@ -203,46 +212,51 @@ export default function TimeEntries() {
       }
     });
 
-    // Process existing punch sessions
-    sessions.forEach(session => {
-      const sessionDate = format(new Date(session.punch_in.timestamp), 'yyyy-MM-dd');
-      allProcessedDates.add(sessionDate);
-      
-      const useScheduleTimes = shouldUseScheduleTimes(sessionDate);
+    const allProcessedDates = new Set<string>();
+
+    // Process dates that have punch data
+    sessionsByDate.forEach((dateSessions, dateStr) => {
+      allProcessedDates.add(dateStr);
+      const useScheduleTimes = shouldUseScheduleTimes(dateStr);
       
       if (useScheduleTimes) {
-        // After closing: COMPLETELY IGNORE punch data, use ONLY schedule if it exists
-        const dayShifts = shiftDateMap.get(sessionDate);
+        // After closing: Create ONLY ONE entry per date from schedule, ignore all punch data
+        const dayShifts = shiftDateMap.get(dateStr);
         if (dayShifts && dayShifts.length > 0) {
           const shift = dayShifts[0];
           const shiftDuration = Math.round(
             (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
           );
 
+          // Use first session for employee name reference
+          const firstSession = dateSessions[0];
+          
           resultSessions.push({
-            id: 'schedule_' + shift.id,
+            id: 'schedule_date_' + dateStr,
             punch_in: {
-              id: 'schedule_in_' + shift.id,
+              id: 'schedule_in_' + dateStr,
               entry_type: 'punch_in' as const,
               timestamp: shift.start_time,
               employee_id: shift.employee_id,
-              employee_name: session.employee_name
+              employee_name: firstSession.employee_name
             },
             punch_out: {
-              id: 'schedule_out_' + shift.id,
+              id: 'schedule_out_' + dateStr,
               entry_type: 'punch_out' as const,
               timestamp: shift.end_time,
               employee_id: shift.employee_id,
-              employee_name: session.employee_name
+              employee_name: firstSession.employee_name
             },
             duration: shiftDuration,
-            employee_name: session.employee_name
+            employee_name: firstSession.employee_name
           });
         }
         // If no schedule exists for this date after closing, don't show anything
       } else {
-        // During the day: Use ONLY punch times, completely ignore schedule
-        resultSessions.push(session);
+        // During the day: Show all punch sessions as they are
+        dateSessions.forEach(session => {
+          resultSessions.push(session);
+        });
       }
     });
 
@@ -257,16 +271,16 @@ export default function TimeEntries() {
         );
 
         resultSessions.push({
-          id: 'schedule_only_' + shift.id,
+          id: 'schedule_only_' + shiftDate,
           punch_in: {
-            id: 'schedule_in_' + shift.id,
+            id: 'schedule_in_' + shiftDate,
             entry_type: 'punch_in' as const,
             timestamp: shift.start_time,
             employee_id: shift.employee_id,
             employee_name: userRole === 'admin' ? 'Anställd' : (user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name)
           },
           punch_out: {
-            id: 'schedule_out_' + shift.id,
+            id: 'schedule_out_' + shiftDate,
             entry_type: 'punch_out' as const,
             timestamp: shift.end_time,
             employee_id: shift.employee_id,

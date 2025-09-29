@@ -168,6 +168,15 @@ export default function Timeliste() {
       shiftsByDate.get(date)!.push(shift);
     });
 
+    // Group sessions by date
+    const sessionsByDate = new Map<string, WorkSession[]>();
+    sessions.forEach(session => {
+      if (!sessionsByDate.has(session.date)) {
+        sessionsByDate.set(session.date, []);
+      }
+      sessionsByDate.get(session.date)!.push(session);
+    });
+
     const resultSessions: WorkSession[] = [];
     const allProcessedDates = new Set<string>();
 

@@ -283,7 +283,16 @@ export default function Dashboard() {
 
   const applyHybridLogic = (sessions: WorkSession[], shifts: Shift[]): WorkSession[] => {
     const resultSessions: WorkSession[] = [];
-    const allProcessedDates = new Set<string>();
+    
+    // Group sessions by date
+    const sessionsByDate = new Map<string, WorkSession[]>();
+    sessions.forEach(session => {
+      const sessionDate = new Date(session.punch_in.timestamp).toDateString();
+      if (!sessionsByDate.has(sessionDate)) {
+        sessionsByDate.set(sessionDate, []);
+      }
+      sessionsByDate.get(sessionDate)!.push(session);
+    });
 
     // Create a map of shifts by date
     const shiftDateMap = new Map<string, Shift[]>();
@@ -295,41 +304,44 @@ export default function Dashboard() {
       shiftDateMap.get(shiftDate)!.push(shift);
     });
 
-    // Process existing punch sessions
-    sessions.forEach(session => {
-      const sessionDate = new Date(session.punch_in.timestamp);
-      const sessionDateStr = sessionDate.toDateString();
-      allProcessedDates.add(sessionDateStr);
-      
+    const allProcessedDates = new Set<string>();
+
+    // Process dates that have punch data
+    sessionsByDate.forEach((dateSessions, dateStr) => {
+      allProcessedDates.add(dateStr);
+      const sessionDate = new Date(dateSessions[0].punch_in.timestamp);
       const useScheduleTimes = shouldUseScheduleTimes(sessionDate);
       
       if (useScheduleTimes) {
-        // After closing: COMPLETELY IGNORE punch data, use ONLY schedule if it exists
-        const dayShifts = shiftDateMap.get(sessionDateStr);
+        // After closing: Create ONLY ONE entry per date from schedule, ignore all punch data
+        const dayShifts = shiftDateMap.get(dateStr);
         if (dayShifts && dayShifts.length > 0) {
           const shift = dayShifts[0];
           const duration = Math.round((new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60));
 
           resultSessions.push({
-            id: 'schedule_' + shift.id,
+            id: 'schedule_date_' + dateStr,
             punch_in: {
-              ...session.punch_in,
-              id: 'schedule_in_' + shift.id,
-              timestamp: shift.start_time
+              id: 'schedule_in_' + dateStr,
+              entry_type: 'punch_in' as const,
+              timestamp: shift.start_time,
+              employee_id: user?.id || ''
             },
             punch_out: {
-              ...session.punch_in,
-              id: 'schedule_out_' + shift.id,
+              id: 'schedule_out_' + dateStr,
               entry_type: 'punch_out' as const,
-              timestamp: shift.end_time
+              timestamp: shift.end_time,
+              employee_id: user?.id || ''
             },
             duration
           });
         }
         // If no schedule exists for this date after closing, don't show anything
       } else {
-        // During the day: Use ONLY punch times, completely ignore schedule
-        resultSessions.push(session);
+        // During the day: Show all punch sessions as they are
+        dateSessions.forEach(session => {
+          resultSessions.push(session);
+        });
       }
     });
 
@@ -343,15 +355,15 @@ export default function Dashboard() {
         const duration = Math.round((new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60));
 
         resultSessions.push({
-          id: 'schedule_only_' + shift.id,
+          id: 'schedule_only_' + shiftDateStr,
           punch_in: {
-            id: 'schedule_in_' + shift.id,
+            id: 'schedule_in_' + shiftDateStr,
             entry_type: 'punch_in' as const,
             timestamp: shift.start_time,
             employee_id: user?.id || ''
           },
           punch_out: {
-            id: 'schedule_out_' + shift.id,
+            id: 'schedule_out_' + shiftDateStr,
             entry_type: 'punch_out' as const,
             timestamp: shift.end_time,
             employee_id: user?.id || ''
