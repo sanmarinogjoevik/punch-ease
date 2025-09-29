@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { LivePunchStatus } from "@/components/LivePunchStatus";
+import { TodaysTemperatureLogs } from "@/components/TodaysTemperatureLogs";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { 
   Users, 
@@ -239,6 +240,9 @@ const Admin = () => {
 
       {/* Live Punch Status */}
       <LivePunchStatus />
+
+      {/* Today's Temperature Logs */}
+      <TodaysTemperatureLogs />
 
       {/* Dagens översikt - utan punch tracking */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

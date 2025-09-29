@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PunchClock } from '@/components/PunchClock';
+import { TodaysTemperatureLogs } from '@/components/TodaysTemperatureLogs';
 import { Calendar, Clock, Users, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -393,6 +394,11 @@ export default function Dashboard() {
         {/* Punch Clock - Always visible */}
         <div className="col-span-1 md:col-span-2 lg:col-span-1">
           <PunchClock />
+        </div>
+
+        {/* Today's Temperature Logs - Always visible */}
+        <div className="col-span-1 md:col-span-2 lg:col-span-1">
+          <TodaysTemperatureLogs />
         </div>
 
         {/* Employee Dashboard */}
