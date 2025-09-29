@@ -193,7 +193,7 @@ export default function TimeEntries() {
   const applyHybridLogic = (sessions: WorkSession[]): WorkSession[] => {
     if (!shiftsData || !companySettings) return sessions;
 
-    return sessions.map(session => {
+    const adjustedSessions = sessions.map(session => {
       const sessionDate = format(new Date(session.punch_in.timestamp), 'yyyy-MM-dd');
       
       if (!shouldUseScheduleTimes(sessionDate)) {
@@ -239,7 +239,48 @@ export default function TimeEntries() {
           employee_name: session.employee_name
         }
       };
-    }).filter(session => session !== null);
+    }).filter(session => session !== null) as WorkSession[];
+
+    // Add schedule-only sessions for days without punch data
+    if (shiftsData) {
+      const processedDates = new Set(
+        sessions.map(session => format(new Date(session.punch_in.timestamp), 'yyyy-MM-dd'))
+      );
+
+      shiftsData.forEach(shift => {
+        const shiftDate = format(new Date(shift.start_time), 'yyyy-MM-dd');
+        const shouldUseSchedule = shouldUseScheduleTimes(shiftDate);
+
+        // Add schedule-only entry if no punch data exists and we should use schedule times
+        if (shouldUseSchedule && !processedDates.has(shiftDate)) {
+          const shiftDuration = Math.round(
+            (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
+          );
+
+          adjustedSessions.push({
+            id: 'schedule_' + shift.id,
+            punch_in: {
+              id: 'schedule_in_' + shift.id,
+              entry_type: 'punch_in' as const,
+              timestamp: shift.start_time,
+              employee_id: shift.employee_id,
+              employee_name: user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name
+            },
+            punch_out: {
+              id: 'schedule_out_' + shift.id,
+              entry_type: 'punch_out' as const,
+              timestamp: shift.end_time,
+              employee_id: shift.employee_id,
+              employee_name: user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name
+            },
+            duration: shiftDuration,
+            isAdjusted: false
+          });
+        }
+      });
+    }
+
+    return adjustedSessions;
   };
 
   const formatDuration = (minutes: number): string => {
