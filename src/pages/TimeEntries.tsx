@@ -41,10 +41,10 @@ export default function TimeEntries() {
 
   useEffect(() => {
     fetchTimeEntries();
-  }, [user, userRole, shiftsData, companySettings]);
+  }, [user, userRole, shiftsData]);
 
   const fetchTimeEntries = async () => {
-    if (!user || !companySettings) return;
+    if (!user) return;
 
     try {
       // First, fetch time entries
