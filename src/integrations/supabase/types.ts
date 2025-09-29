@@ -62,6 +62,36 @@ export type Database = {
         }
         Relationships: []
       }
+      equipment: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          type: Database["public"]["Enums"]["equipment_type"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          type: Database["public"]["Enums"]["equipment_type"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          type?: Database["public"]["Enums"]["equipment_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -229,6 +259,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "employee"
       entry_type: "punch_in" | "punch_out"
+      equipment_type: "refrigerator" | "freezer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -358,6 +389,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "employee"],
       entry_type: ["punch_in", "punch_out"],
+      equipment_type: ["refrigerator", "freezer"],
     },
   },
 } as const

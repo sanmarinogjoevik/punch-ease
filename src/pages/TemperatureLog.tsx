@@ -8,24 +8,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useTemperatureLogs, CreateTemperatureLog } from '@/hooks/useTemperatureLogs';
+import { useEquipment } from '@/hooks/useEquipment';
+import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Thermometer, Clock, FileText } from 'lucide-react';
-
-const EQUIPMENT_OPTIONS = [
-  'Kyl 1',
-  'Kyl 2', 
-  'Kyl 3',
-  'Frys A',
-  'Frys B',
-  'Frys C',
-  'Displaykyl',
-  'Vinskap',
-];
+import AddEquipmentDialog from '@/components/AddEquipmentDialog';
 
 export default function TemperatureLog() {
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const { temperatureLogs, isLoading, createTemperatureLog, getTodaysLogs } = useTemperatureLogs();
+  const { equipment, isLoading: equipmentLoading } = useEquipment();
   
   const [form, setForm] = useState<CreateTemperatureLog>({
     equipment_name: '',
@@ -75,11 +69,19 @@ export default function TemperatureLog() {
     }
   };
 
+  const getEquipmentDisplayName = (equipment: any) => {
+    const typeLabel = equipment.type === 'refrigerator' ? 'Kyl' : 'Frys';
+    return `${equipment.name} (${typeLabel})`;
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Thermometer className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold">Temperaturlogg</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Thermometer className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold">Temperaturlogg</h1>
+        </div>
+        {isAdmin && <AddEquipmentDialog />}
       </div>
       
       <Card>
@@ -102,11 +104,21 @@ export default function TemperatureLog() {
                     <SelectValue placeholder="Välj kyl eller frys" />
                   </SelectTrigger>
                   <SelectContent className="bg-background">
-                    {EQUIPMENT_OPTIONS.map((equipment) => (
-                      <SelectItem key={equipment} value={equipment}>
-                        {equipment}
+                    {equipmentLoading ? (
+                      <SelectItem value="" disabled>
+                        Laddar utrustning...
                       </SelectItem>
-                    ))}
+                    ) : equipment.length === 0 ? (
+                      <SelectItem value="" disabled>
+                        Ingen utrustning tillgänglig
+                      </SelectItem>
+                    ) : (
+                      equipment.map((item) => (
+                        <SelectItem key={item.id} value={item.name}>
+                          {getEquipmentDisplayName(item)}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
