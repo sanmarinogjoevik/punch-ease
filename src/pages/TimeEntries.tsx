@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useShifts } from '@/hooks/useShifts';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { format } from 'date-fns';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { format, isAfter, parseISO, startOfDay, endOfDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
-import { Clock, ArrowUp, ArrowDown } from 'lucide-react';
+import { Clock, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
 
 interface TimeEntry {
   id: string;
@@ -22,19 +25,26 @@ interface WorkSession {
   punch_out?: TimeEntry;
   duration?: number; // in minutes
   employee_name?: string;
+  isAdjusted?: boolean; // true if times were replaced with schedule
+  scheduleStartTime?: string;
+  scheduleEndTime?: string;
+  originalPunchIn?: TimeEntry;
+  originalPunchOut?: TimeEntry;
 }
 
 export default function TimeEntries() {
   const { user, userRole } = useAuth();
+  const { data: shiftsData } = useShifts(userRole === 'admin' ? {} : { employeeId: user?.id });
+  const { data: companySettings } = useCompanySettings();
   const [workSessions, setWorkSessions] = useState<WorkSession[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchTimeEntries();
-  }, [user, userRole]);
+  }, [user, userRole, shiftsData, companySettings]);
 
   const fetchTimeEntries = async () => {
-    if (!user) return;
+    if (!user || !companySettings) return;
 
     try {
       // First, fetch time entries
@@ -73,9 +83,10 @@ export default function TimeEntries() {
         );
       }
 
-      // Group entries into work sessions
+      // Group entries into work sessions and apply hybrid logic
       const sessions = groupIntoWorkSessions(entriesData || [], profilesMap);
-      setWorkSessions(sessions);
+      const hybridSessions = applyHybridLogic(sessions);
+      setWorkSessions(hybridSessions);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -150,6 +161,87 @@ export default function TimeEntries() {
     );
   };
 
+  const shouldUseScheduleTimes = (sessionDate: string): boolean => {
+    if (!companySettings?.business_hours) return false;
+    
+    const sessionDay = startOfDay(parseISO(sessionDate));
+    const today = startOfDay(new Date());
+    
+    // Always use schedule times for past days
+    if (sessionDay < today) return true;
+    
+    // For today, check if we're past closing time
+    if (sessionDay.getTime() === today.getTime()) {
+      const currentTime = new Date();
+      const dayOfWeek = currentTime.getDay();
+      
+      const businessHours = companySettings.business_hours as any[];
+      const todayHours = businessHours.find(h => h.day === dayOfWeek);
+      
+      if (!todayHours || !todayHours.isOpen) return true;
+      
+      const [closeHour, closeMinute] = todayHours.closeTime.split(':').map(Number);
+      const closingTime = new Date();
+      closingTime.setHours(closeHour, closeMinute, 0, 0);
+      
+      return isAfter(currentTime, closingTime);
+    }
+    
+    return false;
+  };
+
+  const applyHybridLogic = (sessions: WorkSession[]): WorkSession[] => {
+    if (!shiftsData || !companySettings) return sessions;
+
+    return sessions.map(session => {
+      const sessionDate = format(new Date(session.punch_in.timestamp), 'yyyy-MM-dd');
+      
+      if (!shouldUseScheduleTimes(sessionDate)) {
+        return session; // Keep original punch times
+      }
+
+      // Find matching shift for this session
+      const matchingShifts = shiftsData.filter(shift => {
+        const shiftDate = format(new Date(shift.start_time), 'yyyy-MM-dd');
+        return shiftDate === sessionDate && shift.employee_id === session.punch_in.employee_id;
+      });
+
+      if (matchingShifts.length === 0) {
+        return session; // No schedule found, keep punch times
+      }
+
+      // For simplicity, use the first shift (could be enhanced to match by time)
+      const shift = matchingShifts[0];
+      const shiftDuration = Math.round(
+        (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
+      );
+
+      return {
+        ...session,
+        isAdjusted: true,
+        scheduleStartTime: shift.start_time,
+        scheduleEndTime: shift.end_time,
+        originalPunchIn: session.punch_in,
+        originalPunchOut: session.punch_out,
+        duration: shiftDuration,
+        punch_in: {
+          ...session.punch_in,
+          timestamp: shift.start_time
+        },
+        punch_out: session.punch_out ? {
+          ...session.punch_out,
+          timestamp: shift.end_time
+        } : {
+          id: 'schedule_' + shift.id,
+          entry_type: 'punch_out' as const,
+          timestamp: shift.end_time,
+          employee_id: shift.employee_id,
+          employee_name: session.employee_name
+        }
+      };
+    });
+  };
+
   const formatDuration = (minutes: number): string => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
@@ -161,18 +253,45 @@ export default function TimeEntries() {
   };
 
   const getSessionBadge = (session: WorkSession) => {
+    const badges = [];
+    
     if (!session.punch_out) {
-      return (
-        <Badge variant="outline" className="border-yellow-200 text-yellow-700 bg-yellow-50">
+      badges.push(
+        <Badge key="active" variant="outline" className="border-yellow-200 text-yellow-700 bg-yellow-50">
           Aktiv
         </Badge>
       );
+    } else {
+      badges.push(
+        <Badge key="completed" variant="outline" className="border-green-200 text-green-700 bg-green-50">
+          Fullført
+        </Badge>
+      );
     }
-    return (
-      <Badge variant="outline" className="border-green-200 text-green-700 bg-green-50">
-        Fullført
-      </Badge>
-    );
+
+    if (session.isAdjusted) {
+      badges.push(
+        <TooltipProvider key="adjusted">
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50 ml-2">
+                <Calendar className="h-3 w-3 mr-1" />
+                Justerat enligt schema
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="text-sm">
+                <p>Ursprungliga tider:</p>
+                <p>In: {session.originalPunchIn && format(new Date(session.originalPunchIn.timestamp), 'HH:mm:ss')}</p>
+                <p>Ut: {session.originalPunchOut && format(new Date(session.originalPunchOut.timestamp), 'HH:mm:ss')}</p>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+
+    return <div className="flex flex-wrap gap-1">{badges}</div>;
   };
 
   if (loading) {
@@ -234,6 +353,24 @@ export default function TimeEntries() {
                               {format(new Date(session.punch_out.timestamp), 'HH:mm:ss')}
                             </span>
                           </>
+                        )}
+                        {session.isAdjusted && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Calendar className="h-4 w-4 text-blue-600 ml-2" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="text-sm">
+                                  <p>Visar schemalagda tider</p>
+                                  <p>Ursprunglig punch in: {session.originalPunchIn && format(new Date(session.originalPunchIn.timestamp), 'HH:mm:ss')}</p>
+                                  {session.originalPunchOut && (
+                                    <p>Ursprunglig punch ut: {format(new Date(session.originalPunchOut.timestamp), 'HH:mm:ss')}</p>
+                                  )}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         )}
                       </div>
                     </TableCell>
