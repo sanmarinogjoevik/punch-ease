@@ -131,6 +131,39 @@ export type Database = {
         }
         Relationships: []
       }
+      temperature_logs: {
+        Row: {
+          created_at: string
+          employee_id: string
+          equipment_name: string
+          id: string
+          notes: string | null
+          temperature: number
+          timestamp: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          equipment_name: string
+          id?: string
+          notes?: string | null
+          temperature: number
+          timestamp?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          equipment_name?: string
+          id?: string
+          notes?: string | null
+          temperature?: number
+          timestamp?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       time_entries: {
         Row: {
           created_at: string

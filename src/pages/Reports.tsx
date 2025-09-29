@@ -7,14 +7,15 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChevronLeft, ChevronRight, Download, Edit, Trash2, Printer, Calendar, Clock, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Edit, Trash2, Printer, Calendar, Clock, FileText, Thermometer } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { useEmployeeMonthShifts, useShiftMutations, useShifts, useShiftsSubscription } from '@/hooks/useShifts';
 import { useEmployees } from '@/hooks/useEmployees';
+import { useTemperatureLogs } from '@/hooks/useTemperatureLogs';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addWeeks, startOfWeek, startOfDay, subMonths, addMonths, subDays, addDays } from 'date-fns';
-import { nb } from 'date-fns/locale';
+import { nb, sv } from 'date-fns/locale';
 import html2pdf from 'html2pdf.js';
 
 interface TimeEntry {
@@ -51,7 +52,7 @@ export default function Reports() {
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [timelistEntries, setTimelistEntries] = useState<TimelistEntry[]>([]);
-  const [activeTab, setActiveTab] = useState<'timelista' | 'vaktlista'>('timelista');
+  const [activeTab, setActiveTab] = useState<'timelista' | 'vaktlista' | 'temperatur'>('timelista');
   
   // Use the new hooks
   const { data: employees = [], isLoading: employeesLoading } = useEmployees();
@@ -60,6 +61,23 @@ export default function Reports() {
     selectedMonth + '-01'
   );
   const { updateShift, deleteShift } = useShiftMutations();
+  
+  // Temperature logs for admin reports
+  const { 
+    temperatureLogs, 
+    isLoading: temperatureLoading, 
+    fetchTemperatureLogs 
+  } = useTemperatureLogs();
+  
+  // Temperature filtering states
+  const [tempStartDate, setTempStartDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [tempEndDate, setTempEndDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [tempEquipment, setTempEquipment] = useState<string>('');
+  
+  const EQUIPMENT_OPTIONS = [
+    'Kyl 1', 'Kyl 2', 'Kyl 3', 'Frys A', 'Frys B', 'Frys C', 
+    'Displaykyl', 'Vinskap'
+  ];
   
   // Edit functionality
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -93,6 +111,13 @@ export default function Reports() {
 
   // Enable real-time subscription
   useShiftsSubscription();
+
+  // Fetch temperature logs on tab change
+  useEffect(() => {
+    if (activeTab === 'temperatur') {
+      fetchTemperatureLogs(tempStartDate, tempEndDate + 'T23:59:59', tempEquipment || undefined);
+    }
+  }, [activeTab, fetchTemperatureLogs]);
 
   const loading = employeesLoading || shiftsLoading;
 
@@ -419,6 +444,77 @@ export default function Reports() {
     }, 250);
   };
 
+  const exportTemperatureToPDF = () => {
+    if (temperatureLogs.length === 0) {
+      toast({
+        title: "Fel",
+        description: "Inga temperaturloggar att exportera",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const element = document.getElementById('temperature-content');
+    if (!element) return;
+
+    const opt = {
+      margin: 1,
+      filename: `temperaturkontroll_${tempStartDate}_${tempEndDate}.pdf`,
+      image: { type: 'jpeg' as const, quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' as const }
+    };
+
+    html2pdf().set(opt).from(element).save();
+  };
+
+  const printTemperatureList = () => {
+    if (temperatureLogs.length === 0) {
+      toast({
+        title: "Fel",
+        description: "Inga temperaturloggar att skriva ut",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const element = document.getElementById('temperature-content');
+    if (!element) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Temperaturkontroll - ${format(new Date(tempStartDate), 'dd/MM/yyyy')} - ${format(new Date(tempEndDate), 'dd/MM/yyyy')}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f5f5f5; font-weight: bold; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .print-only { display: block; }
+            @media print { 
+              body { margin: 0; }
+              .print-only { display: block !important; }
+            }
+          </style>
+        </head>
+        <body>
+          ${element.innerHTML}
+        </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
+
   const getShiftsForDate = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     return calendarShifts?.filter(shift => 
@@ -451,10 +547,11 @@ export default function Reports() {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'timelista' | 'vaktlista')} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'timelista' | 'vaktlista' | 'temperatur')} className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="timelista">Timelista</TabsTrigger>
               <TabsTrigger value="vaktlista">Vaktlista</TabsTrigger>
+              <TabsTrigger value="temperatur">Temperaturkontroll</TabsTrigger>
             </TabsList>
             
             <TabsContent value="timelista" className="space-y-6">
@@ -771,6 +868,156 @@ export default function Reports() {
                   </div>
                 </CardContent>
               </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="temperatur" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Thermometer className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-semibold">Temperaturkontroll</h3>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={() => exportTemperatureToPDF()} disabled={temperatureLoading || temperatureLogs.length === 0}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Exportera PDF
+                  </Button>
+                  <Button variant="outline" onClick={() => printTemperatureList()} disabled={temperatureLoading || temperatureLogs.length === 0}>
+                    <Printer className="w-4 h-4 mr-2" />
+                    Skriv ut
+                  </Button>
+                </div>
+              </div>
+
+              {/* Temperature Filters */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Filtrera temperaturloggar</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="temp-start-date">Från datum</Label>
+                      <Input
+                        id="temp-start-date"
+                        type="date"
+                        value={tempStartDate}
+                        onChange={(e) => setTempStartDate(e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="temp-end-date">Till datum</Label>
+                      <Input
+                        id="temp-end-date"
+                        type="date"
+                        value={tempEndDate}
+                        onChange={(e) => setTempEndDate(e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="temp-equipment">Utrustning</Label>
+                      <Select value={tempEquipment} onValueChange={setTempEquipment}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Alla" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background">
+                          <SelectItem value="">Alla</SelectItem>
+                          {EQUIPMENT_OPTIONS.map((equipment) => (
+                            <SelectItem key={equipment} value={equipment}>
+                              {equipment}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="flex items-end">
+                      <Button 
+                        onClick={() => fetchTemperatureLogs(tempStartDate, tempEndDate + 'T23:59:59', tempEquipment || undefined)}
+                        className="w-full"
+                      >
+                        Sök
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Temperature Content - This is what gets exported/printed */}
+              <div id="temperature-content">
+                {/* Header for export */}
+                <div className="header text-center mb-6 print-only">
+                  <h1 className="text-2xl font-bold">{companySettings?.company_name || 'Mitt Företag AB'}</h1>
+                  {companySettings?.address && <p className="text-sm text-muted-foreground">{companySettings.address}</p>}
+                  {(companySettings?.postal_code || companySettings?.city) && (
+                    <p className="text-sm text-muted-foreground">{companySettings.postal_code} {companySettings.city}</p>
+                  )}
+                  {companySettings?.org_number && <p className="text-sm text-muted-foreground">Org.nr: {companySettings.org_number}</p>}
+                  <h2 className="text-xl font-semibold mt-4">
+                    Temperaturkontroll - {format(new Date(tempStartDate), 'dd/MM/yyyy')} - {format(new Date(tempEndDate), 'dd/MM/yyyy')}
+                  </h2>
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Temperaturloggar</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {temperatureLoading ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Laddar temperaturloggar...
+                      </div>
+                    ) : temperatureLogs.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Inga temperaturloggar hittades för valt period
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Datum & Tid</TableHead>
+                              <TableHead>Anställd</TableHead>
+                              <TableHead>Utrustning</TableHead>
+                              <TableHead>Temperatur</TableHead>
+                              <TableHead>Anteckningar</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {temperatureLogs.map((log) => (
+                              <TableRow key={log.id}>
+                                <TableCell>
+                                  {format(new Date(log.timestamp), 'dd/MM/yyyy HH:mm', { locale: sv })}
+                                </TableCell>
+                                <TableCell>
+                                  {log.profiles ? 
+                                    `${log.profiles.first_name} ${log.profiles.last_name}` : 
+                                    'Okänd'
+                                  }
+                                </TableCell>
+                                <TableCell>{log.equipment_name}</TableCell>
+                                <TableCell className="font-mono">
+                                  <span className={`${
+                                    log.temperature > 8 || log.temperature < -25 ? 'text-red-600 font-semibold' : 
+                                    log.temperature > 6 || log.temperature < -22 ? 'text-orange-600' : 
+                                    'text-green-600'
+                                  }`}>
+                                    {log.temperature}°C
+                                  </span>
+                                </TableCell>
+                                <TableCell className="max-w-xs truncate">
+                                  {log.notes || '-'}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
           </Tabs>

@@ -1,4 +1,4 @@
-import { Home, Calendar, Clock, Users, BarChart3, Shield, Settings } from 'lucide-react';
+import { Home, Calendar, Clock, Users, BarChart3, Shield, Settings, Thermometer } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Sidebar,
@@ -30,6 +30,7 @@ export function AppSidebar() {
     { title: 'Dashboard', url: '/', icon: Home },
     { title: 'Min Plan', url: '/my-schedule', icon: Calendar },
     { title: 'Tidsregistrering', url: '/timesheet', icon: Clock },
+    { title: 'Temperaturlogg', url: '/temperature-log', icon: Thermometer },
     { title: 'Timeliste', url: '/timeliste', icon: BarChart3 },
   ];
 

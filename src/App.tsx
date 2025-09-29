@@ -12,6 +12,7 @@ import Employees from "./pages/Employees";
 import Schedule from "./pages/Schedule";
 import TimeEntries from "./pages/TimeEntries";
 import EmployeeSchedule from "./pages/EmployeeSchedule";
+import TemperatureLog from "./pages/TemperatureLog";
 import Timeliste from "./pages/Timeliste";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
@@ -69,6 +70,7 @@ function AppRoutes() {
         <Route path="schedule" element={<Schedule />} />
         <Route path="my-schedule" element={<EmployeeSchedule />} />
         <Route path="timesheet" element={<TimeEntries />} />
+        <Route path="temperature-log" element={<TemperatureLog />} />
         <Route path="timeliste" element={<Timeliste />} />
         <Route path="employees" element={<Employees />} />
         <Route path="reports" element={<Reports />} />
