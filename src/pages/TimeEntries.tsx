@@ -251,8 +251,13 @@ export default function TimeEntries() {
         const shiftDate = format(new Date(shift.start_time), 'yyyy-MM-dd');
         const shouldUseSchedule = shouldUseScheduleTimes(shiftDate);
 
-        // Add schedule-only entry if no punch data exists and we should use schedule times
-        if (shouldUseSchedule && !processedDates.has(shiftDate)) {
+        // Only add schedule-only entry if:
+        // 1. We should use schedule times for this date
+        // 2. No punch data exists for this date 
+        // 3. This shift belongs to the current user (for non-admin view)
+        if (shouldUseSchedule && 
+            !processedDates.has(shiftDate) && 
+            shift.employee_id === user?.id) {
           const shiftDuration = Math.round(
             (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
           );
