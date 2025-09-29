@@ -190,58 +190,69 @@ export default function TimeEntries() {
 
     const resultSessions: WorkSession[] = [];
     
-    // Group sessions by date
-    const sessionsByDate = new Map<string, WorkSession[]>();
+    // Group sessions by date AND employee (for admin) or just by date (for employee)
+    const sessionsByKey = new Map<string, WorkSession[]>();
     sessions.forEach(session => {
       const sessionDate = format(new Date(session.punch_in.timestamp), 'yyyy-MM-dd');
-      if (!sessionsByDate.has(sessionDate)) {
-        sessionsByDate.set(sessionDate, []);
+      // Create unique key: for admin include employee_id, for employee just date
+      const key = userRole === 'admin' 
+        ? `${sessionDate}_${session.punch_in.employee_id}`
+        : sessionDate;
+      
+      if (!sessionsByKey.has(key)) {
+        sessionsByKey.set(key, []);
       }
-      sessionsByDate.get(sessionDate)!.push(session);
+      sessionsByKey.get(key)!.push(session);
     });
 
-    // Create a map of shifts by date
-    const shiftDateMap = new Map<string, any[]>();
+    // Create a map of shifts by date and employee
+    const shiftKeyMap = new Map<string, any[]>();
     shiftsData.forEach(shift => {
       if (userRole === 'admin' || shift.employee_id === user?.id) {
         const shiftDate = format(new Date(shift.start_time), 'yyyy-MM-dd');
-        if (!shiftDateMap.has(shiftDate)) {
-          shiftDateMap.set(shiftDate, []);
+        // Create same unique key as for sessions
+        const key = userRole === 'admin' 
+          ? `${shiftDate}_${shift.employee_id}`
+          : shiftDate;
+        
+        if (!shiftKeyMap.has(key)) {
+          shiftKeyMap.set(key, []);
         }
-        shiftDateMap.get(shiftDate)!.push(shift);
+        shiftKeyMap.get(key)!.push(shift);
       }
     });
 
-    const allProcessedDates = new Set<string>();
+    const allProcessedKeys = new Set<string>();
 
-    // Process dates that have punch data
-    sessionsByDate.forEach((dateSessions, dateStr) => {
-      allProcessedDates.add(dateStr);
+    // Process keys that have punch data
+    sessionsByKey.forEach((keySessions, key) => {
+      allProcessedKeys.add(key);
+      const dateStr = key.split('_')[0]; // Extract date from key
       const useScheduleTimes = shouldUseScheduleTimes(dateStr);
       
       if (useScheduleTimes) {
-        // After closing: Create ONLY ONE entry per date from schedule, ignore all punch data
-        const dayShifts = shiftDateMap.get(dateStr);
-        if (dayShifts && dayShifts.length > 0) {
-          const shift = dayShifts[0];
+        // After closing: Create ONLY ONE entry per key from schedule, ignore all punch data
+        const keyShifts = shiftKeyMap.get(key);
+        if (keyShifts && keyShifts.length > 0) {
+          const shift = keyShifts[0];
           const shiftDuration = Math.round(
             (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
           );
 
           // Use first session for employee name reference
-          const firstSession = dateSessions[0];
+          const firstSession = keySessions[0];
           
           resultSessions.push({
-            id: 'schedule_date_' + dateStr,
+            id: 'schedule_key_' + key,
             punch_in: {
-              id: 'schedule_in_' + dateStr,
+              id: 'schedule_in_' + key,
               entry_type: 'punch_in' as const,
               timestamp: shift.start_time,
               employee_id: shift.employee_id,
               employee_name: firstSession.employee_name
             },
             punch_out: {
-              id: 'schedule_out_' + dateStr,
+              id: 'schedule_out_' + key,
               entry_type: 'punch_out' as const,
               timestamp: shift.end_time,
               employee_id: shift.employee_id,
@@ -251,36 +262,37 @@ export default function TimeEntries() {
             employee_name: firstSession.employee_name
           });
         }
-        // If no schedule exists for this date after closing, don't show anything
+        // If no schedule exists for this key after closing, don't show anything
       } else {
         // During the day: Show all punch sessions as they are
-        dateSessions.forEach(session => {
+        keySessions.forEach(session => {
           resultSessions.push(session);
         });
       }
     });
 
-    // Add schedule-only entries for dates without any punch data (after closing only)
-    shiftDateMap.forEach((dayShifts, shiftDate) => {
-      const useScheduleTimes = shouldUseScheduleTimes(shiftDate);
+    // Add schedule-only entries for keys without any punch data (after closing only)
+    shiftKeyMap.forEach((keyShifts, key) => {
+      const dateStr = key.split('_')[0]; // Extract date from key
+      const useScheduleTimes = shouldUseScheduleTimes(dateStr);
       
-      if (useScheduleTimes && !allProcessedDates.has(shiftDate)) {
-        const shift = dayShifts[0];
+      if (useScheduleTimes && !allProcessedKeys.has(key)) {
+        const shift = keyShifts[0];
         const shiftDuration = Math.round(
           (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
         );
 
         resultSessions.push({
-          id: 'schedule_only_' + shiftDate,
+          id: 'schedule_only_' + key,
           punch_in: {
-            id: 'schedule_in_' + shiftDate,
+            id: 'schedule_in_' + key,
             entry_type: 'punch_in' as const,
             timestamp: shift.start_time,
             employee_id: shift.employee_id,
             employee_name: userRole === 'admin' ? 'Anställd' : (user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name)
           },
           punch_out: {
-            id: 'schedule_out_' + shiftDate,
+            id: 'schedule_out_' + key,
             entry_type: 'punch_out' as const,
             timestamp: shift.end_time,
             employee_id: shift.employee_id,
