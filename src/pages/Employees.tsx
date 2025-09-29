@@ -583,6 +583,20 @@ const Employees = () => {
                   maxLength={12}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_password">Nytt lösenord (valfritt)</Label>
+                <Input
+                  id="edit_password"
+                  type="password"
+                  value={editForm.password}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, password: e.target.value }))}
+                  minLength={6}
+                  placeholder="Lämna tomt för att behålla nuvarande lösenord"
+                />
+                {editForm.password && editForm.password.length > 0 && editForm.password.length < 6 && (
+                  <p className="text-sm text-red-600">Lösenord måste vara minst 6 tecken</p>
+                )}
+              </div>
             </div>
                 <DialogFooter>
                   <Button type="submit" disabled={isSubmitting || (editForm.password && editForm.password.length > 0 && editForm.password.length < 6)}>
