@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, Plus, Pencil, Trash2, Eye } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Eye, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { BedriftskundeForm } from '@/components/BedriftskundeForm';
+import { BeställningarDialog } from '@/components/BeställningarDialog';
 import { useBedriftskunder, Bedriftskunde } from '@/hooks/useBedriftskunder';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -44,6 +45,7 @@ export default function Bedriftskunder() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedKund, setSelectedKund] = useState<Bedriftskunde | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [beställningarDialogOpen, setBeställningarDialogOpen] = useState(false);
 
   if (userRole !== 'admin') {
     return (
@@ -73,6 +75,11 @@ export default function Bedriftskunder() {
   const handleView = (kund: Bedriftskunde) => {
     setSelectedKund(kund);
     setViewDialogOpen(true);
+  };
+
+  const handleViewBeställningar = (kund: Bedriftskunde) => {
+    setSelectedKund(kund);
+    setBeställningarDialogOpen(true);
   };
 
   const handleDeleteClick = (kund: Bedriftskunde) => {
@@ -155,7 +162,16 @@ export default function Bedriftskunder() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => handleViewBeställningar(kund)}
+                          title="Visa beställningar"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleView(kund)}
+                          title="Visa detaljer"
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -163,6 +179,7 @@ export default function Bedriftskunder() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEdit(kund)}
+                          title="Redigera"
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -170,6 +187,7 @@ export default function Bedriftskunder() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeleteClick(kund)}
+                          title="Ta bort"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -224,6 +242,14 @@ export default function Bedriftskunder() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {selectedKund && (
+        <BeställningarDialog
+          open={beställningarDialogOpen}
+          onOpenChange={setBeställningarDialogOpen}
+          bedriftskunde={selectedKund}
+        />
+      )}
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>

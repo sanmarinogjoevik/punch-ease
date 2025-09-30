@@ -28,6 +28,8 @@ export interface CreateBeställning {
 export const useBeställningar = () => {
   const [beställningar, setBeställningar] = useState<Beställning[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [companyBeställningar, setCompanyBeställningar] = useState<Beställning[]>([]);
+  const [isLoadingCompany, setIsLoadingCompany] = useState(false);
   const { toast } = useToast();
   const { user, userRole } = useAuth();
 
@@ -149,6 +151,61 @@ export const useBeställningar = () => {
     }
   };
 
+  const fetchBeställningarByBedriftskunde = async (bedriftskundeId: string) => {
+    try {
+      setIsLoadingCompany(true);
+      
+      const { data, error } = await supabase
+        .from('beställningar')
+        .select(`
+          *,
+          bedriftskunder (firmanamn, orgnr)
+        `)
+        .eq('bedriftskunde_id', bedriftskundeId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      // Fetch profiles separately
+      if (data && data.length > 0) {
+        const uniqueUserIds = [...new Set(data.map(b => b.created_by))];
+        
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, first_name, last_name')
+          .in('user_id', uniqueUserIds);
+        
+        const profileMap = new Map(
+          (profiles || []).map(p => [p.user_id, p])
+        );
+        
+        const beställningarWithProfiles = data.map(beställning => {
+          const profile = profileMap.get(beställning.created_by);
+          return {
+            ...beställning,
+            profiles: profile ? {
+              first_name: profile.first_name || '',
+              last_name: profile.last_name || ''
+            } : undefined
+          };
+        });
+        
+        setCompanyBeställningar(beställningarWithProfiles);
+      } else {
+        setCompanyBeställningar([]);
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Fel",
+        description: error.message || "Kunde inte hämta beställningar"
+      });
+      setCompanyBeställningar([]);
+    } finally {
+      setIsLoadingCompany(false);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       fetchBeställningar();
@@ -177,8 +234,11 @@ export const useBeställningar = () => {
   return {
     beställningar,
     isLoading,
+    companyBeställningar,
+    isLoadingCompany,
     createBeställning,
     deleteBeställning,
+    fetchBeställningarByBedriftskunde,
     refetch: fetchBeställningar
   };
 };
