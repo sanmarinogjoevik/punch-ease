@@ -185,6 +185,11 @@ export const useBeställningar = () => {
 
 // Separate function for fetching company-specific orders
 export const fetchBeställningarByBedriftskunde = async (bedriftskundeId: string): Promise<Beställning[]> => {
+  if (!bedriftskundeId) {
+    console.error('Invalid bedriftskundeId provided');
+    return [];
+  }
+
   try {
     const { data, error } = await supabase
       .from('beställningar')
@@ -195,7 +200,10 @@ export const fetchBeställningarByBedriftskunde = async (bedriftskundeId: string
       .eq('bedriftskunde_id', bedriftskundeId)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching beställningar:', error);
+      throw error;
+    }
     
     // Fetch profiles separately
     if (data && data.length > 0) {
@@ -226,7 +234,7 @@ export const fetchBeställningarByBedriftskunde = async (bedriftskundeId: string
     
     return [];
   } catch (error) {
-    console.error('Error fetching company orders:', error);
+    console.error('Unexpected error in fetchBeställningarByBedriftskunde:', error);
     return [];
   }
 };

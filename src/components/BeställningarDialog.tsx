@@ -35,11 +35,17 @@ export function BeställningarDialog({
   const [isLoadingCompany, setIsLoadingCompany] = useState(false);
 
   useEffect(() => {
-    if (open && bedriftskunde) {
+    if (open && bedriftskunde?.id) {
       setIsLoadingCompany(true);
       fetchBeställningarByBedriftskunde(bedriftskunde.id)
         .then(setCompanyBeställningar)
+        .catch((error) => {
+          console.error('Error fetching beställningar:', error);
+          setCompanyBeställningar([]);
+        })
         .finally(() => setIsLoadingCompany(false));
+    } else if (!open) {
+      setCompanyBeställningar([]);
     }
   }, [open, bedriftskunde]);
 

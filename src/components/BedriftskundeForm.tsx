@@ -1,6 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -53,6 +54,18 @@ export function BedriftskundeForm({
       epost: '',
     },
   });
+
+  useEffect(() => {
+    if (open) {
+      reset(initialData || {
+        firmanamn: '',
+        orgnr: '',
+        adress: '',
+        telefon: '',
+        epost: '',
+      });
+    }
+  }, [open, initialData, reset]);
 
   const handleFormSubmit = async (data: BedriftskundeFormData) => {
     const result = await onSubmit(data);
