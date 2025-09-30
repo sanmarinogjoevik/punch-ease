@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { FileText } from 'lucide-react';
@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useBeställningar } from '@/hooks/useBeställningar';
+import { fetchBeställningarByBedriftskunde, Beställning } from '@/hooks/useBeställningar';
 import { Bedriftskunde } from '@/hooks/useBedriftskunder';
 
 interface BeställningarDialogProps {
@@ -31,13 +31,17 @@ export function BeställningarDialog({
   onOpenChange,
   bedriftskunde,
 }: BeställningarDialogProps) {
-  const { companyBeställningar, isLoadingCompany, fetchBeställningarByBedriftskunde } = useBeställningar();
+  const [companyBeställningar, setCompanyBeställningar] = useState<Beställning[]>([]);
+  const [isLoadingCompany, setIsLoadingCompany] = useState(false);
 
   useEffect(() => {
     if (open && bedriftskunde) {
-      fetchBeställningarByBedriftskunde(bedriftskunde.id);
+      setIsLoadingCompany(true);
+      fetchBeställningarByBedriftskunde(bedriftskunde.id)
+        .then(setCompanyBeställningar)
+        .finally(() => setIsLoadingCompany(false));
     }
-  }, [open, bedriftskunde, fetchBeställningarByBedriftskunde]);
+  }, [open, bedriftskunde]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
