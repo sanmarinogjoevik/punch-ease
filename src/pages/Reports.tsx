@@ -110,12 +110,12 @@ export default function Reports() {
   // Enable real-time subscription
   useShiftsSubscription();
 
-  // Fetch temperature logs on tab change
+  // Fetch temperature logs only when tab is opened, not when filters change
   useEffect(() => {
     if (activeTab === 'temperatur') {
       fetchTemperatureLogs(tempStartDate, tempEndDate + 'T23:59:59', tempEquipment === 'all' ? undefined : tempEquipment);
     }
-  }, [activeTab, fetchTemperatureLogs]);
+  }, [activeTab]); // Only depend on activeTab, not the filter values
 
   const loading = employeesLoading || shiftsLoading;
 

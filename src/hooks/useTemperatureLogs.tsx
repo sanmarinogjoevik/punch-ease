@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface TemperatureLog {
@@ -27,7 +27,7 @@ export const useTemperatureLogs = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTemperatureLogs = async (startDate?: string, endDate?: string, equipmentName?: string) => {
+  const fetchTemperatureLogs = useCallback(async (startDate?: string, endDate?: string, equipmentName?: string) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -53,24 +53,31 @@ export const useTemperatureLogs = () => {
 
       if (error) throw error;
       
-      // Get employee names separately
-      const logsWithProfiles = await Promise.all(
-        (data || []).map(async (log) => {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('first_name, last_name')
-            .eq('user_id', log.employee_id)
-            .single();
-          
-          return {
-            ...log,
-            profiles: profile ? {
-              first_name: profile.first_name || '',
-              last_name: profile.last_name || ''
-            } : undefined
-          };
-        })
+      // Get unique employee IDs to batch fetch profiles
+      const uniqueEmployeeIds = [...new Set((data || []).map(log => log.employee_id))];
+      
+      // Batch fetch all profiles at once
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, first_name, last_name')
+        .in('user_id', uniqueEmployeeIds);
+      
+      // Create a map for quick lookup
+      const profileMap = new Map(
+        (profiles || []).map(p => [p.user_id, p])
       );
+      
+      // Attach profiles to logs using the map
+      const logsWithProfiles = (data || []).map(log => {
+        const profile = profileMap.get(log.employee_id);
+        return {
+          ...log,
+          profiles: profile ? {
+            first_name: profile.first_name || '',
+            last_name: profile.last_name || ''
+          } : undefined
+        };
+      });
       
       setTemperatureLogs(logsWithProfiles);
     } catch (err) {
@@ -79,7 +86,7 @@ export const useTemperatureLogs = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const createTemperatureLog = async (logData: CreateTemperatureLog) => {
     try {
@@ -126,7 +133,7 @@ export const useTemperatureLogs = () => {
     }
   };
 
-  const getTodaysLogs = async () => {
+  const getTodaysLogs = useCallback(async () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -136,11 +143,11 @@ export const useTemperatureLogs = () => {
       today.toISOString(),
       tomorrow.toISOString()
     );
-  };
+  }, [fetchTemperatureLogs]);
 
   useEffect(() => {
     getTodaysLogs();
-  }, []);
+  }, [getTodaysLogs]);
 
   return {
     temperatureLogs,
