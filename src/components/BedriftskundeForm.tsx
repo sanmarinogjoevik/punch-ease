@@ -18,6 +18,8 @@ const bedriftskundeSchema = z.object({
   firmanamn: z.string().min(1, 'Firmanamn är obligatoriskt'),
   orgnr: z.string().min(6, 'Organisationsnummer är obligatoriskt'),
   adress: z.string().min(1, 'Adress är obligatoriskt'),
+  postnummer: z.string().optional(),
+  stad: z.string().optional(),
   telefon: z.string().optional(),
   epost: z.string().email('Ogiltig e-postadress').optional().or(z.literal('')),
 });
@@ -50,6 +52,8 @@ export function BedriftskundeForm({
       firmanamn: '',
       orgnr: '',
       adress: '',
+      postnummer: '',
+      stad: '',
       telefon: '',
       epost: '',
     },
@@ -61,6 +65,8 @@ export function BedriftskundeForm({
         firmanamn: '',
         orgnr: '',
         adress: '',
+        postnummer: '',
+        stad: '',
         telefon: '',
         epost: '',
       });
@@ -117,11 +123,37 @@ export function BedriftskundeForm({
             <Input
               id="adress"
               {...register('adress')}
-              placeholder="Ex: Storgatan 1, 123 45 Stockholm"
+              placeholder="Ex: Storgatan 1"
             />
             {errors.adress && (
               <p className="text-sm text-destructive">{errors.adress.message}</p>
             )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="postnummer">Postnummer</Label>
+              <Input
+                id="postnummer"
+                {...register('postnummer')}
+                placeholder="Ex: 123 45"
+              />
+              {errors.postnummer && (
+                <p className="text-sm text-destructive">{errors.postnummer.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="stad">Stad</Label>
+              <Input
+                id="stad"
+                {...register('stad')}
+                placeholder="Ex: Stockholm"
+              />
+              {errors.stad && (
+                <p className="text-sm text-destructive">{errors.stad.message}</p>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">
