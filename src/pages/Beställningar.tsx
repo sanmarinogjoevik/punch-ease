@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ShoppingCart, Plus, Trash2 } from 'lucide-react';
+import { ShoppingCart, Plus, Trash2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -35,7 +35,7 @@ import { sv } from 'date-fns/locale';
 
 export default function Beställningar() {
   const { userRole } = useAuth();
-  const { beställningar, isLoading, createBeställning, deleteBeställning } =
+  const { beställningar, isLoading, createBeställning, updateBeställning, deleteBeställning } =
     useBeställningar();
   const { bedriftskunder } = useBedriftskunder();
 
@@ -43,9 +43,26 @@ export default function Beställningar() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedBeställning, setSelectedBeställning] =
     useState<Beställning | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   const handleCreate = () => {
+    setIsEditing(false);
+    setSelectedBeställning(null);
     setFormOpen(true);
+  };
+
+  const handleEdit = (beställning: Beställning) => {
+    setIsEditing(true);
+    setSelectedBeställning(beställning);
+    setFormOpen(true);
+  };
+
+  const handleFormSubmit = async (data: any) => {
+    if (isEditing && selectedBeställning) {
+      return await updateBeställning(selectedBeställning.id, data);
+    } else {
+      return await createBeställning(data);
+    }
   };
 
   const handleDeleteClick = (beställning: Beställning) => {
@@ -151,15 +168,24 @@ export default function Beställningar() {
                     </TableCell>
                     {userRole === 'admin' && (
                       <TableCell className="text-right">
-                        {canDelete(beställning) && (
+                        <div className="flex justify-end gap-2">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteClick(beställning)}
+                            onClick={() => handleEdit(beställning)}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Pencil className="h-4 w-4" />
                           </Button>
-                        )}
+                          {canDelete(beställning) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteClick(beställning)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
@@ -173,8 +199,10 @@ export default function Beställningar() {
       <BeställningForm
         open={formOpen}
         onOpenChange={setFormOpen}
-        onSubmit={createBeställning}
+        onSubmit={handleFormSubmit}
         bedriftskunder={bedriftskunder}
+        initialData={isEditing ? selectedBeställning || undefined : undefined}
+        isEdit={isEditing}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

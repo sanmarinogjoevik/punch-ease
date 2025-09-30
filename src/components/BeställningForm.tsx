@@ -1,6 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Bedriftskunde } from '@/hooks/useBedriftskunder';
+import { Beställning } from '@/hooks/useBeställningar';
 
 const beställningSchema = z.object({
   bedriftskunde_id: z.string().min(1, 'Välj en bedriftskunde'),
@@ -35,6 +37,8 @@ interface BeställningFormProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: BeställningFormData) => Promise<{ success: boolean }>;
   bedriftskunder: Bedriftskunde[];
+  initialData?: Beställning;
+  isEdit?: boolean;
 }
 
 export function BeställningForm({
@@ -42,6 +46,8 @@ export function BeställningForm({
   onOpenChange,
   onSubmit,
   bedriftskunder,
+  initialData,
+  isEdit = false,
 }: BeställningFormProps) {
   const {
     register,
@@ -52,13 +58,38 @@ export function BeställningForm({
     formState: { errors, isSubmitting },
   } = useForm<BeställningFormData>({
     resolver: zodResolver(beställningSchema),
-    defaultValues: {
+    defaultValues: initialData ? {
+      bedriftskunde_id: initialData.bedriftskunde_id,
+      beskrivning: initialData.beskrivning,
+      referanse: initialData.referanse || '',
+      telefon: initialData.telefon || '',
+    } : {
       bedriftskunde_id: '',
       beskrivning: '',
       referanse: '',
       telefon: '',
     },
   });
+
+  useEffect(() => {
+    if (open) {
+      if (initialData) {
+        reset({
+          bedriftskunde_id: initialData.bedriftskunde_id,
+          beskrivning: initialData.beskrivning,
+          referanse: initialData.referanse || '',
+          telefon: initialData.telefon || '',
+        });
+      } else {
+        reset({
+          bedriftskunde_id: '',
+          beskrivning: '',
+          referanse: '',
+          telefon: '',
+        });
+      }
+    }
+  }, [open, initialData, reset]);
 
   const selectedBedriftskunde = watch('bedriftskunde_id');
 
@@ -74,9 +105,11 @@ export function BeställningForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Ny beställning</DialogTitle>
+          <DialogTitle>
+            {isEdit ? 'Redigera beställning' : 'Ny beställning'}
+          </DialogTitle>
           <DialogDescription>
-            Skapa en beställning kopplad till en bedriftskunde
+            {isEdit ? 'Uppdatera beställningsinformation' : 'Skapa en beställning kopplad till en bedriftskunde'}
           </DialogDescription>
         </DialogHeader>
 
@@ -157,7 +190,7 @@ export function BeställningForm({
               Avbryt
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Skapar...' : 'Skapa beställning'}
+              {isSubmitting ? 'Sparar...' : isEdit ? 'Uppdatera' : 'Skapa beställning'}
             </Button>
           </div>
         </form>

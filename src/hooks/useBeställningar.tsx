@@ -127,6 +127,32 @@ export const useBeställningar = () => {
     }
   };
 
+  const updateBeställning = async (id: string, data: Partial<CreateBeställning>) => {
+    try {
+      const { error } = await supabase
+        .from('beställningar')
+        .update(data)
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Framgång",
+        description: "Beställning uppdaterad"
+      });
+
+      fetchBeställningar();
+      return { success: true };
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Fel",
+        description: error.message || "Kunde inte uppdatera beställning"
+      });
+      return { success: false };
+    }
+  };
+
   const deleteBeställning = async (id: string) => {
     try {
       const { error } = await supabase
@@ -182,6 +208,7 @@ export const useBeställningar = () => {
     beställningar,
     isLoading,
     createBeställning,
+    updateBeställning,
     deleteBeställning,
     refetch: fetchBeställningar
   };
