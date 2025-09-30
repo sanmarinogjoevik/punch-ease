@@ -20,6 +20,7 @@ const bedriftskundeSchema = z.object({
   adress: z.string().min(1, 'Adress är obligatoriskt'),
   postnummer: z.string().optional(),
   stad: z.string().optional(),
+  postboks: z.string().optional(),
   telefon: z.string().optional(),
   epost: z.string().email('Ogiltig e-postadress').optional().or(z.literal('')),
 });
@@ -54,6 +55,7 @@ export function BedriftskundeForm({
       adress: '',
       postnummer: '',
       stad: '',
+      postboks: '',
       telefon: '',
       epost: '',
     },
@@ -67,6 +69,7 @@ export function BedriftskundeForm({
         adress: '',
         postnummer: '',
         stad: '',
+        postboks: '',
         telefon: '',
         epost: '',
       });
@@ -154,6 +157,18 @@ export function BedriftskundeForm({
                 <p className="text-sm text-destructive">{errors.stad.message}</p>
               )}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="postboks">Postboks</Label>
+            <Input
+              id="postboks"
+              {...register('postboks')}
+              placeholder="Ex: Postboks 123"
+            />
+            {errors.postboks && (
+              <p className="text-sm text-destructive">{errors.postboks.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">

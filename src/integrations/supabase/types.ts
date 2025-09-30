@@ -22,6 +22,7 @@ export type Database = {
           firmanamn: string
           id: string
           orgnr: string
+          postboks: string | null
           postnummer: string | null
           stad: string | null
           telefon: string | null
@@ -34,6 +35,7 @@ export type Database = {
           firmanamn: string
           id?: string
           orgnr: string
+          postboks?: string | null
           postnummer?: string | null
           stad?: string | null
           telefon?: string | null
@@ -46,6 +48,7 @@ export type Database = {
           firmanamn?: string
           id?: string
           orgnr?: string
+          postboks?: string | null
           postnummer?: string | null
           stad?: string | null
           telefon?: string | null
