@@ -7,6 +7,8 @@ export interface Beställning {
   id: string;
   bedriftskunde_id: string;
   beskrivning: string;
+  referanse?: string;
+  telefon?: string;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -23,6 +25,8 @@ export interface Beställning {
 export interface CreateBeställning {
   bedriftskunde_id: string;
   beskrivning: string;
+  referanse?: string;
+  telefon?: string;
 }
 
 export const useBeställningar = () => {

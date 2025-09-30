@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -23,6 +24,8 @@ import { Bedriftskunde } from '@/hooks/useBedriftskunder';
 const beställningSchema = z.object({
   bedriftskunde_id: z.string().min(1, 'Välj en bedriftskunde'),
   beskrivning: z.string().min(1, 'Beskrivning är obligatoriskt'),
+  referanse: z.string().optional(),
+  telefon: z.string().optional(),
 });
 
 type BeställningFormData = z.infer<typeof beställningSchema>;
@@ -52,6 +55,8 @@ export function BeställningForm({
     defaultValues: {
       bedriftskunde_id: '',
       beskrivning: '',
+      referanse: '',
+      telefon: '',
     },
   });
 
@@ -96,6 +101,34 @@ export function BeställningForm({
             {errors.bedriftskunde_id && (
               <p className="text-sm text-destructive">
                 {errors.bedriftskunde_id.message}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="referanse">Referanse</Label>
+            <Input
+              id="referanse"
+              {...register('referanse')}
+              placeholder="Ex: Anna Svensson"
+            />
+            {errors.referanse && (
+              <p className="text-sm text-destructive">
+                {errors.referanse.message}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="telefon">Telefonnummer</Label>
+            <Input
+              id="telefon"
+              {...register('telefon')}
+              placeholder="Ex: 070-123 45 67"
+            />
+            {errors.telefon && (
+              <p className="text-sm text-destructive">
+                {errors.telefon.message}
               </p>
             )}
           </div>

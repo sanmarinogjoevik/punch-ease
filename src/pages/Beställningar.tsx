@@ -109,6 +109,8 @@ export default function Beställningar() {
                 <TableRow>
                   <TableHead>Bedriftskunde</TableHead>
                   <TableHead>Beskrivning</TableHead>
+                  <TableHead>Referanse</TableHead>
+                  <TableHead>Telefon</TableHead>
                   {userRole === 'admin' && <TableHead>Skapad av</TableHead>}
                   <TableHead>Datum</TableHead>
                   {userRole === 'admin' && (
@@ -127,6 +129,12 @@ export default function Beställningar() {
                     </TableCell>
                     <TableCell className="max-w-md">
                       <div className="truncate">{beställning.beskrivning}</div>
+                    </TableCell>
+                    <TableCell>
+                      {beställning.referanse || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {beställning.telefon || '-'}
                     </TableCell>
                     {userRole === 'admin' && (
                       <TableCell>
