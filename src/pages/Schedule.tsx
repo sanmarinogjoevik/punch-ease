@@ -31,6 +31,7 @@ interface Shift {
   end_time: string;
   location: string | null;
   notes: string | null;
+  auto_punch_in: boolean;
   profiles: {
     first_name: string | null;
     last_name: string | null;
@@ -51,6 +52,7 @@ const Schedule = () => {
     start_time: string;
     end_time: string;
     hours: number;
+    auto_punch_in: boolean;
   }>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -137,17 +139,26 @@ const Schedule = () => {
       employee_id: '',
       start_time: '09:00',
       end_time: '17:00',
-      hours: 8
+      hours: 8,
+      auto_punch_in: true
     }]);
   };
 
   const updateEmployeeShift = (index: number, field: string, value: string) => {
     setEmployeeShifts(prev => {
       const updated = [...prev];
-      updated[index] = {
-        ...updated[index],
-        [field]: value
-      };
+      
+      if (field === 'auto_punch_in') {
+        updated[index] = {
+          ...updated[index],
+          auto_punch_in: value === 'true'
+        };
+      } else {
+        updated[index] = {
+          ...updated[index],
+          [field]: value
+        };
+      }
       
       // Recalculate hours if times changed
       if (field === 'start_time' || field === 'end_time') {
@@ -180,7 +191,8 @@ const Schedule = () => {
             start_time: startDateTime.toISOString(),
             end_time: endDateTime.toISOString(),
             location: null,
-            notes: null
+            notes: null,
+            auto_punch_in: shift.auto_punch_in
           };
         });
 
@@ -471,6 +483,19 @@ const Schedule = () => {
                             <span className="font-medium">{shift.hours}h</span>
                           </div>
                         </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`auto-punch-${index}`}
+                          checked={shift.auto_punch_in}
+                          onChange={(e) => updateEmployeeShift(index, 'auto_punch_in', e.target.checked.toString())}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        <Label htmlFor={`auto-punch-${index}`} className="text-sm font-normal cursor-pointer">
+                          Automatisk punch-in
+                        </Label>
                       </div>
                       
                       {employee && (

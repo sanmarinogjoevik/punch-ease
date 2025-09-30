@@ -11,6 +11,7 @@ export function PunchClock() {
   const [isPunchedIn, setIsPunchedIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [lastPunchTime, setLastPunchTime] = useState<Date | null>(null);
+  const [isAutomatic, setIsAutomatic] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -38,6 +39,7 @@ export function PunchClock() {
         const lastEntry = data[0];
         setIsPunchedIn(lastEntry.entry_type === 'punch_in');
         setLastPunchTime(new Date(lastEntry.timestamp));
+        setIsAutomatic(lastEntry.is_automatic || false);
       }
     } catch (error) {
       console.error('Error checking punch status:', error);
@@ -96,6 +98,11 @@ export function PunchClock() {
         {lastPunchTime && (
           <div className="text-sm text-muted-foreground">
             Siste registrering: {lastPunchTime.toLocaleString('nb-NO')}
+            {isAutomatic && isPunchedIn && (
+              <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-1 rounded">
+                Automatisk
+              </span>
+            )}
           </div>
         )}
 

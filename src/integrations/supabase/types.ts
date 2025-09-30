@@ -213,6 +213,7 @@ export type Database = {
       }
       shifts: {
         Row: {
+          auto_punch_in: boolean
           created_at: string
           employee_id: string
           end_time: string
@@ -223,6 +224,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auto_punch_in?: boolean
           created_at?: string
           employee_id: string
           end_time: string
@@ -233,6 +235,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auto_punch_in?: boolean
           created_at?: string
           employee_id?: string
           end_time?: string
@@ -283,6 +286,7 @@ export type Database = {
           employee_id: string
           entry_type: Database["public"]["Enums"]["entry_type"]
           id: string
+          is_automatic: boolean
           timestamp: string
         }
         Insert: {
@@ -290,6 +294,7 @@ export type Database = {
           employee_id: string
           entry_type: Database["public"]["Enums"]["entry_type"]
           id?: string
+          is_automatic?: boolean
           timestamp?: string
         }
         Update: {
@@ -297,6 +302,7 @@ export type Database = {
           employee_id?: string
           entry_type?: Database["public"]["Enums"]["entry_type"]
           id?: string
+          is_automatic?: boolean
           timestamp?: string
         }
         Relationships: []
