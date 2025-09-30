@@ -16,6 +16,8 @@ import TemperatureLog from "./pages/TemperatureLog";
 import Timeliste from "./pages/Timeliste";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import Bedriftskunder from "./pages/Bedriftskunder";
+import Beställningar from "./pages/Beställningar";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -72,6 +74,8 @@ function AppRoutes() {
         <Route path="timesheet" element={<TimeEntries />} />
         <Route path="temperature-log" element={<TemperatureLog />} />
         <Route path="timeliste" element={<Timeliste />} />
+        <Route path="bedriftskunder" element={<Bedriftskunder />} />
+        <Route path="beställningar" element={<Beställningar />} />
         <Route path="employees" element={<Employees />} />
         <Route path="reports" element={<Reports />} />
         <Route path="settings" element={<Settings />} />

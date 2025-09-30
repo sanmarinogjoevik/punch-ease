@@ -14,6 +14,74 @@ export type Database = {
   }
   public: {
     Tables: {
+      bedriftskunder: {
+        Row: {
+          adress: string
+          created_at: string
+          epost: string | null
+          firmanamn: string
+          id: string
+          orgnr: string
+          telefon: string | null
+          updated_at: string
+        }
+        Insert: {
+          adress: string
+          created_at?: string
+          epost?: string | null
+          firmanamn: string
+          id?: string
+          orgnr: string
+          telefon?: string | null
+          updated_at?: string
+        }
+        Update: {
+          adress?: string
+          created_at?: string
+          epost?: string | null
+          firmanamn?: string
+          id?: string
+          orgnr?: string
+          telefon?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      beställningar: {
+        Row: {
+          bedriftskunde_id: string
+          beskrivning: string
+          created_at: string
+          created_by: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          bedriftskunde_id: string
+          beskrivning: string
+          created_at?: string
+          created_by: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          bedriftskunde_id?: string
+          beskrivning?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "beställningar_bedriftskunde_id_fkey"
+            columns: ["bedriftskunde_id"]
+            isOneToOne: false
+            referencedRelation: "bedriftskunder"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_settings: {
         Row: {
           address: string | null

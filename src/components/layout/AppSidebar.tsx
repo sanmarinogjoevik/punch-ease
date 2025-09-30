@@ -1,4 +1,4 @@
-import { Home, Calendar, Clock, Users, BarChart3, Shield, Settings, Thermometer } from 'lucide-react';
+import { Home, Calendar, Clock, Users, BarChart3, Shield, Settings, Thermometer, Building2, ShoppingCart } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Sidebar,
@@ -39,12 +39,23 @@ export function AppSidebar() {
     { title: 'Vaktliste', url: '/schedule', icon: Calendar },
     { title: 'Tidsregistrering', url: '/timesheet', icon: Clock },
     { title: 'Temperaturlogg', url: '/temperature-log', icon: Thermometer },
+    { title: 'Bedriftskunde', url: '/bedriftskunder', icon: Building2 },
+    { title: 'Beställning', url: '/beställningar', icon: ShoppingCart },
     { title: 'Ansatte', url: '/employees', icon: Users },
     { title: 'Rapporter', url: '/reports', icon: BarChart3 },
     { title: 'Inställningar', url: '/settings', icon: Settings },
   ];
 
-  const items = userRole === 'admin' ? adminItems : employeeItems;
+  const employeeItemsWithOrders = [
+    { title: 'Dashboard', url: '/', icon: Home },
+    { title: 'Min Plan', url: '/my-schedule', icon: Calendar },
+    { title: 'Tidsregistrering', url: '/timesheet', icon: Clock },
+    { title: 'Temperaturlogg', url: '/temperature-log', icon: Thermometer },
+    { title: 'Beställning', url: '/beställningar', icon: ShoppingCart },
+    { title: 'Timeliste', url: '/timeliste', icon: BarChart3 },
+  ];
+
+  const items = userRole === 'admin' ? adminItems : employeeItemsWithOrders;
 
   return (
     <Sidebar 
