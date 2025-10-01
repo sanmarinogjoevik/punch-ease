@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,8 @@ export function BedriftskundeForm({
   initialData,
   isEdit = false,
 }: BedriftskundeFormProps) {
+  const isMobile = useIsMobile();
+  
   const {
     register,
     handleSubmit,
@@ -86,7 +89,7 @@ export function BedriftskundeForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className={`sm:max-w-[500px] ${isMobile ? 'max-h-[70vh]' : 'max-h-[90vh]'} overflow-y-auto`}>
         <DialogHeader>
           <DialogTitle>
             {isEdit ? 'Redigera bedriftskunde' : 'Ny bedriftskunde'}
@@ -96,7 +99,7 @@ export function BedriftskundeForm({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 pb-6" style={{ WebkitOverflowScrolling: 'touch' }}>
           <div className="space-y-2">
             <Label htmlFor="firmanamn">Firmanamn *</Label>
             <Input

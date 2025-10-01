@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, Trash2 } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Select,
   SelectContent,
@@ -56,6 +57,8 @@ export function BeställningForm({
   initialData,
   isEdit = false,
 }: BeställningFormProps) {
+  const isMobile = useIsMobile();
+  
   const {
     register,
     handleSubmit,
@@ -128,7 +131,7 @@ export function BeställningForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className={`sm:max-w-[600px] ${isMobile ? 'max-h-[70vh]' : 'max-h-[90vh]'} overflow-y-auto`}>
         <DialogHeader>
           <DialogTitle>
             {isEdit ? 'Redigera beställning' : 'Ny beställning'}
@@ -138,7 +141,7 @@ export function BeställningForm({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 pb-6"  style={{ WebkitOverflowScrolling: 'touch' }}>
           <div className="space-y-2">
             <Label htmlFor="bedriftskunde">Bedriftskunde *</Label>
             <Select
