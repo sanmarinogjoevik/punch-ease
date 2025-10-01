@@ -131,7 +131,7 @@ export function BeställningForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`sm:max-w-[600px] ${isMobile ? 'max-h-[70vh]' : 'max-h-[90vh]'} overflow-y-auto`}>
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>
             {isEdit ? 'Redigera beställning' : 'Ny beställning'}
@@ -141,7 +141,7 @@ export function BeställningForm({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 pb-6"  style={{ WebkitOverflowScrolling: 'touch' }}>
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 pb-8">
           <div className="space-y-2">
             <Label htmlFor="bedriftskunde">Bedriftskunde *</Label>
             <Select

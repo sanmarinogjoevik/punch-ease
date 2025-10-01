@@ -89,7 +89,7 @@ export function BedriftskundeForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`sm:max-w-[500px] ${isMobile ? 'max-h-[70vh]' : 'max-h-[90vh]'} overflow-y-auto`}>
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
             {isEdit ? 'Redigera bedriftskunde' : 'Ny bedriftskunde'}
@@ -99,7 +99,7 @@ export function BedriftskundeForm({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 pb-6" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 pb-8">
           <div className="space-y-2">
             <Label htmlFor="firmanamn">Firmanamn *</Label>
             <Input
