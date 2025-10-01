@@ -302,8 +302,9 @@ export default function Reports() {
 
   const handleEditShift = (shift: any) => {
     setEditingShift(shift);
-    const startTime = format(parseISO(shift.start_time), 'HH:mm');
-    const endTime = format(parseISO(shift.end_time), 'HH:mm');
+    // Extrahera tid direkt från ISO-strängen för att undvika timezone-konvertering
+    const startTime = shift.start_time.substring(11, 16); // "HH:mm" från "YYYY-MM-DDTHH:mm:ss+00:00"
+    const endTime = shift.end_time.substring(11, 16);
     setShiftEditForm({
       start_time: startTime,
       end_time: endTime,
@@ -319,10 +320,11 @@ export default function Reports() {
     setIsSubmitting(true);
     try {
       const startDate = format(parseISO(editingShift.start_time), 'yyyy-MM-dd');
+      // Spara tiderna som UTC för att undvika timezone-konvertering
       await updateShift.mutateAsync({
         id: editingShift.id,
-        start_time: `${startDate}T${shiftEditForm.start_time}:00`,
-        end_time: `${startDate}T${shiftEditForm.end_time}:00`,
+        start_time: `${startDate}T${shiftEditForm.start_time}:00+00:00`,
+        end_time: `${startDate}T${shiftEditForm.end_time}:00+00:00`,
         location: shiftEditForm.location || undefined,
         notes: shiftEditForm.notes || undefined
       });
@@ -910,7 +912,7 @@ export default function Reports() {
                                 <div className="flex items-center gap-1 text-muted-foreground">
                                   <Clock className="w-2 h-2" />
                                   <span className="text-xs">
-                                    {format(parseISO(shift.start_time), 'HH:mm')} - {format(parseISO(shift.end_time), 'HH:mm')}
+                                    {shift.start_time.substring(11, 16)} - {shift.end_time.substring(11, 16)}
                                   </span>
                                 </div>
                                 {shift.location && (
