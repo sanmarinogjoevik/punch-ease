@@ -99,12 +99,15 @@ Deno.serve(async (req) => {
     const logsToCreate = equipment.map(eq => {
       let temperature: number;
       
-      if (eq.type === 'fridge') {
-        // Kyl: -1.0 to 4.0°C
-        temperature = Math.random() * 5 - 1; // Generates -1 to 4
-      } else {
+      if (eq.type === 'refrigerator') {
+        // Kyl: 0.0 to 8.0°C
+        temperature = Math.random() * 8; // Generates 0 to 8
+      } else if (eq.type === 'freezer') {
         // Frys: -22.0 to -18.0°C
         temperature = Math.random() * 4 - 22; // Generates -22 to -18
+      } else {
+        // Default to fridge temperatures for unknown types
+        temperature = Math.random() * 8;
       }
 
       // Round to 1 decimal place
