@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { ShoppingCart, Plus, Trash2, Pencil } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ShoppingCart, Plus, Search, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Card,
   CardContent,
@@ -9,13 +10,12 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,11 +27,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { BeställningForm } from '@/components/BeställningForm';
+import { BeställningCard } from '@/components/BeställningCard';
 import { useBeställningar, Beställning } from '@/hooks/useBeställningar';
 import { useBedriftskunder } from '@/hooks/useBedriftskunder';
 import { useAuth } from '@/hooks/useAuth';
-import { format } from 'date-fns';
-import { sv } from 'date-fns/locale';
 
 export default function Beställningar() {
   const { userRole } = useAuth();
@@ -44,6 +43,9 @@ export default function Beställningar() {
   const [selectedBeställning, setSelectedBeställning] =
     useState<Beställning | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('alla');
+  const [sortBy, setSortBy] = useState<'date' | 'pris'>('date');
 
   const handleCreate = () => {
     setIsEditing(false);
@@ -78,13 +80,50 @@ export default function Beställningar() {
     }
   };
 
-  const canDelete = (beställning: Beställning) => {
-    return userRole === 'admin';
-  };
+  const canManage = userRole === 'admin';
+
+  // Filter and sort beställningar
+  const filteredAndSortedBeställningar = useMemo(() => {
+    let filtered = beställningar;
+
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (b) =>
+          b.bedriftskunder?.firmanamn?.toLowerCase().includes(query) ||
+          b.beskrivning?.toLowerCase().includes(query) ||
+          b.referanse?.toLowerCase().includes(query) ||
+          b.bedriftskunder?.orgnr?.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply status filter
+    if (statusFilter !== 'alla') {
+      filtered = filtered.filter((b) => b.status === statusFilter);
+    }
+
+    // Sort
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === 'date') {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      } else if (sortBy === 'pris') {
+        return (b.pris || 0) - (a.pris || 0);
+      }
+      return 0;
+    });
+
+    return sorted;
+  }, [beställningar, searchQuery, statusFilter, sortBy]);
+
+  // Calculate total price
+  const totalPris = useMemo(() => {
+    return filteredAndSortedBeställningar.reduce((sum, b) => sum + (b.pris || 0), 0);
+  }, [filteredAndSortedBeställningar]);
 
   return (
     <div className="container mx-auto py-8 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <ShoppingCart className="h-8 w-8" />
@@ -102,96 +141,116 @@ export default function Beställningar() {
         </Button>
       </div>
 
+      {/* Filters and Search */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filter och sök</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="md:col-span-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Sök efter företag, beskrivning, referanse..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            <div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Filtrera status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="alla">Alla status</SelectItem>
+                  <SelectItem value="ej_påbörjad">Ej påbörjad</SelectItem>
+                  <SelectItem value="pågående">Pågående</SelectItem>
+                  <SelectItem value="klar">Klar</SelectItem>
+                  <SelectItem value="levererad">Levererad</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'date' | 'pris')}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sortera efter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">Senaste först</SelectItem>
+                  <SelectItem value="pris">Högsta pris först</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Statistics Card */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Totalt antal</CardDescription>
+            <CardTitle className="text-3xl">{filteredAndSortedBeställningar.length}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Totalt värde</CardDescription>
+            <CardTitle className="text-3xl">{totalPris.toLocaleString('sv-SE')} kr</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Genomsnittligt pris</CardDescription>
+            <CardTitle className="text-3xl">
+              {filteredAndSortedBeställningar.length > 0
+                ? (totalPris / filteredAndSortedBeställningar.length).toLocaleString('sv-SE', {
+                    maximumFractionDigits: 0,
+                  })
+                : 0}{' '}
+              kr
+            </CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
+
+      {/* Beställningar Grid */}
       <Card>
         <CardHeader>
           <CardTitle>
             {userRole === 'admin' ? 'Alla beställningar' : 'Mina beställningar'}
           </CardTitle>
           <CardDescription>
-            {beställningar.length} beställningar
+            {filteredAndSortedBeställningar.length} av {beställningar.length} beställningar
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-12 text-muted-foreground">
               Laddar...
             </div>
-          ) : beställningar.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Inga beställningar än
+          ) : filteredAndSortedBeställningar.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              {searchQuery || statusFilter !== 'alla'
+                ? 'Inga beställningar matchade din sökning'
+                : 'Inga beställningar än'}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Bedriftskunde</TableHead>
-                  <TableHead>Beskrivning</TableHead>
-                  <TableHead>Referanse</TableHead>
-                  <TableHead>Telefon</TableHead>
-                  {userRole === 'admin' && <TableHead>Skapad av</TableHead>}
-                  <TableHead>Datum</TableHead>
-                  {userRole === 'admin' && (
-                    <TableHead className="text-right">Åtgärder</TableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {beställningar.map((beställning) => (
-                  <TableRow key={beställning.id}>
-                    <TableCell className="font-medium">
-                      {beställning.bedriftskunder?.firmanamn || '-'}
-                      <div className="text-xs text-muted-foreground">
-                        {beställning.bedriftskunder?.orgnr || ''}
-                      </div>
-                    </TableCell>
-                    <TableCell className="max-w-md">
-                      <div className="truncate">{beställning.beskrivning}</div>
-                    </TableCell>
-                    <TableCell>
-                      {beställning.referanse || '-'}
-                    </TableCell>
-                    <TableCell>
-                      {beställning.telefon || '-'}
-                    </TableCell>
-                    {userRole === 'admin' && (
-                      <TableCell>
-                        {beställning.profiles?.first_name}{' '}
-                        {beställning.profiles?.last_name}
-                      </TableCell>
-                    )}
-                    <TableCell>
-                      {format(
-                        new Date(beställning.created_at),
-                        'PPP',
-                        { locale: sv }
-                      )}
-                    </TableCell>
-                    {userRole === 'admin' && (
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(beställning)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          {canDelete(beställning) && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteClick(beställning)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredAndSortedBeställningar.map((beställning) => (
+                <BeställningCard
+                  key={beställning.id}
+                  beställning={beställning}
+                  onEdit={canManage ? handleEdit : undefined}
+                  onDelete={canManage ? handleDeleteClick : undefined}
+                  showActions={canManage}
+                />
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

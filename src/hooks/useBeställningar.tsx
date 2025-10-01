@@ -9,6 +9,8 @@ export interface Beställning {
   beskrivning: string;
   referanse?: string;
   telefon?: string;
+  pris?: number;
+  status: string;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -27,6 +29,8 @@ export interface CreateBeställning {
   beskrivning: string;
   referanse?: string;
   telefon?: string;
+  pris?: number;
+  status?: string;
 }
 
 export const useBeställningar = () => {
