@@ -77,7 +77,7 @@ export default function Reports() {
   const [tempEndDate, setTempEndDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [tempEquipment, setTempEquipment] = useState<string>('all');
   
-  // Edit functionality
+  // Edit functionality for timelist
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingDate, setEditingDate] = useState<string>('');
   const [editForm, setEditForm] = useState({
@@ -85,6 +85,16 @@ export default function Reports() {
     punch_out: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Edit functionality for shift list
+  const [showShiftEditDialog, setShowShiftEditDialog] = useState(false);
+  const [editingShift, setEditingShift] = useState<any>(null);
+  const [shiftEditForm, setShiftEditForm] = useState({
+    start_time: '',
+    end_time: '',
+    location: '',
+    notes: ''
+  });
 
   // Calendar view logic - Monthly
   const today = new Date();
@@ -285,6 +295,52 @@ export default function Reports() {
       if (dayShift) {
         await deleteShift.mutateAsync(dayShift.id);
       }
+    } catch (error: any) {
+      console.error('Error deleting shift:', error);
+    }
+  };
+
+  const handleEditShift = (shift: any) => {
+    setEditingShift(shift);
+    const startTime = format(parseISO(shift.start_time), 'HH:mm');
+    const endTime = format(parseISO(shift.end_time), 'HH:mm');
+    setShiftEditForm({
+      start_time: startTime,
+      end_time: endTime,
+      location: shift.location || '',
+      notes: shift.notes || ''
+    });
+    setShowShiftEditDialog(true);
+  };
+
+  const handleUpdateShift = async () => {
+    if (!editingShift) return;
+    
+    setIsSubmitting(true);
+    try {
+      const startDate = format(parseISO(editingShift.start_time), 'yyyy-MM-dd');
+      await updateShift.mutateAsync({
+        id: editingShift.id,
+        start_time: `${startDate}T${shiftEditForm.start_time}:00`,
+        end_time: `${startDate}T${shiftEditForm.end_time}:00`,
+        location: shiftEditForm.location || undefined,
+        notes: shiftEditForm.notes || undefined
+      });
+
+      setShowShiftEditDialog(false);
+      setEditingShift(null);
+    } catch (error: any) {
+      console.error('Error updating shift:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteShift = async (shift: any) => {
+    if (!confirm('Är du säker på att du vill ta bort detta skift?')) return;
+    
+    try {
+      await deleteShift.mutateAsync(shift.id);
     } catch (error: any) {
       console.error('Error deleting shift:', error);
     }
@@ -846,7 +902,7 @@ export default function Reports() {
                             {dayShifts.map((shift) => (
                               <div 
                                 key={shift.id} 
-                                className="bg-primary/10 border border-primary/20 rounded p-1 text-xs"
+                                className="bg-primary/10 border border-primary/20 rounded p-1 text-xs group relative hover:bg-primary/20 transition-colors"
                               >
                                 <div className="font-medium text-xs truncate">
                                   {shift.profiles?.first_name} {shift.profiles?.last_name}
@@ -857,6 +913,37 @@ export default function Reports() {
                                     {format(parseISO(shift.start_time), 'HH:mm')} - {format(parseISO(shift.end_time), 'HH:mm')}
                                   </span>
                                 </div>
+                                {shift.location && (
+                                  <div className="text-xs text-muted-foreground truncate mt-0.5">
+                                    📍 {shift.location}
+                                  </div>
+                                )}
+                                {userRole === 'admin' && (
+                                  <div className="flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-5 px-1 text-xs"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEditShift(shift);
+                                      }}
+                                    >
+                                      <Edit className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-5 px-1 text-xs"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteShift(shift);
+                                      }}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1022,8 +1109,7 @@ export default function Reports() {
         </CardContent>
       </Card>
 
-      {/* Edit Dialog */}
-      {/* Edit Dialog */}
+      {/* Edit Timelist Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1058,6 +1144,84 @@ export default function Reports() {
           <DialogFooter>
             <Button 
               onClick={handleUpdateEntry} 
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Uppdaterar...' : 'Spara ändringar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Shift Dialog */}
+      <Dialog open={showShiftEditDialog} onOpenChange={setShowShiftEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Redigera skift - {editingShift?.profiles?.first_name} {editingShift?.profiles?.last_name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="shift_start" className="text-right">
+                Starttid
+              </Label>
+              <Input
+                id="shift_start"
+                type="time"
+                value={shiftEditForm.start_time}
+                onChange={(e) => setShiftEditForm(prev => ({ ...prev, start_time: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="shift_end" className="text-right">
+                Sluttid
+              </Label>
+              <Input
+                id="shift_end"
+                type="time"
+                value={shiftEditForm.end_time}
+                onChange={(e) => setShiftEditForm(prev => ({ ...prev, end_time: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="shift_location" className="text-right">
+                Plats
+              </Label>
+              <Input
+                id="shift_location"
+                type="text"
+                value={shiftEditForm.location}
+                onChange={(e) => setShiftEditForm(prev => ({ ...prev, location: e.target.value }))}
+                className="col-span-3"
+                placeholder="Frivillig"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="shift_notes" className="text-right">
+                Anteckningar
+              </Label>
+              <Input
+                id="shift_notes"
+                type="text"
+                value={shiftEditForm.notes}
+                onChange={(e) => setShiftEditForm(prev => ({ ...prev, notes: e.target.value }))}
+                className="col-span-3"
+                placeholder="Frivillig"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline"
+              onClick={() => setShowShiftEditDialog(false)}
+              disabled={isSubmitting}
+            >
+              Avbryt
+            </Button>
+            <Button 
+              onClick={handleUpdateShift} 
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Uppdaterar...' : 'Spara ändringar'}
