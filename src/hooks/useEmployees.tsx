@@ -19,14 +19,29 @@ export const employeesKeys = {
   byId: (id: string) => [...employeesKeys.all, id] as const,
 };
 
-// Hook to fetch all employees
+// Hook to fetch all employees (excluding admins)
 export const useEmployees = () => {
   return useQuery({
     queryKey: employeesKeys.all,
     queryFn: async (): Promise<Employee[]> => {
+      // First get all admin user IDs
+      const { data: adminRoles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+
+      if (rolesError) {
+        console.error('Error fetching admin roles:', rolesError.message);
+        throw rolesError;
+      }
+
+      const adminUserIds = adminRoles?.map(role => role.user_id) || [];
+
+      // Then fetch all profiles excluding admins
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
+        .not('user_id', 'in', `(${adminUserIds.join(',')})`)
         .order('first_name', { ascending: true });
 
       if (error) {
