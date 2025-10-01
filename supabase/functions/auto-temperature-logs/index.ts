@@ -119,8 +119,7 @@ Deno.serve(async (req) => {
         employee_id: employeeId,
         equipment_name: eq.name,
         temperature: temperature,
-        timestamp: logTimestamp.toISOString(),
-        notes: 'Automatisk logg'
+        timestamp: logTimestamp.toISOString()
       };
     });
 
