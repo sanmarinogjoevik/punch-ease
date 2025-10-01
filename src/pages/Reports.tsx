@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addWeeks, startOfWeek, startOfDay, subMonths, addMonths, subDays, addDays } from 'date-fns';
 import { nb, sv } from 'date-fns/locale';
 import html2pdf from 'html2pdf.js';
+import { formatDateNorway, formatTimeNorway } from '@/lib/timeUtils';
 
 interface TimeEntry {
   id: string;
@@ -170,9 +171,9 @@ export default function Reports() {
         let hasData = false;
         
         if (dayShift) {
-          // Extrahera tider direkt utan timezone-konvertering (norsk tid)
-          const startTimeStr = dayShift.start_time.substring(11, 16); // "HH:mm"
-          const endTimeStr = dayShift.end_time.substring(11, 16); // "HH:mm"
+          // Konvertera UTC-tider till norsk tid
+          const startTimeStr = formatTimeNorway(dayShift.start_time);
+          const endTimeStr = formatTimeNorway(dayShift.end_time);
           
           // Skapa Date-objekt för jämförelser (baserat på dagens norska datum + tid)
           const [startHour, startMinute] = startTimeStr.split(':').map(Number);
@@ -313,9 +314,9 @@ export default function Reports() {
 
   const handleEditShift = (shift: any) => {
     setEditingShift(shift);
-    // Extrahera tid direkt från ISO-strängen för att undvika timezone-konvertering
-    const startTime = shift.start_time.substring(11, 16); // "HH:mm" från "YYYY-MM-DDTHH:mm:ss+00:00"
-    const endTime = shift.end_time.substring(11, 16);
+    // Konvertera UTC-tider till norsk tid för redigering
+    const startTime = formatTimeNorway(shift.start_time);
+    const endTime = formatTimeNorway(shift.end_time);
     setShiftEditForm({
       start_time: startTime,
       end_time: endTime,
@@ -1088,7 +1089,7 @@ export default function Reports() {
                             {temperatureLogs.map((log) => (
                               <TableRow key={log.id}>
                                 <TableCell>
-                                  {format(new Date(log.timestamp), 'dd/MM/yyyy HH:mm', { locale: sv })}
+                                  {formatDateNorway(log.timestamp)} {formatTimeNorway(log.timestamp)}
                                 </TableCell>
                                 <TableCell>
                                   {log.profiles ? 

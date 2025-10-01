@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { format, parseISO, startOfDay, endOfDay } from "date-fns";
 import { nb } from "date-fns/locale";
+import { formatTimeNorway } from "@/lib/timeUtils";
 
 interface Profile {
   id: string;
@@ -301,7 +302,7 @@ const Admin = () => {
                       {shift.profiles?.first_name} {shift.profiles?.last_name}
                     </p>
                     <p className="text-sm opacity-80">
-                      {shift.start_time.substring(11, 16)} - {shift.end_time.substring(11, 16)}
+                      {formatTimeNorway(shift.start_time)} - {formatTimeNorway(shift.end_time)}
                     </p>
                     {shift.location && (
                       <p className="text-sm opacity-70">📍 {shift.location}</p>
@@ -336,7 +337,7 @@ const Admin = () => {
                     {shift.profiles?.first_name} {shift.profiles?.last_name}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {format(parseISO(shift.start_time), 'EEEE dd MMM', { locale: nb })}, {shift.start_time.substring(11, 16)} - {shift.end_time.substring(11, 16)}
+                    {format(parseISO(shift.start_time), 'EEEE dd MMM', { locale: nb })}, {formatTimeNorway(shift.start_time)} - {formatTimeNorway(shift.end_time)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

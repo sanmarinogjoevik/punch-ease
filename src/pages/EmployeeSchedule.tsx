@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { format, isToday, isTomorrow, isThisWeek, parseISO, isSameDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
 import { Calendar, Clock, MapPin, Users } from 'lucide-react';
-import { extractTime, extractDate, calculateDuration } from '@/lib/timeUtils';
+import { extractDate, calculateDuration, formatTimeNorway, formatInNorway } from '@/lib/timeUtils';
 
 interface Coworker {
   id: string;
@@ -148,7 +148,7 @@ export default function EmployeeSchedule() {
   };
 
   const formatShiftTime = (startTime: string, endTime: string) => {
-    return `${extractTime(startTime)} - ${extractTime(endTime)}`;
+    return `${formatTimeNorway(startTime)} - ${formatTimeNorway(endTime)}`;
   };
 
   const formatShiftDuration = (startTime: string, endTime: string) => {
@@ -169,7 +169,7 @@ export default function EmployeeSchedule() {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">
-            {format(parseISO(shift.start_time), 'EEEE, MMMM dd, yyyy', { locale: nb })}
+            {formatInNorway(shift.start_time, 'EEEE, MMMM dd, yyyy')}
           </CardTitle>
           {getShiftBadge(shift.start_time, isPast)}
         </div>
