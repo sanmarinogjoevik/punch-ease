@@ -133,72 +133,131 @@ Deno.serve(async (req) => {
     // It's closing time! Find all employees who are currently punched in
     console.log('It\'s closing time! Finding all punched-in employees...');
 
-    // Get all employees
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('user_id');
+    // Get all employees who are currently punched in
+    const { data: allTimeEntries, error: entriesError } = await supabase
+      .from('time_entries')
+      .select('employee_id, entry_type, timestamp')
+      .order('timestamp', { ascending: false });
 
-    if (profilesError || !profiles) {
-      console.error('Error fetching profiles:', profilesError);
+    if (entriesError) {
+      console.error('Error fetching time entries:', entriesError);
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch employee profiles' }),
+        JSON.stringify({ error: 'Failed to fetch time entries' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // Group by employee and find latest entry for each
+    const employeeLatestEntries = new Map();
+    allTimeEntries?.forEach(entry => {
+      if (!employeeLatestEntries.has(entry.employee_id)) {
+        employeeLatestEntries.set(entry.employee_id, entry);
+      }
+    });
+
+    // Find employees who are currently punched in
+    const punchedInEmployeeIds: string[] = [];
+    employeeLatestEntries.forEach(entry => {
+      if (entry.entry_type === 'punch_in') {
+        punchedInEmployeeIds.push(entry.employee_id);
+      }
+    });
+
+    console.log('Found', punchedInEmployeeIds.length, 'punched-in employees');
+
+    if (punchedInEmployeeIds.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          message: 'No employees currently punched in',
+          currentTime,
+          closingTime: todayHours.closeTime
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get today's date range for shift check
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    // Get all active shifts for today
+    const { data: todayShifts, error: shiftsError } = await supabase
+      .from('shifts')
+      .select('employee_id, start_time, end_time')
+      .gte('start_time', todayStart.toISOString())
+      .lte('start_time', todayEnd.toISOString());
+
+    if (shiftsError) {
+      console.error('Error fetching shifts:', shiftsError);
+    }
+
+    // Create a set of employee IDs who have shifts today
+    const employeesWithShifts = new Set(todayShifts?.map(shift => shift.employee_id) || []);
+    console.log('Employees with shifts today:', employeesWithShifts.size);
+
     let punchedOutCount = 0;
     let alreadyPunchedOutCount = 0;
+    let noShiftPunchedOut = 0;
 
-    for (const profile of profiles) {
-      // Get the most recent time entry for this employee
-      const { data: latestEntry, error: entryError } = await supabase
-        .from('time_entries')
-        .select('*')
-        .eq('employee_id', profile.user_id)
-        .order('timestamp', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    for (const employeeId of punchedInEmployeeIds) {
+      // Check if employee has a shift today
+      const hasShift = employeesWithShifts.has(employeeId);
 
-      if (entryError) {
-        console.error('Error fetching time entry for employee:', profile.user_id, entryError);
-        continue;
+      // Punch out if: 
+      // 1. It's closing time (shouldPunchOut = true), OR
+      // 2. Employee doesn't have a shift today
+      if (!hasShift) {
+        console.log('Employee', employeeId, 'has NO shift today - auto punching out');
+        
+        const { error: insertError } = await supabase
+          .from('time_entries')
+          .insert({
+            employee_id: employeeId,
+            entry_type: 'punch_out',
+            timestamp: now.toISOString(),
+            is_automatic: true,
+          });
+
+        if (insertError) {
+          console.error('Error creating punch-out for employee:', employeeId, insertError);
+          continue;
+        }
+
+        noShiftPunchedOut++;
+        console.log('Successfully punched out employee (no shift):', employeeId);
+      } else if (shouldPunchOut) {
+        // Employee has a shift but it's closing time
+        console.log('Creating automatic punch-out for employee:', employeeId);
+
+        const { error: insertError } = await supabase
+          .from('time_entries')
+          .insert({
+            employee_id: employeeId,
+            entry_type: 'punch_out',
+            timestamp: now.toISOString(),
+            is_automatic: true,
+          });
+
+        if (insertError) {
+          console.error('Error creating punch-out for employee:', employeeId, insertError);
+          continue;
+        }
+
+        punchedOutCount++;
+        console.log('Successfully punched out employee (closing time):', employeeId);
       }
-
-      // If no entry or last entry is punch_out, skip
-      if (!latestEntry || latestEntry.entry_type === 'punch_out') {
-        console.log('Employee', profile.user_id, 'is already punched out');
-        alreadyPunchedOutCount++;
-        continue;
-      }
-
-      // Employee is punched in, create automatic punch out
-      console.log('Creating automatic punch-out for employee:', profile.user_id);
-
-      const { error: insertError } = await supabase
-        .from('time_entries')
-        .insert({
-          employee_id: profile.user_id,
-          entry_type: 'punch_out',
-          timestamp: now.toISOString(),
-          is_automatic: true,
-        });
-
-      if (insertError) {
-        console.error('Error creating punch-out for employee:', profile.user_id, insertError);
-        continue;
-      }
-
-      punchedOutCount++;
-      console.log('Successfully punched out employee:', profile.user_id);
     }
 
     const result = {
       message: 'Auto punch-out processing complete',
       currentTime,
       closingTime: todayHours.closeTime,
-      employeesChecked: profiles.length,
-      punchedOutCount,
-      alreadyPunchedOutCount,
+      totalPunchedIn: punchedInEmployeeIds.length,
+      punchedOutAtClosing: punchedOutCount,
+      punchedOutNoShift: noShiftPunchedOut,
+      totalPunchedOut: punchedOutCount + noShiftPunchedOut,
       timestamp: now.toISOString(),
     };
 

@@ -55,11 +55,37 @@ export const LivePunchStatus = () => {
         return [];
       }
 
-      // Get profile information for punched in employees
+      // Get today's date range for shift check
+      const now = new Date();
+      const todayStart = new Date(now);
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date(now);
+      todayEnd.setHours(23, 59, 59, 999);
+
+      // Get all active shifts for today
+      const { data: todayShifts, error: shiftsError } = await supabase
+        .from('shifts')
+        .select('employee_id, start_time, end_time')
+        .gte('start_time', todayStart.toISOString())
+        .lte('start_time', todayEnd.toISOString());
+
+      if (shiftsError) {
+        console.error('Error fetching shifts:', shiftsError);
+      }
+
+      // Filter to only include employees who have shifts today
+      const employeesWithShifts = new Set(todayShifts?.map(shift => shift.employee_id) || []);
+      const punchedInWithShifts = punchedInEmployeeIds.filter(id => employeesWithShifts.has(id));
+
+      if (punchedInWithShifts.length === 0) {
+        return [];
+      }
+
+      // Get profile information for punched in employees with shifts
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('user_id, first_name, last_name, email')
-        .in('user_id', punchedInEmployeeIds);
+        .in('user_id', punchedInWithShifts);
 
       if (profilesError) {
         console.error('Error fetching profiles:', profilesError);
