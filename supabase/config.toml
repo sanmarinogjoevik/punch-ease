@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.auto-punch-in]
 verify_jwt = false
+
+[functions.auto-temperature-logs]
+verify_jwt = false
