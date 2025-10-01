@@ -27,7 +27,7 @@ import { Beställning } from '@/hooks/useBeställningar';
 
 const beställningSchema = z.object({
   bedriftskunde_id: z.string().min(1, 'Välj en bedriftskunde'),
-  beskrivning: z.string().min(1, 'Beskrivning är obligatoriskt'),
+  beskrivning: z.string().optional(),
   referanse: z.string().optional(),
   telefon: z.string().optional(),
   varor: z.array(
@@ -197,7 +197,7 @@ export function BeställningForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="beskrivning">Beskrivning *</Label>
+            <Label htmlFor="beskrivning">Beskrivning</Label>
             <Textarea
               id="beskrivning"
               {...register('beskrivning')}
