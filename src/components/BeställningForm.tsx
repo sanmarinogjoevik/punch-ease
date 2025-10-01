@@ -1,4 +1,4 @@
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useEffect } from 'react';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Plus, Trash2 } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -28,8 +29,12 @@ const beställningSchema = z.object({
   beskrivning: z.string().min(1, 'Beskrivning är obligatoriskt'),
   referanse: z.string().optional(),
   telefon: z.string().optional(),
-  pris: z.string().optional(),
-  status: z.string().optional(),
+  varor: z.array(
+    z.object({
+      vara: z.string().min(1, 'Vara är obligatoriskt'),
+      pris: z.string().min(1, 'Pris är obligatoriskt'),
+    })
+  ).min(1, 'Lägg till minst en vara'),
 });
 
 type BeställningFormData = z.infer<typeof beställningSchema>;
@@ -57,36 +62,40 @@ export function BeställningForm({
     reset,
     setValue,
     watch,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<BeställningFormData>({
     resolver: zodResolver(beställningSchema),
-    defaultValues: initialData ? {
-      bedriftskunde_id: initialData.bedriftskunde_id,
-      beskrivning: initialData.beskrivning,
-      referanse: initialData.referanse || '',
-      telefon: initialData.telefon || '',
-      pris: initialData.pris?.toString() || '',
-      status: initialData.status || 'ej_påbörjad',
-    } : {
+    defaultValues: {
       bedriftskunde_id: '',
       beskrivning: '',
       referanse: '',
       telefon: '',
-      pris: '',
-      status: 'ej_påbörjad',
+      varor: [{ vara: '', pris: '' }],
     },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'varor',
   });
 
   useEffect(() => {
     if (open) {
       if (initialData) {
+        const varor = initialData.varor && Array.isArray(initialData.varor) && initialData.varor.length > 0
+          ? initialData.varor.map((v: any) => ({
+              vara: v.vara || '',
+              pris: v.pris?.toString() || '',
+            }))
+          : [{ vara: '', pris: '' }];
+
         reset({
           bedriftskunde_id: initialData.bedriftskunde_id,
           beskrivning: initialData.beskrivning,
           referanse: initialData.referanse || '',
           telefon: initialData.telefon || '',
-          pris: initialData.pris?.toString() || '',
-          status: initialData.status || 'ej_påbörjad',
+          varor,
         });
       } else {
         reset({
@@ -94,21 +103,22 @@ export function BeställningForm({
           beskrivning: '',
           referanse: '',
           telefon: '',
-          pris: '',
-          status: 'ej_påbörjad',
+          varor: [{ vara: '', pris: '' }],
         });
       }
     }
   }, [open, initialData, reset]);
 
   const selectedBedriftskunde = watch('bedriftskunde_id');
-  const selectedStatus = watch('status');
 
   const handleFormSubmit = async (data: BeställningFormData) => {
     const submitData = {
       ...data,
-      pris: data.pris ? parseFloat(data.pris) : undefined,
-      status: data.status || 'ej_påbörjad',
+      varor: data.varor.map(v => ({
+        vara: v.vara,
+        pris: parseFloat(v.pris),
+      })),
+      status: initialData?.status || 'ej_påbörjad',
     };
     const result = await onSubmit(submitData);
     if (result.success) {
@@ -119,7 +129,7 @@ export function BeställningForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEdit ? 'Redigera beställning' : 'Ny beställning'}
@@ -154,32 +164,34 @@ export function BeställningForm({
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="referanse">Referanse</Label>
-            <Input
-              id="referanse"
-              {...register('referanse')}
-              placeholder="Ex: Anna Svensson"
-            />
-            {errors.referanse && (
-              <p className="text-sm text-destructive">
-                {errors.referanse.message}
-              </p>
-            )}
-          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="referanse">Referanse</Label>
+              <Input
+                id="referanse"
+                {...register('referanse')}
+                placeholder="Ex: Anna Svensson"
+              />
+              {errors.referanse && (
+                <p className="text-sm text-destructive">
+                  {errors.referanse.message}
+                </p>
+              )}
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="telefon">Telefonnummer</Label>
-            <Input
-              id="telefon"
-              {...register('telefon')}
-              placeholder="Ex: 070-123 45 67"
-            />
-            {errors.telefon && (
-              <p className="text-sm text-destructive">
-                {errors.telefon.message}
-              </p>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="telefon">Telefonnummer</Label>
+              <Input
+                id="telefon"
+                {...register('telefon')}
+                placeholder="Ex: 070-123 45 67"
+              />
+              {errors.telefon && (
+                <p className="text-sm text-destructive">
+                  {errors.telefon.message}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -188,7 +200,7 @@ export function BeställningForm({
               id="beskrivning"
               {...register('beskrivning')}
               placeholder="Beskriv beställningen..."
-              rows={5}
+              rows={3}
             />
             {errors.beskrivning && (
               <p className="text-sm text-destructive">
@@ -197,45 +209,64 @@ export function BeställningForm({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="pris">Pris (kr)</Label>
-              <Input
-                id="pris"
-                type="number"
-                step="0.01"
-                {...register('pris')}
-                placeholder="0.00"
-              />
-              {errors.pris && (
-                <p className="text-sm text-destructive">
-                  {errors.pris.message}
-                </p>
-              )}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Varor *</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => append({ vara: '', pris: '' })}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Lägg till vara
+              </Button>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={selectedStatus}
-                onValueChange={(value) => setValue('status', value)}
-              >
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Välj status" />
-                </SelectTrigger>
-                <SelectContent className="bg-background z-50">
-                  <SelectItem value="ej_påbörjad">Ej påbörjad</SelectItem>
-                  <SelectItem value="pågående">Pågående</SelectItem>
-                  <SelectItem value="klar">Klar</SelectItem>
-                  <SelectItem value="levererad">Levererad</SelectItem>
-                </SelectContent>
-              </Select>
-              {errors.status && (
-                <p className="text-sm text-destructive">
-                  {errors.status.message}
-                </p>
-              )}
-            </div>
+            {fields.map((field, index) => (
+              <div key={field.id} className="grid grid-cols-[1fr_auto_auto] gap-2 items-start">
+                <div className="space-y-1">
+                  <Input
+                    {...register(`varor.${index}.vara`)}
+                    placeholder="Vara/tjänst"
+                  />
+                  {errors.varor?.[index]?.vara && (
+                    <p className="text-xs text-destructive">
+                      {errors.varor[index]?.vara?.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1 w-32">
+                  <Input
+                    {...register(`varor.${index}.pris`)}
+                    placeholder="Pris (kr)"
+                    type="number"
+                    step="0.01"
+                  />
+                  {errors.varor?.[index]?.pris && (
+                    <p className="text-xs text-destructive">
+                      {errors.varor[index]?.pris?.message}
+                    </p>
+                  )}
+                </div>
+                {fields.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => remove(index)}
+                    className="h-10"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+            {errors.varor && typeof errors.varor.message === 'string' && (
+              <p className="text-sm text-destructive">
+                {errors.varor.message}
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-4">

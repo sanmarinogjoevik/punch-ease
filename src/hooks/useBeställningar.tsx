@@ -9,7 +9,7 @@ export interface Beställning {
   beskrivning: string;
   referanse?: string;
   telefon?: string;
-  pris?: number;
+  varor?: Array<{ vara: string; pris: number }>;
   status: string;
   created_by: string;
   created_at: string;
@@ -29,7 +29,7 @@ export interface CreateBeställning {
   beskrivning: string;
   referanse?: string;
   telefon?: string;
-  pris?: number;
+  varor?: Array<{ vara: string; pris: number }>;
   status?: string;
 }
 
@@ -77,6 +77,7 @@ export const useBeställningar = () => {
           const profile = profileMap.get(beställning.created_by);
           return {
             ...beställning,
+            varor: Array.isArray(beställning.varor) ? beställning.varor as Array<{ vara: string; pris: number }> : [],
             profiles: profile ? {
               first_name: profile.first_name || '',
               last_name: profile.last_name || ''
@@ -257,6 +258,7 @@ export const fetchBeställningarByBedriftskunde = async (bedriftskundeId: string
         const profile = profileMap.get(beställning.created_by);
         return {
           ...beställning,
+          varor: Array.isArray(beställning.varor) ? beställning.varor as Array<{ vara: string; pris: number }> : [],
           profiles: profile ? {
             first_name: profile.first_name || '',
             last_name: profile.last_name || ''

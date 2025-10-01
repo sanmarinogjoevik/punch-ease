@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Building2, Calendar, User, Phone, Hash, DollarSign, Pencil, Trash2 } from 'lucide-react';
+import { Building2, Calendar, User, Phone, Hash, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -68,7 +68,27 @@ export function BeställningCard({
           <p className="text-sm line-clamp-3">{beställning.beskrivning}</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 text-sm">
+        {beställning.varor && beställning.varor.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-muted-foreground">Varor</p>
+            <div className="space-y-1">
+              {beställning.varor.map((vara, index) => (
+                <div key={index} className="flex justify-between text-sm border-b pb-1">
+                  <span>{vara.vara}</span>
+                  <span className="font-medium">{vara.pris.toLocaleString('sv-SE')} kr</span>
+                </div>
+              ))}
+              <div className="flex justify-between text-sm font-semibold pt-1">
+                <span>Totalt</span>
+                <span>
+                  {beställning.varor.reduce((sum, v) => sum + v.pris, 0).toLocaleString('sv-SE')} kr
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3 text-sm pt-2 border-t">
           {beställning.referanse && (
             <div className="flex items-center gap-2">
               <Hash className="h-4 w-4 text-muted-foreground" />
@@ -79,12 +99,6 @@ export function BeställningCard({
             <div className="flex items-center gap-2">
               <Phone className="h-4 w-4 text-muted-foreground" />
               <span className="truncate">{beställning.telefon}</span>
-            </div>
-          )}
-          {beställning.pris && (
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium">{beställning.pris.toLocaleString('sv-SE')} kr</span>
             </div>
           )}
           <div className="flex items-center gap-2">

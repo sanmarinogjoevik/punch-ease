@@ -108,7 +108,9 @@ export default function Beställningar() {
       if (sortBy === 'date') {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       } else if (sortBy === 'pris') {
-        return (b.pris || 0) - (a.pris || 0);
+        const aPris = a.varor?.reduce((sum, v) => sum + (v.pris || 0), 0) || 0;
+        const bPris = b.varor?.reduce((sum, v) => sum + (v.pris || 0), 0) || 0;
+        return bPris - aPris;
       }
       return 0;
     });
@@ -118,7 +120,10 @@ export default function Beställningar() {
 
   // Calculate total price
   const totalPris = useMemo(() => {
-    return filteredAndSortedBeställningar.reduce((sum, b) => sum + (b.pris || 0), 0);
+    return filteredAndSortedBeställningar.reduce((sum, b) => {
+      const beställningTotal = b.varor?.reduce((s, v) => s + (v.pris || 0), 0) || 0;
+      return sum + beställningTotal;
+    }, 0);
   }, [filteredAndSortedBeställningar]);
 
   return (
