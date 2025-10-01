@@ -120,11 +120,6 @@ export function PunchClock() {
         {lastPunchTime && (
           <div className="text-sm text-muted-foreground">
             Siste registrering: {lastPunchTime.toLocaleString('nb-NO')}
-            {isAutomatic && isPunchedIn && (
-              <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                Automatisk
-              </span>
-            )}
           </div>
         )}
 
