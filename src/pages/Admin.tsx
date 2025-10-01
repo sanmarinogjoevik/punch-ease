@@ -301,7 +301,7 @@ const Admin = () => {
                       {shift.profiles?.first_name} {shift.profiles?.last_name}
                     </p>
                     <p className="text-sm opacity-80">
-                      {format(parseISO(shift.start_time), 'HH:mm', { locale: nb })} - {format(parseISO(shift.end_time), 'HH:mm', { locale: nb })}
+                      {shift.start_time.substring(11, 16)} - {shift.end_time.substring(11, 16)}
                     </p>
                     {shift.location && (
                       <p className="text-sm opacity-70">📍 {shift.location}</p>
@@ -336,7 +336,7 @@ const Admin = () => {
                     {shift.profiles?.first_name} {shift.profiles?.last_name}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {format(parseISO(shift.start_time), 'EEEE dd MMM, HH:mm', { locale: nb })} - {format(parseISO(shift.end_time), 'HH:mm', { locale: nb })}
+                    {format(parseISO(shift.start_time), 'EEEE dd MMM', { locale: nb })}, {shift.start_time.substring(11, 16)} - {shift.end_time.substring(11, 16)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

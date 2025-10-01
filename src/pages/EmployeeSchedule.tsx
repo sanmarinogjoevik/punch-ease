@@ -147,16 +147,22 @@ export default function EmployeeSchedule() {
   };
 
   const formatShiftTime = (startTime: string, endTime: string) => {
-    const start = parseISO(startTime);
-    const end = parseISO(endTime);
+    // Extrahera tider direkt utan timezone-konvertering (norsk tid)
+    const startTimeStr = startTime.substring(11, 16); // "HH:mm"
+    const endTimeStr = endTime.substring(11, 16); // "HH:mm"
     
-    return `${format(start, 'HH:mm')} - ${format(end, 'HH:mm')}`;
+    return `${startTimeStr} - ${endTimeStr}`;
   };
 
   const formatShiftDuration = (startTime: string, endTime: string) => {
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-    const hours = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60) * 10) / 10;
+    // Extrahera tider och beräkna varaktighet
+    const [startHour, startMinute] = startTime.substring(11, 16).split(':').map(Number);
+    const [endHour, endMinute] = endTime.substring(11, 16).split(':').map(Number);
+    
+    const startMinutes = startHour * 60 + startMinute;
+    const endMinutes = endHour * 60 + endMinute;
+    const hours = Math.round((endMinutes - startMinutes) / 60 * 10) / 10;
+    
     return `${hours}h`;
   };
 

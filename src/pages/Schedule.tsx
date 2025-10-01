@@ -150,9 +150,10 @@ const Schedule = () => {
       .single();
 
     if (recentShift) {
+      // Extrahera tider direkt från ISO-strängen för att undvika timezone-konvertering
       return {
-        start_time: format(parseISO(recentShift.start_time), 'HH:mm'),
-        end_time: format(parseISO(recentShift.end_time), 'HH:mm')
+        start_time: recentShift.start_time.substring(11, 16),
+        end_time: recentShift.end_time.substring(11, 16)
       };
     }
 
@@ -167,7 +168,7 @@ const Schedule = () => {
       // Count occurrences of start_time and end_time
       const timeMap = new Map<string, number>();
       allShifts.forEach(shift => {
-        const key = `${format(parseISO(shift.start_time), 'HH:mm')}-${format(parseISO(shift.end_time), 'HH:mm')}`;
+        const key = `${shift.start_time.substring(11, 16)}-${shift.end_time.substring(11, 16)}`;
         timeMap.set(key, (timeMap.get(key) || 0) + 1);
       });
 
@@ -255,13 +256,13 @@ const Schedule = () => {
       const shiftsToCreate = employeeShifts
         .filter(shift => shift.employee_id && shift.start_time && shift.end_time)
         .map(shift => {
-          const startDateTime = new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${shift.start_time}:00`);
-          const endDateTime = new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${shift.end_time}:00`);
+          // Spara som UTC direkt för att undvika timezone-konvertering (norsk tid)
+          const dateStr = format(selectedDate, 'yyyy-MM-dd');
           
           return {
             employee_id: shift.employee_id,
-            start_time: startDateTime.toISOString(),
-            end_time: endDateTime.toISOString(),
+            start_time: `${dateStr}T${shift.start_time}:00+00:00`,
+            end_time: `${dateStr}T${shift.end_time}:00+00:00`,
             location: null,
             notes: null,
             auto_punch_in: shift.auto_punch_in
@@ -331,7 +332,7 @@ const Schedule = () => {
   const getShiftsForDate = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     return shifts?.filter(shift => 
-      format(parseISO(shift.start_time), 'yyyy-MM-dd') === dateStr
+      shift.start_time.substring(0, 10) === dateStr
     ) || [];
   };
 
@@ -466,7 +467,7 @@ const Schedule = () => {
                             <div className="flex items-center gap-1 text-muted-foreground">
                               <Clock className="w-2 h-2" />
                               <span className="text-xs">
-                                {format(parseISO(shift.start_time), 'HH:mm')} - {format(parseISO(shift.end_time), 'HH:mm')}
+                                {shift.start_time.substring(11, 16)} - {shift.end_time.substring(11, 16)}
                               </span>
                             </div>
                           </div>

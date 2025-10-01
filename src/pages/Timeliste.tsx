@@ -161,7 +161,7 @@ export default function Timeliste() {
     const shiftsByDate = new Map<string, any[]>();
     
     shifts.forEach(shift => {
-      const date = format(parseISO(shift.start_time), 'yyyy-MM-dd');
+      const date = shift.start_time.substring(0, 10); // "yyyy-MM-dd"
       if (!shiftsByDate.has(date)) {
         shiftsByDate.set(date, []);
       }

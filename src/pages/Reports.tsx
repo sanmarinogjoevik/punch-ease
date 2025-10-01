@@ -170,8 +170,19 @@ export default function Reports() {
         let hasData = false;
         
         if (dayShift) {
-          const shiftStart = parseISO(dayShift.start_time);
-          const shiftEnd = parseISO(dayShift.end_time);
+          // Extrahera tider direkt utan timezone-konvertering (norsk tid)
+          const startTimeStr = dayShift.start_time.substring(11, 16); // "HH:mm"
+          const endTimeStr = dayShift.end_time.substring(11, 16); // "HH:mm"
+          
+          // Skapa Date-objekt för jämförelser (baserat på dagens norska datum + tid)
+          const [startHour, startMinute] = startTimeStr.split(':').map(Number);
+          const [endHour, endMinute] = endTimeStr.split(':').map(Number);
+          
+          const shiftStart = new Date(date);
+          shiftStart.setHours(startHour, startMinute, 0, 0);
+          
+          const shiftEnd = new Date(date);
+          shiftEnd.setHours(endHour, endMinute, 0, 0);
           
           // Dynamic logic based on business hours and current time
           const shiftHasStarted = now >= shiftStart;
@@ -191,12 +202,12 @@ export default function Reports() {
           
           if (shiftHasStarted) {
             // Show IN time when shift has started
-            punchIn = format(shiftStart, 'HH:mm');
+            punchIn = startTimeStr;
             hasData = true;
             
             if (storeHasClosed) {
               // Show scheduled OUT time when store closes for the day
-              punchOut = format(shiftEnd, 'HH:mm');
+              punchOut = endTimeStr;
               
               const totalMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
               
@@ -267,11 +278,11 @@ export default function Reports() {
       );
 
       if (existingShift) {
-        // Update existing shift
+        // Update existing shift - spara som UTC direkt (norsk tid)
         await updateShift.mutateAsync({
           id: existingShift.id,
-          start_time: `${editingDate}T${editForm.punch_in}:00`,
-          end_time: `${editingDate}T${editForm.punch_out}:00`
+          start_time: `${editingDate}T${editForm.punch_in}:00+00:00`,
+          end_time: `${editingDate}T${editForm.punch_out}:00+00:00`
         });
       }
 
@@ -319,7 +330,8 @@ export default function Reports() {
     
     setIsSubmitting(true);
     try {
-      const startDate = format(parseISO(editingShift.start_time), 'yyyy-MM-dd');
+      // Extrahera datum direkt från ISO-strängen
+      const startDate = editingShift.start_time.substring(0, 10);
       // Spara tiderna som UTC för att undvika timezone-konvertering
       await updateShift.mutateAsync({
         id: editingShift.id,
@@ -574,7 +586,7 @@ export default function Reports() {
   const getShiftsForDate = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     return calendarShifts?.filter(shift => 
-      format(parseISO(shift.start_time), 'yyyy-MM-dd') === dateStr
+      shift.start_time.substring(0, 10) === dateStr
     ) || [];
   };
 
