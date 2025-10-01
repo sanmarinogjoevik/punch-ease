@@ -116,6 +116,26 @@ Deno.serve(async (req) => {
 
       console.log(`✅ Successfully created automatic punch-in for employee ${shift.employee_id} at ${shift.start_time}`);
       processedCount++;
+
+      // Trigger automatic temperature logs for the first punch-in of the day
+      try {
+        console.log(`Triggering automatic temperature logs for employee ${shift.employee_id}`);
+        const { error: tempLogError } = await supabase.functions.invoke('auto-temperature-logs', {
+          body: {
+            employee_id: shift.employee_id,
+            timestamp: shift.start_time,
+          }
+        });
+
+        if (tempLogError) {
+          console.error(`Failed to create temperature logs for employee ${shift.employee_id}:`, tempLogError);
+        } else {
+          console.log(`✅ Successfully triggered temperature logs for employee ${shift.employee_id}`);
+        }
+      } catch (tempError) {
+        console.error(`Error triggering temperature logs for employee ${shift.employee_id}:`, tempError);
+        // Don't fail the punch-in process if temperature logging fails
+      }
     }
 
     const result = {
