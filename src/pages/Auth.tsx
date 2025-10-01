@@ -6,8 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { EmployeeSelector } from '@/components/EmployeeSelector';
+import { ArrowLeft } from 'lucide-react';
 
 export default function Auth() {
+  const [isAdminMode, setIsAdminMode] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<{ email: string; name: string } | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,24 +24,35 @@ export default function Auth() {
     return <Navigate to="/" replace />;
   }
 
+  const handleEmployeeSelect = (employeeEmail: string, employeeName: string) => {
+    setSelectedEmployee({ email: employeeEmail, name: employeeName });
+  };
+
+  const handleBack = () => {
+    setSelectedEmployee(null);
+    setPassword('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
+    const loginEmail = isAdminMode ? email : selectedEmployee?.email || '';
+
     try {
-      const result = await signIn(email, password);
+      const result = await signIn(loginEmail, password);
 
       if (result.error) {
         toast({
-          title: 'Feil',
+          title: 'Fel',
           description: result.error.message,
           variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
-        title: 'Feil',
-        description: 'En uventet feil oppstod',
+        title: 'Fel',
+        description: 'Ett oväntat fel inträffade',
         variant: 'destructive',
       });
     } finally {
@@ -47,43 +62,102 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">
-            Logg inn
+            {isAdminMode ? 'Admin Inloggning' : selectedEmployee ? `Välkommen ${selectedEmployee.name}` : 'Välj Anställd'}
           </CardTitle>
           <CardDescription>
-            Velkommen tilbake til PunchEase
+            {isAdminMode ? 'Logga in med ditt admin-konto' : 'Välkommen tillbaka till PunchEase'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">E-post</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+          {!isAdminMode && !selectedEmployee && (
+            <div className="space-y-6">
+              <EmployeeSelector onSelectEmployee={handleEmployeeSelect} />
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setIsAdminMode(true)}
+              >
+                Admin Inloggning
+              </Button>
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="password">Passord</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
+          )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Laster...' : 'Logg inn'}
-            </Button>
-          </form>
+          {!isAdminMode && selectedEmployee && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleBack}
+                className="mb-4"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Tillbaka
+              </Button>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Lösenord</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Loggar in...' : 'Logga in'}
+              </Button>
+            </form>
+          )}
+
+          {isAdminMode && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setIsAdminMode(false);
+                  setEmail('');
+                  setPassword('');
+                }}
+                className="mb-4"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Tillbaka
+              </Button>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">E-post</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="admin-password">Lösenord</Label>
+                <Input
+                  id="admin-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Loggar in...' : 'Logga in'}
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>
