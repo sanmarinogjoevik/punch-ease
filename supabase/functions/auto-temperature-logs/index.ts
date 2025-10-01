@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
     }
 
     let employeeId: string;
+    let logTimestamp: Date;
 
     if (!shifts || shifts.length === 0) {
       console.log('No shifts found for today, using most recent employee');
@@ -99,9 +100,15 @@ Deno.serve(async (req) => {
       }
 
       employeeId = recentLog.employee_id;
+      // Fallback to 08:00 if no shifts
+      logTimestamp = new Date(todayStart);
+      logTimestamp.setHours(8, 0, 0);
+      console.log(`No shifts found, using fallback time: ${logTimestamp.toISOString()}`);
     } else {
       employeeId = shifts[0].employee_id;
-      console.log(`Using employee ${employeeId} from first shift of the day`);
+      // Use the actual shift start time
+      logTimestamp = new Date(shifts[0].start_time);
+      console.log(`Using employee ${employeeId} from first shift starting at: ${logTimestamp.toISOString()}`);
     }
 
     // Generate temperature logs
@@ -119,17 +126,13 @@ Deno.serve(async (req) => {
       // Round to 1 decimal place
       temperature = Math.round(temperature * 10) / 10;
 
-      // Set timestamp to morning (08:00-09:00)
-      const logTime = new Date(todayStart);
-      logTime.setHours(8, Math.floor(Math.random() * 60), 0);
-
-      console.log(`Creating log for ${eq.name} (${eq.type}): ${temperature}°C`);
+      console.log(`Creating log for ${eq.name} (${eq.type}): ${temperature}°C at ${logTimestamp.toISOString()}`);
 
       return {
         employee_id: employeeId,
         equipment_name: eq.name,
         temperature: temperature,
-        timestamp: logTime.toISOString(),
+        timestamp: logTimestamp.toISOString(),
         notes: 'Automatisk logg'
       };
     });
