@@ -119,11 +119,17 @@ export default function TemperatureLog() {
                 <Label htmlFor="temperature">Temperatur (°C)</Label>
                 <Input
                   id="temperature"
-                  type="number"
-                  step="0.1"
-                  value={form.temperature}
-                  onChange={(e) => setForm(prev => ({ ...prev, temperature: parseFloat(e.target.value) || 0 }))}
-                  placeholder="Ange temperatur"
+                  type="text"
+                  inputMode="decimal"
+                  value={form.temperature === 0 ? '' : form.temperature}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Allow empty string, numbers, and decimal point
+                    if (value === '' || /^-?\d*\.?\d*$/.test(value)) {
+                      setForm(prev => ({ ...prev, temperature: value === '' ? 0 : parseFloat(value) || 0 }));
+                    }
+                  }}
+                  placeholder="t.ex. -18 eller 4.5"
                 />
               </div>
             </div>
