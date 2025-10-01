@@ -37,11 +37,10 @@ export const useEmployees = () => {
 
       const adminUserIds = adminRoles?.map(role => role.user_id) || [];
 
-      // Then fetch all profiles excluding admins
+      // Fetch all profiles
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .not('user_id', 'in', `(${adminUserIds.join(',')})`)
         .order('first_name', { ascending: true });
 
       if (error) {
@@ -49,7 +48,10 @@ export const useEmployees = () => {
         throw error;
       }
 
-      return data || [];
+      // Filter out admins on the client side
+      const employees = data?.filter(profile => !adminUserIds.includes(profile.user_id)) || [];
+
+      return employees;
     },
   });
 };
