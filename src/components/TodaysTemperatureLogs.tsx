@@ -85,7 +85,7 @@ export const TodaysTemperatureLogs = () => {
                       <div className="flex items-center gap-3 mt-1 text-xs opacity-80">
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {format(new Date(log.timestamp), 'HH:mm', { locale: nb })}
+                          {format(new Date(log.timestamp), 'd MMM', { locale: nb })}
                         </div>
                         {log.profiles && (
                           <div className="flex items-center gap-1">
