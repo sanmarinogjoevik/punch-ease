@@ -86,16 +86,27 @@ export default function Auth() {
           )}
 
           {!isAdminMode && selectedEmployee && (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-6">
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 onClick={handleBack}
-                className="mb-4"
+                className="w-full"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Tillbaka
+                Ändra användare
               </Button>
+
+              <div className="space-y-2">
+                <Label htmlFor="selected-email">E-post</Label>
+                <Input
+                  id="selected-email"
+                  type="email"
+                  value={selectedEmployee.email}
+                  readOnly
+                  className="bg-muted"
+                />
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="password">Lösenord</Label>
@@ -106,6 +117,7 @@ export default function Auth() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoFocus
+                  placeholder="Ange ditt lösenord"
                 />
               </div>
 
