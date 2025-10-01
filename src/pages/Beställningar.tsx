@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react';
-import { ShoppingCart, Plus, Search } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar } from 'lucide-react';
+import { startOfMonth, endOfMonth, isWithinInterval, format } from 'date-fns';
+import { sv } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -45,6 +47,7 @@ export default function Beställningar() {
   const [isEditing, setIsEditing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'pris'>('date');
+  const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
 
   const handleCreate = () => {
     setIsEditing(false);
@@ -81,9 +84,36 @@ export default function Beställningar() {
 
   const canManage = userRole === 'admin';
 
+  // Generate month options for the last 12 months
+  const monthOptions = useMemo(() => {
+    const options = [{ value: 'all', label: 'Alla månader' }];
+    const currentDate = new Date();
+    
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const value = format(date, 'yyyy-MM');
+      const label = format(date, 'MMMM yyyy', { locale: sv });
+      options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+    }
+    
+    return options;
+  }, []);
+
   // Filter and sort beställningar
   const filteredAndSortedBeställningar = useMemo(() => {
     let filtered = beställningar;
+
+    // Apply month filter
+    if (selectedMonth !== 'all') {
+      const [year, month] = selectedMonth.split('-').map(Number);
+      const monthStart = startOfMonth(new Date(year, month - 1));
+      const monthEnd = endOfMonth(new Date(year, month - 1));
+      
+      filtered = filtered.filter((b) => {
+        const createdDate = new Date(b.created_at);
+        return isWithinInterval(createdDate, { start: monthStart, end: monthEnd });
+      });
+    }
 
     // Apply search filter
     if (searchQuery) {
@@ -110,7 +140,7 @@ export default function Beställningar() {
     });
 
     return sorted;
-  }, [beställningar, searchQuery, sortBy]);
+  }, [beställningar, searchQuery, sortBy, selectedMonth]);
 
   // Calculate total price
   const totalPris = useMemo(() => {
@@ -146,7 +176,24 @@ export default function Beställningar() {
           <CardTitle>Filter och sök</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Välj månad" />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex items-center gap-2">
+                        {option.value !== 'all' && <Calendar className="h-4 w-4" />}
+                        {option.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
