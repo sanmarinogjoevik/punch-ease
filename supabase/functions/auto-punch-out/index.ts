@@ -76,6 +76,18 @@ Deno.serve(async (req) => {
 
     console.log('Today\'s hours:', todayHours);
 
+    // Helper function to compare times with tolerance (within 2 minutes)
+    const isWithinTimeWindow = (currentTime: string, targetTime: string, windowMinutes: number = 2): boolean => {
+      const [currentHour, currentMin] = currentTime.split(':').map(Number);
+      const [targetHour, targetMin] = targetTime.split(':').map(Number);
+      
+      const currentMinutes = currentHour * 60 + currentMin;
+      const targetMinutes = targetHour * 60 + targetMin;
+      
+      // Check if current time is at or after target time, but within the window
+      return currentMinutes >= targetMinutes && currentMinutes <= targetMinutes + windowMinutes;
+    };
+
     // Check if we need to handle closing time that goes into next day
     // For example, Saturday closes at 03:00 (which is Sunday morning)
     let shouldPunchOut = false;
@@ -92,7 +104,7 @@ Deno.serve(async (req) => {
         
         if (yesterdayHours && yesterdayHours.closeTime < yesterdayHours.openTime) {
           // Yesterday's closing time extends into today
-          if (currentTime === yesterdayHours.closeTime) {
+          if (isWithinTimeWindow(currentTime, yesterdayHours.closeTime)) {
             shouldPunchOut = true;
             console.log('Punch out time: Yesterday\'s shift ending at', yesterdayHours.closeTime);
           }
@@ -100,7 +112,7 @@ Deno.serve(async (req) => {
       }
     } else {
       // Normal case: closing time is on the same day
-      if (currentTime === todayHours.closeTime) {
+      if (isWithinTimeWindow(currentTime, todayHours.closeTime)) {
         shouldPunchOut = true;
         console.log('Punch out time: Store closing at', todayHours.closeTime);
       }
