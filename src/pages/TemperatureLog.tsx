@@ -179,7 +179,7 @@ export default function TemperatureLog() {
                   <div className="flex items-center justify-between">
                     <div className="font-medium">{log.equipment_name}</div>
                     <div className="text-sm text-muted-foreground">
-                      {format(new Date(log.timestamp), 'HH:mm', { locale: sv })}
+                      {format(new Date(log.timestamp), 'd MMM', { locale: sv })}
                     </div>
                   </div>
                   
