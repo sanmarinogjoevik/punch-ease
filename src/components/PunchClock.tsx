@@ -52,6 +52,7 @@ export function PunchClock() {
     setLoading(true);
     try {
       const entryType = isPunchedIn ? 'punch_out' : 'punch_in';
+      const punchTimestamp = new Date().toISOString();
       
       const { error } = await supabase
         .from('time_entries')
@@ -65,6 +66,27 @@ export function PunchClock() {
       setIsPunchedIn(!isPunchedIn);
       setLastPunchTime(new Date());
       
+      // If this is a punch-in, trigger automatic temperature logs
+      if (entryType === 'punch_in') {
+        console.log('Triggering automatic temperature logs after punch-in');
+        try {
+          const { error: functionError } = await supabase.functions.invoke('auto-temperature-logs', {
+            body: { 
+              employee_id: user.id,
+              timestamp: punchTimestamp
+            }
+          });
+
+          if (functionError) {
+            console.error('Error creating automatic temperature logs:', functionError);
+          } else {
+            console.log('Automatic temperature logs created successfully');
+          }
+        } catch (logError) {
+          console.error('Error invoking temperature log function:', logError);
+        }
+      }
+      
       toast({
         title: 'Suksess',
         description: `Vellykket ${isPunchedIn ? 'logget ut' : 'logget inn'}!`,
@@ -72,7 +94,7 @@ export function PunchClock() {
     } catch (error: any) {
       toast({
         title: 'Feil',
-        description: error.message || 'Kunne ikke registrere tidsregistrering',
+        description: error.message || 'Kunne inte registrere tidsregistrering',
         variant: 'destructive',
       });
     } finally {

@@ -20,7 +20,27 @@ Deno.serve(async (req) => {
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
     console.log(`Auto temperature logs function triggered at: ${now.toISOString()}`);
-    console.log(`Checking for logs between: ${todayStart.toISOString()} and ${todayEnd.toISOString()}`);
+
+    // Get the request body to check if this is triggered by a punch-in
+    const body = await req.json().catch(() => ({}));
+    const { employee_id: punchInEmployeeId, timestamp: punchInTimestamp } = body;
+
+    // Check if temperature logs already exist for today
+    const { data: existingLogs } = await supabase
+      .from('temperature_logs')
+      .select('equipment_name')
+      .gte('timestamp', todayStart.toISOString())
+      .lte('timestamp', todayEnd.toISOString());
+
+    if (existingLogs && existingLogs.length > 0) {
+      console.log('Temperature logs already exist for today');
+      return new Response(
+        JSON.stringify({ message: 'Temperature logs already created today', logsCreated: 0 }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      );
+    }
+
+    console.log(`No temperature logs found for today, creating new logs`);
 
     // Get all active equipment
     const { data: equipment, error: equipmentError } = await supabase
@@ -43,47 +63,18 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${equipment.length} active equipment items`);
 
-    // Check which equipment already has logs today
-    const { data: existingLogs } = await supabase
-      .from('temperature_logs')
-      .select('equipment_name')
-      .gte('timestamp', todayStart.toISOString())
-      .lte('timestamp', todayEnd.toISOString());
-
-    const loggedEquipmentToday = new Set(existingLogs?.map(log => log.equipment_name) || []);
-    const equipmentToLog = equipment.filter(eq => !loggedEquipmentToday.has(eq.name));
-
-    if (equipmentToLog.length === 0) {
-      console.log('All equipment already has logs for today');
-      return new Response(
-        JSON.stringify({ message: 'All equipment already logged today', logsCreated: 0 }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-      );
-    }
-
-    console.log(`Need to create logs for ${equipmentToLog.length} equipment items`);
-
-    // Find the first employee working today
-    const { data: shifts, error: shiftsError } = await supabase
-      .from('shifts')
-      .select('employee_id, start_time')
-      .gte('start_time', todayStart.toISOString())
-      .lte('start_time', todayEnd.toISOString())
-      .order('start_time', { ascending: true })
-      .limit(1);
-
-    if (shiftsError) {
-      console.error('Error fetching shifts:', shiftsError);
-      throw shiftsError;
-    }
-
+    // Determine employee and timestamp from punch-in or fallback
     let employeeId: string;
     let logTimestamp: Date;
 
-    if (!shifts || shifts.length === 0) {
-      console.log('No shifts found for today, using most recent employee');
-      
+    if (punchInEmployeeId && punchInTimestamp) {
+      // Use the employee and timestamp from the punch-in event
+      employeeId = punchInEmployeeId;
+      logTimestamp = new Date(punchInTimestamp);
+      console.log(`Using punch-in data: employee ${employeeId} at ${logTimestamp.toISOString()}`);
+    } else {
       // Fallback: get the most recent employee from any temperature log
+      console.log('No punch-in data provided, using fallback employee');
       const { data: recentLog } = await supabase
         .from('temperature_logs')
         .select('employee_id')
@@ -100,19 +91,12 @@ Deno.serve(async (req) => {
       }
 
       employeeId = recentLog.employee_id;
-      // Fallback to 08:00 if no shifts
-      logTimestamp = new Date(todayStart);
-      logTimestamp.setHours(8, 0, 0);
-      console.log(`No shifts found, using fallback time: ${logTimestamp.toISOString()}`);
-    } else {
-      employeeId = shifts[0].employee_id;
-      // Use the actual shift start time
-      logTimestamp = new Date(shifts[0].start_time);
-      console.log(`Using employee ${employeeId} from first shift starting at: ${logTimestamp.toISOString()}`);
+      logTimestamp = new Date();
+      console.log(`Using fallback: employee ${employeeId} at current time`);
     }
 
     // Generate temperature logs
-    const logsToCreate = equipmentToLog.map(eq => {
+    const logsToCreate = equipment.map(eq => {
       let temperature: number;
       
       if (eq.type === 'fridge') {
@@ -154,7 +138,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         message: 'Automatic temperature logs created',
         logsCreated: createdLogs?.length || 0,
-        equipmentLogged: equipmentToLog.map(eq => eq.name),
+        equipmentLogged: equipment.map(eq => eq.name),
         timestamp: now.toISOString()
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
