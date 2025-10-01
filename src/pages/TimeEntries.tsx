@@ -285,6 +285,13 @@ export default function TimeEntries() {
           (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
         );
 
+        // Get employee name from shift data or use fallback
+        const employeeName = userRole === 'admin' 
+          ? (shift.employee?.first_name && shift.employee?.last_name 
+              ? `${shift.employee.first_name} ${shift.employee.last_name}` 
+              : 'Ukjent ansatt')
+          : (user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name);
+
         resultSessions.push({
           id: 'schedule_only_' + key,
           punch_in: {
@@ -292,17 +299,17 @@ export default function TimeEntries() {
             entry_type: 'punch_in' as const,
             timestamp: shift.start_time,
             employee_id: shift.employee_id,
-            employee_name: userRole === 'admin' ? 'Anställd' : (user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name)
+            employee_name: employeeName
           },
           punch_out: {
             id: 'schedule_out_' + key,
             entry_type: 'punch_out' as const,
             timestamp: shift.end_time,
             employee_id: shift.employee_id,
-            employee_name: userRole === 'admin' ? 'Anställd' : (user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name)
+            employee_name: employeeName
           },
           duration: shiftDuration,
-          employee_name: userRole === 'admin' ? 'Anställd' : (user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name)
+          employee_name: employeeName
         });
       }
     });
