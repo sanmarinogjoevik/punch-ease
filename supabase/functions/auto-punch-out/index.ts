@@ -27,6 +27,54 @@ Deno.serve(async (req) => {
     const now = new Date();
     console.log('Auto punch-out function triggered at:', now.toISOString());
 
+    // First, clean up any old punch-ins from previous days
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+
+    // Get all time entries to find old punch-ins
+    const { data: allEntries, error: allEntriesError } = await supabase
+      .from('time_entries')
+      .select('employee_id, entry_type, timestamp')
+      .order('timestamp', { ascending: false });
+
+    if (!allEntriesError && allEntries) {
+      const employeeLatestEntries = new Map();
+      allEntries.forEach(entry => {
+        if (!employeeLatestEntries.has(entry.employee_id)) {
+          employeeLatestEntries.set(entry.employee_id, entry);
+        }
+      });
+
+      // Find employees with old punch-ins (before today)
+      let oldPunchInsCleanedUp = 0;
+      for (const [employeeId, entry] of employeeLatestEntries.entries()) {
+        if (entry.entry_type === 'punch_in') {
+          const entryDate = new Date(entry.timestamp);
+          if (entryDate < todayStart) {
+            console.log('Found old punch-in from', entry.timestamp, 'for employee', employeeId, '- cleaning up');
+            
+            const { error: cleanupError } = await supabase
+              .from('time_entries')
+              .insert({
+                employee_id: employeeId,
+                entry_type: 'punch_out',
+                timestamp: new Date(entryDate.getTime() + 1000).toISOString(), // 1 second after punch-in
+                is_automatic: true,
+              });
+
+            if (!cleanupError) {
+              oldPunchInsCleanedUp++;
+              console.log('Cleaned up old punch-in for employee:', employeeId);
+            }
+          }
+        }
+      }
+
+      if (oldPunchInsCleanedUp > 0) {
+        console.log('Cleaned up', oldPunchInsCleanedUp, 'old punch-in entries');
+      }
+    }
+
     // Get business hours from company settings
     const { data: companySettings, error: settingsError } = await supabase
       .from('company_settings')
