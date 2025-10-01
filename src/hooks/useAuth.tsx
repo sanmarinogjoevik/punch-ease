@@ -21,6 +21,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userRole, setUserRole] = useState<'admin' | 'employee' | null>(null);
 
   useEffect(() => {
+    // Clear session on page reload to force login
+    const navigationEntries = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
+    const isPageReload = navigationEntries[0]?.type === 'reload';
+    
+    if (isPageReload) {
+      localStorage.removeItem('sb-eynulvphjcojanzryfyi-auth-token');
+      supabase.auth.signOut({ scope: 'local' });
+    }
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
