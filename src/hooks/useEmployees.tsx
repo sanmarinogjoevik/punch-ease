@@ -22,7 +22,7 @@ export const employeesKeys = {
 // Hook to fetch all employees (excluding admins)
 export const useEmployees = () => {
   return useQuery({
-    queryKey: employeesKeys.all,
+    queryKey: [...employeesKeys.all, 'no-admins'],
     queryFn: async (): Promise<Employee[]> => {
       // First get all admin user IDs
       const { data: adminRoles, error: rolesError } = await supabase
@@ -36,6 +36,7 @@ export const useEmployees = () => {
       }
 
       const adminUserIds = adminRoles?.map(role => role.user_id) || [];
+      console.log('Admin user IDs to filter out:', adminUserIds);
 
       // Fetch all profiles
       const { data, error } = await supabase
@@ -48,8 +49,18 @@ export const useEmployees = () => {
         throw error;
       }
 
+      console.log('All profiles before filtering:', data?.length);
+      
       // Filter out admins on the client side
-      const employees = data?.filter(profile => !adminUserIds.includes(profile.user_id)) || [];
+      const employees = data?.filter(profile => {
+        const isAdmin = adminUserIds.includes(profile.user_id);
+        if (isAdmin) {
+          console.log('Filtering out admin:', profile.first_name, profile.last_name);
+        }
+        return !isAdmin;
+      }) || [];
+
+      console.log('Employees after filtering:', employees.length);
 
       return employees;
     },
