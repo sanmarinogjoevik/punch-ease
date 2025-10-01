@@ -28,8 +28,8 @@ Deno.serve(async (req) => {
     console.log('Auto punch-out function triggered at:', now.toISOString());
 
     // First, clean up any old punch-ins from previous days
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
+    const todayStartCleanup = new Date(now);
+    todayStartCleanup.setHours(0, 0, 0, 0);
 
     // Get all time entries to find old punch-ins
     const { data: allEntries, error: allEntriesError } = await supabase
@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
       for (const [employeeId, entry] of employeeLatestEntries.entries()) {
         if (entry.entry_type === 'punch_in') {
           const entryDate = new Date(entry.timestamp);
-          if (entryDate < todayStart) {
+          if (entryDate < todayStartCleanup) {
             console.log('Found old punch-in from', entry.timestamp, 'for employee', employeeId, '- cleaning up');
             
             const { error: cleanupError } = await supabase
@@ -225,8 +225,8 @@ Deno.serve(async (req) => {
     }
 
     // Get today's date range for shift check
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
+    const todayStartShift = new Date(now);
+    todayStartShift.setHours(0, 0, 0, 0);
     const todayEnd = new Date(now);
     todayEnd.setHours(23, 59, 59, 999);
 
@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
     const { data: todayShifts, error: shiftsError } = await supabase
       .from('shifts')
       .select('employee_id, start_time, end_time')
-      .gte('start_time', todayStart.toISOString())
+      .gte('start_time', todayStartShift.toISOString())
       .lte('start_time', todayEnd.toISOString());
 
     if (shiftsError) {

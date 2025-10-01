@@ -9,6 +9,7 @@ import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { formatTimeNorway, formatDateTimeNorway, formatDateNorway, formatDuration } from '@/lib/timeUtils';
 
 interface Shift {
   id: string;
@@ -235,25 +236,13 @@ export default function Dashboard() {
     }
   };
 
-  const formatDuration = (minutes: number): string => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    
-    if (hours > 0) {
-      return `${hours}h ${mins}m`;
-    }
-    return `${mins}m`;
-  };
 
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
+    return formatDateTimeNorway(dateString);
   };
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    return formatTimeNorway(dateString);
   };
 
   const shouldUseScheduleTimes = (date: Date): boolean => {
@@ -455,8 +444,8 @@ export default function Dashboard() {
                   <div className="space-y-3">
                     {upcomingShifts.map((shift) => (
                       <div key={shift.id} className="p-3 rounded-lg border">
-                        <div className="font-medium">
-                          {new Date(shift.start_time).toLocaleDateString('nb-NO')}
+                         <div className="font-medium">
+                          {formatDateNorway(shift.start_time)}
                         </div>
                         <div className="text-sm text-muted-foreground">
                           {formatTime(shift.start_time)} - {formatTime(shift.end_time)}

@@ -15,6 +15,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, addMonth
 import { nb } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { createUTCFromNorwegianTime, extractTime } from "@/lib/timeUtils";
 
 interface Profile {
   id: string;
@@ -150,10 +151,9 @@ const Schedule = () => {
       .single();
 
     if (recentShift) {
-      // Extrahera tider direkt från ISO-strängen för att undvika timezone-konvertering
       return {
-        start_time: recentShift.start_time.substring(11, 16),
-        end_time: recentShift.end_time.substring(11, 16)
+        start_time: extractTime(recentShift.start_time),
+        end_time: extractTime(recentShift.end_time)
       };
     }
 
@@ -168,7 +168,7 @@ const Schedule = () => {
       // Count occurrences of start_time and end_time
       const timeMap = new Map<string, number>();
       allShifts.forEach(shift => {
-        const key = `${shift.start_time.substring(11, 16)}-${shift.end_time.substring(11, 16)}`;
+        const key = `${extractTime(shift.start_time)}-${extractTime(shift.end_time)}`;
         timeMap.set(key, (timeMap.get(key) || 0) + 1);
       });
 
@@ -256,13 +256,12 @@ const Schedule = () => {
       const shiftsToCreate = employeeShifts
         .filter(shift => shift.employee_id && shift.start_time && shift.end_time)
         .map(shift => {
-          // Spara som UTC direkt för att undvika timezone-konvertering (norsk tid)
           const dateStr = format(selectedDate, 'yyyy-MM-dd');
           
           return {
             employee_id: shift.employee_id,
-            start_time: `${dateStr}T${shift.start_time}:00+00:00`,
-            end_time: `${dateStr}T${shift.end_time}:00+00:00`,
+            start_time: createUTCFromNorwegianTime(dateStr, shift.start_time),
+            end_time: createUTCFromNorwegianTime(dateStr, shift.end_time),
             location: null,
             notes: null,
             auto_punch_in: shift.auto_punch_in
@@ -467,7 +466,7 @@ const Schedule = () => {
                             <div className="flex items-center gap-1 text-muted-foreground">
                               <Clock className="w-2 h-2" />
                               <span className="text-xs">
-                                {shift.start_time.substring(11, 16)} - {shift.end_time.substring(11, 16)}
+                                {extractTime(shift.start_time)} - {extractTime(shift.end_time)}
                               </span>
                             </div>
                           </div>

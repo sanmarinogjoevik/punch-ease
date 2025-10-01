@@ -9,6 +9,7 @@ import { format, parseISO, isAfter, isSameDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
 import { Clock, Calendar, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { formatTimeNorway, formatDateNorway, calculateDurationMinutes, extractTime, extractDate } from '@/lib/timeUtils';
 
 interface TimeEntry {
   id: string;
@@ -121,9 +122,7 @@ export default function Timeliste() {
           };
 
           if (session.punchIn && session.punchOut) {
-            const start = new Date(session.punchIn);
-            const end = new Date(session.punchOut);
-            session.duration = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+            session.duration = calculateDurationMinutes(session.punchIn, session.punchOut);
           }
 
           sessions.push(session);
@@ -192,7 +191,7 @@ export default function Timeliste() {
         
         const scheduledStart = new Date(dayShifts[0].start_time);
         const scheduledEnd = new Date(dayShifts[dayShifts.length - 1].end_time);
-        const duration = Math.round((scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60));
+        const duration = calculateDurationMinutes(scheduledStart, scheduledEnd);
         
         resultSessions.push({
           id: `schedule-date-${date}`,
@@ -282,11 +281,11 @@ export default function Timeliste() {
   };
 
   const formatTime = (timestamp: string) => {
-    return format(parseISO(timestamp), 'HH:mm', { locale: nb });
+    return formatTimeNorway(timestamp);
   };
 
   const formatDate = (dateString: string) => {
-    return format(parseISO(dateString), 'EEEE d MMMM yyyy', { locale: nb });
+    return formatDateNorway(dateString);
   };
 
   const getWorkDayBadge = (workDay: WorkDay) => {

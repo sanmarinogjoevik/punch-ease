@@ -12,6 +12,7 @@ import { nb } from 'date-fns/locale';
 import { Clock, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { formatTimeNorway, formatDateNorway, formatDuration, extractTime, extractDate, calculateDurationMinutes } from '@/lib/timeUtils';
 
 interface TimeEntry {
   id: string;
@@ -136,9 +137,7 @@ export default function TimeEntries() {
           // Calculate duration if we have both punch in and out
           let duration: number | undefined;
           if (punchOut) {
-            const startTime = new Date(entry.timestamp);
-            const endTime = new Date(punchOut.timestamp);
-            duration = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60)); // minutes
+            duration = calculateDurationMinutes(entry.timestamp, punchOut.timestamp);
           }
 
           sessions.push({
@@ -238,9 +237,7 @@ export default function TimeEntries() {
         const keyShifts = shiftKeyMap.get(key);
         if (keyShifts && keyShifts.length > 0) {
           const shift = keyShifts[0];
-          const shiftDuration = Math.round(
-            (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
-          );
+        const shiftDuration = calculateDurationMinutes(shift.start_time, shift.end_time);
 
           // Use first session for employee name reference
           const firstSession = keySessions[0];
@@ -281,9 +278,7 @@ export default function TimeEntries() {
       
       if (useScheduleTimes && !allProcessedKeys.has(key)) {
         const shift = keyShifts[0];
-        const shiftDuration = Math.round(
-          (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / (1000 * 60)
-        );
+        const shiftDuration = calculateDurationMinutes(shift.start_time, shift.end_time);
 
         // Get employee name from shift data or use fallback
         const employeeName = userRole === 'admin' 
@@ -319,14 +314,12 @@ export default function TimeEntries() {
     );
   };
 
-  const formatDuration = (minutes: number): string => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    
-    if (hours > 0) {
-      return `${hours}h ${mins}m`;
-    }
-    return `${mins}m`;
+  const formatTime = (timestamp: string): string => {
+    return formatTimeNorway(timestamp);
+  };
+
+  const formatDate = (timestamp: string): string => {
+    return formatDateNorway(timestamp);
   };
 
   const getSessionBadge = (session: WorkSession) => {

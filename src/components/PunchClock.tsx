@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { formatDateTimeNorway } from '@/lib/timeUtils';
 
 export function PunchClock() {
   const [isPunchedIn, setIsPunchedIn] = useState(false);
@@ -119,7 +120,7 @@ export function PunchClock() {
 
         {lastPunchTime && (
           <div className="text-sm text-muted-foreground">
-            Siste registrering: {lastPunchTime.toLocaleString('nb-NO')}
+            Siste registrering: {formatDateTimeNorway(lastPunchTime)}
           </div>
         )}
 

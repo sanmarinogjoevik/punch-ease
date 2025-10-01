@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { format, isToday, isTomorrow, isThisWeek, parseISO, isSameDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
 import { Calendar, Clock, MapPin, Users } from 'lucide-react';
+import { extractTime, extractDate, calculateDuration } from '@/lib/timeUtils';
 
 interface Coworker {
   id: string;
@@ -88,7 +89,7 @@ export default function EmployeeSchedule() {
   };
 
   const fetchCoworkersForShift = async (shift: Omit<Shift, 'coworkers'>) => {
-    const shiftDate = parseISO(shift.start_time);
+    const shiftDateStr = extractDate(shift.start_time);
     
     // Find other employees working on the same day
     const { data: coworkerShifts, error } = await supabase
@@ -103,8 +104,8 @@ export default function EmployeeSchedule() {
         )
       `)
       .neq('employee_id', user!.id)
-      .gte('start_time', format(shiftDate, 'yyyy-MM-dd') + 'T00:00:00.000Z')
-      .lt('start_time', format(shiftDate, 'yyyy-MM-dd') + 'T23:59:59.999Z');
+      .gte('start_time', shiftDateStr + 'T00:00:00.000Z')
+      .lt('start_time', shiftDateStr + 'T23:59:59.999Z');
 
     if (error) {
       console.error('Error fetching coworkers:', error);
@@ -147,22 +148,11 @@ export default function EmployeeSchedule() {
   };
 
   const formatShiftTime = (startTime: string, endTime: string) => {
-    // Extrahera tider direkt utan timezone-konvertering (norsk tid)
-    const startTimeStr = startTime.substring(11, 16); // "HH:mm"
-    const endTimeStr = endTime.substring(11, 16); // "HH:mm"
-    
-    return `${startTimeStr} - ${endTimeStr}`;
+    return `${extractTime(startTime)} - ${extractTime(endTime)}`;
   };
 
   const formatShiftDuration = (startTime: string, endTime: string) => {
-    // Extrahera tider och beräkna varaktighet
-    const [startHour, startMinute] = startTime.substring(11, 16).split(':').map(Number);
-    const [endHour, endMinute] = endTime.substring(11, 16).split(':').map(Number);
-    
-    const startMinutes = startHour * 60 + startMinute;
-    const endMinutes = endHour * 60 + endMinute;
-    const hours = Math.round((endMinutes - startMinutes) / 60 * 10) / 10;
-    
+    const hours = calculateDuration(startTime, endTime);
     return `${hours}h`;
   };
 
