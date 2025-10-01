@@ -134,17 +134,74 @@ const Schedule = () => {
     setShowCreateDialog(true);
   };
 
+  // Get suggested shift times for an employee
+  const getSuggestedTimes = async (employeeId: string): Promise<{ start_time: string; end_time: string }> => {
+    if (!employeeId) {
+      return { start_time: '11:00', end_time: '18:00' };
+    }
+
+    // First, try to get the most recent shift for this employee
+    const { data: recentShift } = await supabase
+      .from('shifts')
+      .select('start_time, end_time')
+      .eq('employee_id', employeeId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (recentShift) {
+      return {
+        start_time: format(parseISO(recentShift.start_time), 'HH:mm'),
+        end_time: format(parseISO(recentShift.end_time), 'HH:mm')
+      };
+    }
+
+    // If no shift for this employee, get the most common shift times across all shifts
+    const { data: allShifts } = await supabase
+      .from('shifts')
+      .select('start_time, end_time')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (allShifts && allShifts.length > 0) {
+      // Count occurrences of start_time and end_time
+      const timeMap = new Map<string, number>();
+      allShifts.forEach(shift => {
+        const key = `${format(parseISO(shift.start_time), 'HH:mm')}-${format(parseISO(shift.end_time), 'HH:mm')}`;
+        timeMap.set(key, (timeMap.get(key) || 0) + 1);
+      });
+
+      // Get the most common time combination
+      let mostCommon = '';
+      let maxCount = 0;
+      timeMap.forEach((count, key) => {
+        if (count > maxCount) {
+          maxCount = count;
+          mostCommon = key;
+        }
+      });
+
+      if (mostCommon) {
+        const [start, end] = mostCommon.split('-');
+        return { start_time: start, end_time: end };
+      }
+    }
+
+    // Fallback to reasonable defaults
+    return { start_time: '11:00', end_time: '18:00' };
+  };
+
   const addEmployeeShift = () => {
     setEmployeeShifts(prev => [...prev, {
       employee_id: '',
-      start_time: '09:00',
-      end_time: '17:00',
-      hours: 8,
+      start_time: '11:00',
+      end_time: '18:00',
+      hours: 7,
       auto_punch_in: true
     }]);
   };
 
-  const updateEmployeeShift = (index: number, field: string, value: string) => {
+  const updateEmployeeShift = async (index: number, field: string, value: string) => {
     setEmployeeShifts(prev => {
       const updated = [...prev];
       
@@ -167,6 +224,21 @@ const Schedule = () => {
       
       return updated;
     });
+
+    // When employee is selected, fetch and populate suggested times
+    if (field === 'employee_id' && value) {
+      const suggestedTimes = await getSuggestedTimes(value);
+      setEmployeeShifts(prev => {
+        const updated = [...prev];
+        updated[index] = {
+          ...updated[index],
+          start_time: suggestedTimes.start_time,
+          end_time: suggestedTimes.end_time,
+          hours: calculateHours(suggestedTimes.start_time, suggestedTimes.end_time)
+        };
+        return updated;
+      });
+    }
   };
 
   const removeEmployeeShift = (index: number) => {
