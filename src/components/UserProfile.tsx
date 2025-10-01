@@ -1,18 +1,9 @@
-import { LogOut } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { useCurrentUserProfile } from '@/hooks/useCurrentUserProfile';
-import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 export function UserProfile() {
   const { data: profile, isLoading } = useCurrentUserProfile();
-  const { signOut } = useAuth();
   const isMobile = useIsMobile();
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
@@ -35,24 +26,16 @@ export function UserProfile() {
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none">
-        <Avatar className="h-8 w-8">
-          <AvatarImage src={profile?.avatar_url || undefined} alt={getFullName(profile?.first_name, profile?.last_name)} />
-          <AvatarFallback>{getInitials(profile?.first_name, profile?.last_name)}</AvatarFallback>
-        </Avatar>
-        {!isMobile && (
-          <span className="text-sm font-medium">
-            {getFullName(profile?.first_name, profile?.last_name)}
-          </span>
-        )}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem onClick={signOut}>
-          <LogOut className="h-4 w-4 mr-2" />
-          Logga ut
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="flex items-center gap-2">
+      <Avatar className="h-8 w-8">
+        <AvatarImage src={profile?.avatar_url || undefined} alt={getFullName(profile?.first_name, profile?.last_name)} />
+        <AvatarFallback>{getInitials(profile?.first_name, profile?.last_name)}</AvatarFallback>
+      </Avatar>
+      {!isMobile && (
+        <span className="text-sm font-medium">
+          {getFullName(profile?.first_name, profile?.last_name)}
+        </span>
+      )}
+    </div>
   );
 }
