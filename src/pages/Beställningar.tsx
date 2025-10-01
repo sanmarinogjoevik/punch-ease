@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ShoppingCart, Plus, Search, Filter } from 'lucide-react';
+import { ShoppingCart, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -44,7 +44,6 @@ export default function Beställningar() {
     useState<Beställning | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('alla');
   const [sortBy, setSortBy] = useState<'date' | 'pris'>('date');
 
   const handleCreate = () => {
@@ -98,11 +97,6 @@ export default function Beställningar() {
       );
     }
 
-    // Apply status filter
-    if (statusFilter !== 'alla') {
-      filtered = filtered.filter((b) => b.status === statusFilter);
-    }
-
     // Sort
     const sorted = [...filtered].sort((a, b) => {
       if (sortBy === 'date') {
@@ -116,7 +110,7 @@ export default function Beställningar() {
     });
 
     return sorted;
-  }, [beställningar, searchQuery, statusFilter, sortBy]);
+  }, [beställningar, searchQuery, sortBy]);
 
   // Calculate total price
   const totalPris = useMemo(() => {
@@ -152,8 +146,8 @@ export default function Beställningar() {
           <CardTitle>Filter och sök</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="md:col-span-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -163,21 +157,6 @@ export default function Beställningar() {
                   className="pl-9"
                 />
               </div>
-            </div>
-            <div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Filtrera status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="alla">Alla status</SelectItem>
-                  <SelectItem value="ej_påbörjad">Ej påbörjad</SelectItem>
-                  <SelectItem value="pågående">Pågående</SelectItem>
-                  <SelectItem value="klar">Klar</SelectItem>
-                  <SelectItem value="levererad">Levererad</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
             <div>
               <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'date' | 'pris')}>
@@ -240,7 +219,7 @@ export default function Beställningar() {
             </div>
           ) : filteredAndSortedBeställningar.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              {searchQuery || statusFilter !== 'alla'
+              {searchQuery
                 ? 'Inga beställningar matchade din sökning'
                 : 'Inga beställningar än'}
             </div>

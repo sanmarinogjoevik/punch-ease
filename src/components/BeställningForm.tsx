@@ -118,7 +118,6 @@ export function BeställningForm({
         vara: v.vara,
         pris: parseFloat(v.pris),
       })),
-      status: initialData?.status || 'ej_påbörjad',
     };
     const result = await onSubmit(submitData);
     if (result.success) {

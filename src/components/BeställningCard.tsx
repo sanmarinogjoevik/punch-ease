@@ -2,10 +2,8 @@ import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { Building2, Calendar, User, Phone, Hash, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Beställning } from '@/hooks/useBeställningar';
-import { cn } from '@/lib/utils';
 
 interface BeställningCardProps {
   beställning: Beställning;
@@ -14,33 +12,12 @@ interface BeställningCardProps {
   showActions?: boolean;
 }
 
-const statusConfig = {
-  ej_påbörjad: {
-    label: 'Ej påbörjad',
-    className: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100',
-  },
-  pågående: {
-    label: 'Pågående',
-    className: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100',
-  },
-  klar: {
-    label: 'Klar',
-    className: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100',
-  },
-  levererad: {
-    label: 'Levererad',
-    className: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100',
-  },
-};
-
 export function BeställningCard({
   beställning,
   onEdit,
   onDelete,
   showActions = false,
 }: BeställningCardProps) {
-  const status = statusConfig[beställning.status as keyof typeof statusConfig] || statusConfig.ej_påbörjad;
-
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="pb-3">
@@ -56,9 +33,6 @@ export function BeställningCard({
               {beställning.bedriftskunder?.orgnr || ''}
             </p>
           </div>
-          <Badge className={cn(status.className)}>
-            {status.label}
-          </Badge>
         </div>
       </CardHeader>
 
