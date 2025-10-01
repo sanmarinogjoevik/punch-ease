@@ -24,16 +24,17 @@ Deno.serve(async (req) => {
     const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
 
     console.log('Checking for shifts starting between:', now.toISOString(), 'and', fiveMinutesFromNow.toISOString());
+    console.log('Also checking for ongoing shifts that have already started');
 
     // Find all shifts that:
-    // 1. Start within the next 5 minutes
-    // 2. Have auto_punch_in enabled
+    // 1. Start within the next 5 minutes OR
+    // 2. Are currently ongoing (started but not ended yet)
+    // 3. Have auto_punch_in enabled
     const { data: upcomingShifts, error: shiftsError } = await supabase
       .from('shifts')
       .select('id, employee_id, start_time, end_time, location')
       .eq('auto_punch_in', true)
-      .gte('start_time', now.toISOString())
-      .lte('start_time', fiveMinutesFromNow.toISOString());
+      .or(`and(start_time.gte.${now.toISOString()},start_time.lte.${fiveMinutesFromNow.toISOString()}),and(start_time.lte.${now.toISOString()},end_time.gte.${now.toISOString()})`);
 
     if (shiftsError) {
       console.error('Error fetching shifts:', shiftsError);
