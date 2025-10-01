@@ -287,8 +287,8 @@ export default function TimeEntries() {
 
         // Get employee name from shift data or use fallback
         const employeeName = userRole === 'admin' 
-          ? (shift.employee?.first_name && shift.employee?.last_name 
-              ? `${shift.employee.first_name} ${shift.employee.last_name}` 
+          ? (shift.profiles?.first_name && shift.profiles?.last_name 
+              ? `${shift.profiles.first_name} ${shift.profiles.last_name}` 
               : 'Ukjent ansatt')
           : (user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name);
 
