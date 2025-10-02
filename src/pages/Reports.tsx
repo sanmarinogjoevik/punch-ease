@@ -18,7 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addWeeks, startOfWeek, startOfDay, subMonths, addMonths, subDays, addDays } from 'date-fns';
 import { nb, sv } from 'date-fns/locale';
 import html2pdf from 'html2pdf.js';
-import { formatTimeNorway } from '@/lib/timeUtils';
+import { formatTimeNorway, createUTCFromNorwegianTime } from '@/lib/timeUtils';
 
 
 interface TimeEntry {
@@ -334,11 +334,11 @@ export default function Reports() {
     try {
       // Extrahera datum direkt från ISO-strängen
       const startDate = editingShift.start_time.substring(0, 10);
-      // Spara tiderna som UTC för att undvika timezone-konvertering
+      // Konvertera norsk tid till UTC korrekt
       await updateShift.mutateAsync({
         id: editingShift.id,
-        start_time: `${startDate}T${shiftEditForm.start_time}:00+00:00`,
-        end_time: `${startDate}T${shiftEditForm.end_time}:00+00:00`,
+        start_time: createUTCFromNorwegianTime(startDate, shiftEditForm.start_time),
+        end_time: createUTCFromNorwegianTime(startDate, shiftEditForm.end_time),
         location: shiftEditForm.location || undefined,
         notes: shiftEditForm.notes || undefined
       });
