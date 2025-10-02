@@ -111,9 +111,9 @@ export function InvoiceDialog({ open, onOpenChange, beställning }: InvoiceDialo
   if (!beställning) return null;
 
   const varor = isEditing ? fields.map(f => ({ vara: f.vara, pris: f.pris })) : ((beställning.varor || []) as Vara[]);
-  const subtotal = varor.reduce((sum, vara) => sum + vara.pris, 0);
-  const moms = subtotal * 0.25;
-  const total = subtotal + moms;
+  const total = varor.reduce((sum, vara) => sum + vara.pris, 0);
+  const moms = total * (15 / 115); // 15% moms för take-away (inkluderat i priset)
+  const subtotal = total - moms;
 
   const handlePrint = () => {
     window.print();
@@ -441,7 +441,7 @@ export function InvoiceDialog({ open, onOpenChange, beställning }: InvoiceDialo
                   <span>{subtotal.toLocaleString('sv-SE')} kr</span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-border">
-                  <span>Moms (25%):</span>
+                  <span>Moms (15%):</span>
                   <span>{moms.toLocaleString('sv-SE')} kr</span>
                 </div>
                 <div className="flex justify-between py-3 text-xl font-bold">
