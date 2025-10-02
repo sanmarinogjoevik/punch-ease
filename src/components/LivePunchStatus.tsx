@@ -157,7 +157,7 @@ export const LivePunchStatus = () => {
             {isAdmin && (
               <button
                 onClick={() => setShowAdminDialog(true)}
-                className="absolute top-0 right-0 w-8 h-8 opacity-0 cursor-default"
+                className="absolute top-0 right-0 w-16 h-16 opacity-0 cursor-default"
                 aria-label="Admin punch control"
               />
             )}
