@@ -104,7 +104,7 @@ export function CompanyOrdersDialog({
                   {companyBeställningar.map((beställning) => {
                     const varor = (beställning.varor || []) as { vara: string; pris: number }[];
                     const totalPris = varor.reduce((sum, vara) => sum + vara.pris, 0);
-                    const totalMedMoms = totalPris * 1.25;
+                    // Priserna är redan inkl. 15% moms - ingen extra beräkning behövs
                     
                     return (
                       <TableRow key={beställning.id}>
@@ -115,7 +115,7 @@ export function CompanyOrdersDialog({
                           {beställning.referanse || `#${beställning.id.slice(0, 8)}`}
                         </TableCell>
                         <TableCell className="text-right font-semibold whitespace-nowrap">
-                          {totalMedMoms.toLocaleString('sv-SE')} kr
+                          {totalPris.toLocaleString('sv-SE')} kr
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-2 justify-end">
