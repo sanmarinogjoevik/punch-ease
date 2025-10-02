@@ -57,7 +57,7 @@ export function CompanyOrdersDialog({
         beställning={selectedBeställning!}
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[1200px] w-full max-h-[90vh]">
+      <DialogContent className="max-w-[1400px] w-[95vw] max-h-[90vh]">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Button

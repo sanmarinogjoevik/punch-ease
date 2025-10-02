@@ -39,8 +39,8 @@ const DialogContent = React.forwardRef<
         "fixed left-[50%] z-50 grid w-full gap-4 border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
         // Mobile: full screen with scroll, positioned at top with reduced height for keyboard
         "bottom-0 top-auto max-h-[55vh] translate-x-[-50%] translate-y-0 overflow-y-auto rounded-t-lg p-4",
-        // Desktop: centered modal
-        "sm:top-[50%] sm:bottom-auto sm:max-h-[90vh] sm:max-w-lg sm:translate-y-[-50%] sm:rounded-lg sm:p-6",
+        // Desktop: centered modal - removed default max-w-lg to allow custom sizing
+        "sm:top-[50%] sm:bottom-auto sm:max-h-[90vh] sm:translate-y-[-50%] sm:rounded-lg sm:p-6",
         className,
       )}
       {...props}

@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Printer, Download, Edit, Save, X, Plus, Trash2 } from "lucide-react";
+import { Printer, Download, Edit, Save, X, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
@@ -14,6 +14,16 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Vara {
   vara: string;
@@ -63,7 +73,8 @@ export function InvoiceDialog({ open, onOpenChange, beställning }: InvoiceDialo
   const { data: companySettings } = useCompanySettings();
   const invoiceRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const { updateBeställning } = useBeställningar();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const { updateBeställning, deleteBeställning } = useBeställningar();
   const { toast } = useToast();
 
   const form = useForm<FormValues>({
@@ -143,12 +154,50 @@ export function InvoiceDialog({ open, onOpenChange, beställning }: InvoiceDialo
     }
   };
 
+  const handleDelete = async () => {
+    try {
+      await deleteBeställning(beställning.id);
+      
+      toast({
+        title: "Faktura borttagen",
+        description: "Fakturan har tagits bort."
+      });
+      
+      setShowDeleteDialog(false);
+      onOpenChange(false);
+    } catch (error) {
+      toast({
+        title: "Fel",
+        description: "Kunde inte ta bort fakturan. Försök igen.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
+    <>
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Är du säker?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Detta kommer att permanent ta bort fakturan. Denna åtgärd kan inte ångras.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Ta bort
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[1400px] w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader className="print:hidden">
           <DialogTitle>Faktura - {beställning.referanse || `#${beställning.id.slice(0, 8)}`}</DialogTitle>
-          <div className="flex gap-2 mt-4">
+          <div className="flex gap-2 mt-4 flex-wrap">
             {!isEditing ? (
               <>
                 <Button onClick={() => setIsEditing(true)} variant="outline" size="sm">
@@ -162,6 +211,10 @@ export function InvoiceDialog({ open, onOpenChange, beställning }: InvoiceDialo
                 <Button onClick={handleDownloadPDF} variant="outline" size="sm">
                   <Download className="mr-2 h-4 w-4" />
                   Ladda ner PDF
+                </Button>
+                <Button onClick={() => setShowDeleteDialog(true)} variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Ta bort faktura
                 </Button>
               </>
             ) : (
@@ -411,5 +464,6 @@ export function InvoiceDialog({ open, onOpenChange, beställning }: InvoiceDialo
         </Form>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
