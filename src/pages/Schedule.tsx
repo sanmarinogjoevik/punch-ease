@@ -15,7 +15,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, addMonth
 import { nb } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { createUTCFromNorwegianTime, extractTime } from "@/lib/timeUtils";
+import { createUTCFromNorwegianTime, extractTime, formatTimeNorway } from "@/lib/timeUtils";
 
 interface Profile {
   id: string;
@@ -152,8 +152,8 @@ const Schedule = () => {
 
     if (recentShift) {
       return {
-        start_time: recentShift.start_time.substring(11, 16),
-        end_time: recentShift.end_time.substring(11, 16)
+        start_time: formatTimeNorway(recentShift.start_time),
+        end_time: formatTimeNorway(recentShift.end_time)
       };
     }
 
@@ -168,7 +168,7 @@ const Schedule = () => {
       // Count occurrences of start_time and end_time
       const timeMap = new Map<string, number>();
       allShifts.forEach(shift => {
-        const key = `${shift.start_time.substring(11, 16)}-${shift.end_time.substring(11, 16)}`;
+        const key = `${formatTimeNorway(shift.start_time)}-${formatTimeNorway(shift.end_time)}`;
         timeMap.set(key, (timeMap.get(key) || 0) + 1);
       });
 
@@ -466,7 +466,7 @@ const Schedule = () => {
                             <div className="flex items-center gap-1 text-muted-foreground">
                               <Clock className="w-2 h-2" />
                               <span className="text-xs">
-                                {shift.start_time.substring(11, 16)} - {shift.end_time.substring(11, 16)}
+                                {formatTimeNorway(shift.start_time)} - {formatTimeNorway(shift.end_time)}
                               </span>
                             </div>
                           </div>

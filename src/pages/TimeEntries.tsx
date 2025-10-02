@@ -12,7 +12,7 @@ import { nb } from 'date-fns/locale';
 import { Clock, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { formatDuration, extractTime, extractDate, calculateDurationMinutes } from '@/lib/timeUtils';
+import { formatDuration, extractTime, extractDate, calculateDurationMinutes, formatTimeNorway } from '@/lib/timeUtils';
 
 interface TimeEntry {
   id: string;
@@ -388,7 +388,7 @@ export default function TimeEntries() {
                             <div className="flex items-center gap-1">
                               <ArrowUp className="h-3 w-3 text-green-600" />
                               <span className="text-xs">
-                                {session.punch_in.timestamp.substring(11, 16)}
+                                {formatTimeNorway(session.punch_in.timestamp)}
                               </span>
                             </div>
                             {session.punch_out && (
@@ -396,7 +396,7 @@ export default function TimeEntries() {
                                 {!isMobile && <span className="text-muted-foreground">→</span>}
                                 <ArrowDown className="h-3 w-3 text-red-600" />
                                 <span className="text-xs">
-                                  {session.punch_out.timestamp.substring(11, 16)}
+                                  {formatTimeNorway(session.punch_out.timestamp)}
                                 </span>
                               </div>
                             )}

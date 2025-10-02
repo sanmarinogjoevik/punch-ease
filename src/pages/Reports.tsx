@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addWeeks, startOfWeek, startOfDay, subMonths, addMonths, subDays, addDays } from 'date-fns';
 import { nb, sv } from 'date-fns/locale';
 import html2pdf from 'html2pdf.js';
+import { formatTimeNorway } from '@/lib/timeUtils';
 
 
 interface TimeEntry {
@@ -171,9 +172,9 @@ export default function Reports() {
         let hasData = false;
         
         if (dayShift) {
-          // Använd tiden direkt från databasen (redan i rätt format)
-          const startTimeStr = dayShift.start_time.substring(11, 16);
-          const endTimeStr = dayShift.end_time.substring(11, 16);
+          // Använd formatTimeNorway för att konvertera UTC till norsk tid
+          const startTimeStr = formatTimeNorway(dayShift.start_time);
+          const endTimeStr = formatTimeNorway(dayShift.end_time);
           
           // Skapa Date-objekt för jämförelser
           const [startHour, startMinute] = startTimeStr.split(':').map(Number);
@@ -314,9 +315,9 @@ export default function Reports() {
 
   const handleEditShift = (shift: any) => {
     setEditingShift(shift);
-    // Använd tiden direkt från databasen
-    const startTime = shift.start_time.substring(11, 16);
-    const endTime = shift.end_time.substring(11, 16);
+    // Använd formatTimeNorway för att visa norsk tid
+    const startTime = formatTimeNorway(shift.start_time);
+    const endTime = formatTimeNorway(shift.end_time);
     setShiftEditForm({
       start_time: startTime,
       end_time: endTime,
@@ -925,7 +926,7 @@ export default function Reports() {
                                 <div className="flex items-center gap-1 text-muted-foreground">
                                   <Clock className="w-2 h-2" />
                                   <span className="text-xs">
-                                    {shift.start_time.substring(11, 16)} - {shift.end_time.substring(11, 16)}
+                                    {formatTimeNorway(shift.start_time)} - {formatTimeNorway(shift.end_time)}
                                   </span>
                                 </div>
                                 {shift.location && (

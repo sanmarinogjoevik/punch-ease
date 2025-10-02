@@ -9,7 +9,7 @@ import { format, parseISO, isAfter, isSameDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
 import { Clock, Calendar, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { calculateDurationMinutes, extractTime, extractDate } from '@/lib/timeUtils';
+import { calculateDurationMinutes, extractTime, extractDate, formatTimeNorway } from '@/lib/timeUtils';
 
 interface TimeEntry {
   id: string;
@@ -281,7 +281,7 @@ export default function Timeliste() {
   };
 
   const formatTime = (timestamp: string) => {
-    return timestamp.substring(11, 16);
+    return formatTimeNorway(timestamp);
   };
 
   const formatDate = (dateString: string) => {

@@ -9,7 +9,7 @@ import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { formatDuration } from '@/lib/timeUtils';
+import { formatDuration, formatTimeNorway } from '@/lib/timeUtils';
 import { format, parseISO, isAfter, isSameDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
 
@@ -244,7 +244,7 @@ export default function Dashboard() {
   };
 
   const formatTime = (dateString: string) => {
-    return dateString.substring(11, 16);
+    return formatTimeNorway(dateString);
   };
 
   const shouldUseScheduleTimes = (date: Date): boolean => {
