@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Beställning, fetchBeställningarByBedriftskunde } from '@/hooks/useBeställningar';
 import { Bedriftskunde } from '@/hooks/useBedriftskunder';
 import { InvoiceDialog } from '@/components/InvoiceDialog';
@@ -56,7 +57,7 @@ export function CompanyOrdersDialog({
         beställning={selectedBeställning!}
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-7xl max-h-[90vh]">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Button
@@ -88,53 +89,56 @@ export function CompanyOrdersDialog({
             <p>Inga beställningar för detta företag</p>
           </div>
         ) : (
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Datum</TableHead>
-                  <TableHead>Referens</TableHead>
-                  <TableHead>Beskrivning</TableHead>
-                  <TableHead className="text-right">Totalt pris</TableHead>
-                  <TableHead className="text-right">Åtgärd</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {companyBeställningar.map((beställning) => {
-                  const varor = (beställning.varor || []) as { vara: string; pris: number }[];
-                  const totalPris = varor.reduce((sum, vara) => sum + vara.pris, 0);
-                  const totalMedMoms = totalPris * 1.25;
-                  
-                  return (
-                    <TableRow key={beställning.id}>
-                      <TableCell>
-                        {format(new Date(beställning.created_at), "d MMM yyyy", { locale: sv })}
-                      </TableCell>
-                      <TableCell>
-                        {beställning.referanse || `#${beställning.id.slice(0, 8)}`}
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {beställning.beskrivning}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {totalMedMoms.toLocaleString('sv-SE')} kr
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          onClick={() => handleViewInvoice(beställning)}
-                          variant="ghost"
-                          size="sm"
-                        >
-                          <FileText className="h-4 w-4 mr-2" />
-                          Visa faktura
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+          <ScrollArea className="h-[calc(90vh-180px)]">
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[120px]">Datum</TableHead>
+                    <TableHead className="w-[140px]">Referens</TableHead>
+                    <TableHead className="min-w-[300px]">Beskrivning</TableHead>
+                    <TableHead className="w-[140px] text-right">Totalt pris</TableHead>
+                    <TableHead className="w-[180px] text-right">Åtgärd</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {companyBeställningar.map((beställning) => {
+                    const varor = (beställning.varor || []) as { vara: string; pris: number }[];
+                    const totalPris = varor.reduce((sum, vara) => sum + vara.pris, 0);
+                    const totalMedMoms = totalPris * 1.25;
+                    
+                    return (
+                      <TableRow key={beställning.id}>
+                        <TableCell className="whitespace-nowrap">
+                          {format(new Date(beställning.created_at), "d MMM yyyy", { locale: sv })}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {beställning.referanse || `#${beställning.id.slice(0, 8)}`}
+                        </TableCell>
+                        <TableCell className="break-words">
+                          {beställning.beskrivning}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold whitespace-nowrap">
+                          {totalMedMoms.toLocaleString('sv-SE')} kr
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            onClick={() => handleViewInvoice(beställning)}
+                            variant="ghost"
+                            size="sm"
+                            className="whitespace-nowrap"
+                          >
+                            <FileText className="h-4 w-4 mr-2" />
+                            Visa faktura
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </ScrollArea>
         )}
         </DialogContent>
       </Dialog>
