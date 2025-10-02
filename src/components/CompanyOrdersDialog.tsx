@@ -57,7 +57,7 @@ export function CompanyOrdersDialog({
         beställning={selectedBeställning!}
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-full max-h-[90vh]">
+      <DialogContent className="max-w-[1200px] w-full max-h-[90vh]">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Button
@@ -90,15 +90,14 @@ export function CompanyOrdersDialog({
           </div>
         ) : (
           <ScrollArea className="h-[calc(90vh-180px)]">
-            <div className="border rounded-lg overflow-x-auto">
-              <Table className="min-w-[900px]">
+            <div className="border rounded-lg">
+              <Table className="min-w-full">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[110px]">Datum</TableHead>
-                    <TableHead className="w-[130px]">Referens</TableHead>
-                    <TableHead className="min-w-[250px]">Beskrivning</TableHead>
-                    <TableHead className="w-[120px] text-right">Totalt pris</TableHead>
-                    <TableHead className="w-[160px] text-right">Åtgärd</TableHead>
+                    <TableHead className="w-[150px]">Datum</TableHead>
+                    <TableHead className="w-[200px]">Referens</TableHead>
+                    <TableHead className="w-[180px] text-right">Totalt pris</TableHead>
+                    <TableHead className="w-auto text-right">Åtgärd</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -115,22 +114,21 @@ export function CompanyOrdersDialog({
                         <TableCell className="whitespace-nowrap">
                           {beställning.referanse || `#${beställning.id.slice(0, 8)}`}
                         </TableCell>
-                        <TableCell className="break-words">
-                          {beställning.beskrivning}
-                        </TableCell>
                         <TableCell className="text-right font-semibold whitespace-nowrap">
                           {totalMedMoms.toLocaleString('sv-SE')} kr
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            onClick={() => handleViewInvoice(beställning)}
-                            variant="ghost"
-                            size="sm"
-                            className="whitespace-nowrap"
-                          >
-                            <FileText className="h-4 w-4 mr-2" />
-                            Visa faktura
-                          </Button>
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              onClick={() => handleViewInvoice(beställning)}
+                              variant="ghost"
+                              size="sm"
+                              className="whitespace-nowrap"
+                            >
+                              <FileText className="h-4 w-4 mr-2" />
+                              Visa faktura
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
