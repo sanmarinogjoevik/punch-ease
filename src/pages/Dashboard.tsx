@@ -9,7 +9,9 @@ import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { formatTimeNorway, formatDateTimeNorway, formatDateNorway, formatDuration } from '@/lib/timeUtils';
+import { formatDuration } from '@/lib/timeUtils';
+import { format, parseISO, isAfter, isSameDay } from 'date-fns';
+import { nb } from 'date-fns/locale';
 
 interface Shift {
   id: string;
@@ -238,11 +240,11 @@ export default function Dashboard() {
 
 
   const formatDateTime = (dateString: string) => {
-    return formatDateTimeNorway(dateString);
+    return format(parseISO(dateString), 'dd.MM.yyyy HH:mm', { locale: nb });
   };
 
   const formatTime = (dateString: string) => {
-    return formatTimeNorway(dateString);
+    return dateString.substring(11, 16);
   };
 
   const shouldUseScheduleTimes = (date: Date): boolean => {
@@ -445,7 +447,7 @@ export default function Dashboard() {
                     {upcomingShifts.map((shift) => (
                       <div key={shift.id} className="p-3 rounded-lg border">
                          <div className="font-medium">
-                          {formatDateNorway(shift.start_time)}
+                          {format(parseISO(shift.start_time), 'dd.MM.yyyy', { locale: nb })}
                         </div>
                         <div className="text-sm text-muted-foreground">
                           {formatTime(shift.start_time)} - {formatTime(shift.end_time)}

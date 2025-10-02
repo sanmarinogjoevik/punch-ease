@@ -3,7 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Thermometer, Clock, User, AlertCircle } from "lucide-react";
 import { useTemperatureLogs } from "@/hooks/useTemperatureLogs";
-import { formatDateNorway } from "@/lib/timeUtils";
+import { format, parseISO } from "date-fns";
+import { nb } from "date-fns/locale";
 
 export const TodaysTemperatureLogs = () => {
   const { temperatureLogs, isLoading, error } = useTemperatureLogs();
@@ -81,11 +82,11 @@ export const TodaysTemperatureLogs = () => {
                       <div className="font-medium text-sm">
                         {log.equipment_name}
                       </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs opacity-80">
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatDateNorway(log.timestamp)}
-                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-xs opacity-80">
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {format(parseISO(log.timestamp), 'dd.MM.yyyy HH:mm', { locale: nb })}
+                          </div>
                         {log.profiles && (
                           <div className="flex items-center gap-1">
                             <User className="h-3 w-3" />

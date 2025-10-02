@@ -9,7 +9,7 @@ import { format, parseISO, isAfter, isSameDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
 import { Clock, Calendar, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { formatTimeNorway, formatDateNorway, calculateDurationMinutes, extractTime, extractDate } from '@/lib/timeUtils';
+import { calculateDurationMinutes, extractTime, extractDate } from '@/lib/timeUtils';
 
 interface TimeEntry {
   id: string;
@@ -281,11 +281,11 @@ export default function Timeliste() {
   };
 
   const formatTime = (timestamp: string) => {
-    return formatTimeNorway(timestamp);
+    return timestamp.substring(11, 16);
   };
 
   const formatDate = (dateString: string) => {
-    return formatDateNorway(dateString);
+    return format(parseISO(dateString), 'dd.MM.yyyy', { locale: nb });
   };
 
   const getWorkDayBadge = (workDay: WorkDay) => {

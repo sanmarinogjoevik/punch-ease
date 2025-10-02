@@ -12,7 +12,7 @@ import { nb } from 'date-fns/locale';
 import { Clock, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { formatTimeNorway, formatDateNorway, formatDuration, extractTime, extractDate, calculateDurationMinutes } from '@/lib/timeUtils';
+import { formatDuration, extractTime, extractDate, calculateDurationMinutes } from '@/lib/timeUtils';
 
 interface TimeEntry {
   id: string;
@@ -314,13 +314,6 @@ export default function TimeEntries() {
     );
   };
 
-  const formatTime = (timestamp: string): string => {
-    return formatTimeNorway(timestamp);
-  };
-
-  const formatDate = (timestamp: string): string => {
-    return formatDateNorway(timestamp);
-  };
 
   const getSessionBadge = (session: WorkSession) => {
     const badges = [];
