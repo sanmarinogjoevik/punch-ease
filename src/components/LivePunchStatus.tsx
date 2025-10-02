@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Users } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { AdminPunchDialog } from './AdminPunchDialog';
 
 interface PunchedInEmployee {
   id: string;
@@ -13,7 +15,9 @@ interface PunchedInEmployee {
 }
 
 export const LivePunchStatus = () => {
+  const { isAdmin } = useAuth();
   const [punchedInEmployees, setPunchedInEmployees] = useState<PunchedInEmployee[]>([]);
+  const [showAdminDialog, setShowAdminDialog] = useState(false);
 
   // Query to get currently punched in employees
   const { data: employees, refetch } = useQuery({
@@ -139,16 +143,26 @@ export const LivePunchStatus = () => {
   };
 
   return (
-    <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-primary">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-            <Clock className="w-5 h-5" />
-            Live Status
-          </div>
-        </CardTitle>
-      </CardHeader>
+    <>
+      <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-primary relative">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+              <Clock className="w-5 h-5" />
+              Live Status
+            </div>
+            
+            {/* Gömd admin-knapp */}
+            {isAdmin && (
+              <button
+                onClick={() => setShowAdminDialog(true)}
+                className="absolute top-0 right-0 w-8 h-8 opacity-0 cursor-default"
+                aria-label="Admin punch control"
+              />
+            )}
+          </CardTitle>
+        </CardHeader>
       <CardContent>
         <div className="flex items-center gap-4 mb-4">
           <div className="flex items-center gap-2">
@@ -181,5 +195,11 @@ export const LivePunchStatus = () => {
         )}
       </CardContent>
     </Card>
+
+    <AdminPunchDialog 
+      open={showAdminDialog} 
+      onOpenChange={setShowAdminDialog} 
+    />
+    </>
   );
 };
