@@ -63,6 +63,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          kontaktnamn: string | null
           referanse: string | null
           telefon: string | null
           updated_at: string
@@ -74,6 +75,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          kontaktnamn?: string | null
           referanse?: string | null
           telefon?: string | null
           updated_at?: string
@@ -85,6 +87,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          kontaktnamn?: string | null
           referanse?: string | null
           telefon?: string | null
           updated_at?: string

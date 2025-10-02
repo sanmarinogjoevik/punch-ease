@@ -30,6 +30,7 @@ const beställningSchema = z.object({
   beskrivning: z.string().optional(),
   referanse: z.string().optional(),
   telefon: z.string().optional(),
+  kontaktnamn: z.string().optional(),
   varor: z.array(
     z.object({
       vara: z.string().min(1, 'Vara är obligatoriskt'),
@@ -74,6 +75,7 @@ export function BeställningForm({
       beskrivning: '',
       referanse: '',
       telefon: '',
+      kontaktnamn: '',
       varor: [{ vara: '', pris: '' }],
     },
   });
@@ -98,6 +100,7 @@ export function BeställningForm({
           beskrivning: initialData.beskrivning,
           referanse: initialData.referanse || '',
           telefon: initialData.telefon || '',
+          kontaktnamn: initialData.kontaktnamn || '',
           varor,
         });
       } else {
@@ -106,6 +109,7 @@ export function BeställningForm({
           beskrivning: '',
           referanse: '',
           telefon: '',
+          kontaktnamn: '',
           varor: [{ vara: '', pris: '' }],
         });
       }
@@ -166,13 +170,27 @@ export function BeställningForm({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="kontaktnamn">Namn</Label>
+              <Input
+                id="kontaktnamn"
+                {...register('kontaktnamn')}
+                placeholder="Ex: Anna Svensson"
+              />
+              {errors.kontaktnamn && (
+                <p className="text-sm text-destructive">
+                  {errors.kontaktnamn.message}
+                </p>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="referanse">Referanse</Label>
               <Input
                 id="referanse"
                 {...register('referanse')}
-                placeholder="Ex: Anna Svensson"
+                placeholder="Ex: Ekonomiavdelningen"
               />
               {errors.referanse && (
                 <p className="text-sm text-destructive">

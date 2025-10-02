@@ -9,6 +9,7 @@ export interface Beställning {
   beskrivning: string;
   referanse?: string;
   telefon?: string;
+  kontaktnamn?: string;
   varor?: Array<{ vara: string; pris: number }>;
   created_by: string;
   created_at: string;
@@ -34,6 +35,7 @@ export interface CreateBeställning {
   beskrivning: string;
   referanse?: string;
   telefon?: string;
+  kontaktnamn?: string;
   varor?: Array<{ vara: string; pris: number }>;
 }
 

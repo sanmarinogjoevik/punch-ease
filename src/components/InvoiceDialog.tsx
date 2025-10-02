@@ -38,6 +38,7 @@ interface InvoiceDialogProps {
     beskrivning: string;
     referanse?: string;
     telefon?: string;
+    kontaktnamn?: string;
     created_at: string;
     varor?: Vara[];
     bedriftskunder?: {
@@ -61,6 +62,7 @@ const formSchema = z.object({
   beskrivning: z.string().min(1, "Beskrivning krävs").max(1000),
   referanse: z.string().max(100).optional(),
   telefon: z.string().max(20).optional(),
+  kontaktnamn: z.string().max(100).optional(),
   varor: z.array(z.object({
     vara: z.string().min(1, "Varunamn krävs").max(200),
     pris: z.number().min(0, "Pris måste vara positivt")
@@ -83,6 +85,7 @@ export function InvoiceDialog({ open, onOpenChange, beställning }: InvoiceDialo
       beskrivning: beställning?.beskrivning || "",
       referanse: beställning?.referanse || "",
       telefon: beställning?.telefon || "",
+      kontaktnamn: beställning?.kontaktnamn || "",
       varor: (beställning?.varor || []) as Vara[]
     }
   });
@@ -99,6 +102,7 @@ export function InvoiceDialog({ open, onOpenChange, beställning }: InvoiceDialo
         beskrivning: beställning.beskrivning || "",
         referanse: beställning.referanse || "",
         telefon: beställning.telefon || "",
+        kontaktnamn: beställning.kontaktnamn || "",
         varor: (beställning.varor || []) as Vara[]
       });
     }
@@ -135,6 +139,7 @@ export function InvoiceDialog({ open, onOpenChange, beställning }: InvoiceDialo
         beskrivning: data.beskrivning,
         referanse: data.referanse || null,
         telefon: data.telefon || null,
+        kontaktnamn: data.kontaktnamn || null,
         varor: data.varor as any
       });
       
@@ -297,27 +302,18 @@ export function InvoiceDialog({ open, onOpenChange, beställning }: InvoiceDialo
                   </>
                 )}
               </div>
-              {beställning.profiles && (
-                <div className="mt-2">
-                  <p className="text-sm text-muted-foreground">
-                    Kontaktperson: {beställning.profiles.first_name} {beställning.profiles.last_name}
-                    {isEditing ? (
-                      <FormField
-                        control={form.control}
-                        name="telefon"
-                        render={({ field }) => (
-                          <FormItem className="inline-block ml-2">
-                            <FormControl>
-                              <Input {...field} placeholder="Telefon" className="max-w-xs inline-block" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    ) : (
-                      beställning.telefon && ` | Tel: ${beställning.telefon}`
-                    )}
-                  </p>
+              {(beställning.kontaktnamn || beställning.referanse || beställning.telefon) && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <p className="text-sm font-semibold mb-2">Kontaktinformation:</p>
+                  {beställning.kontaktnamn && (
+                    <p className="text-sm">Kontaktperson: {beställning.kontaktnamn}</p>
+                  )}
+                  {beställning.referanse && (
+                    <p className="text-sm">Referens: {beställning.referanse}</p>
+                  )}
+                  {beställning.telefon && (
+                    <p className="text-sm">Telefon: {beställning.telefon}</p>
+                  )}
                 </div>
               )}
             </div>
