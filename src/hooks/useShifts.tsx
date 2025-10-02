@@ -11,6 +11,7 @@ export interface ShiftWithEmployee {
   end_time: string;
   location?: string;
   notes?: string;
+  auto_punch_in: boolean;
   created_at: string;
   updated_at: string;
   profiles: {
@@ -26,6 +27,7 @@ export interface CreateShiftData {
   end_time: string;
   location?: string;
   notes?: string;
+  auto_punch_in?: boolean;
 }
 
 export interface UpdateShiftData extends Partial<CreateShiftData> {

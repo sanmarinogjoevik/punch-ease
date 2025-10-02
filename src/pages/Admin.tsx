@@ -11,6 +11,10 @@ import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { LivePunchStatus } from "@/components/LivePunchStatus";
 import { TodaysTemperatureLogs } from "@/components/TodaysTemperatureLogs";
+import { EditShiftDialog } from "@/components/EditShiftDialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useShiftMutations } from "@/hooks/useShifts";
+import { createUTCFromNorwegianTime } from "@/lib/timeUtils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { 
   Users, 
@@ -49,6 +53,7 @@ interface Shift {
   end_time: string;
   location: string | null;
   notes: string | null;
+  auto_punch_in: boolean;
   created_at: string;
   profiles: {
     first_name: string | null;
@@ -61,6 +66,10 @@ const Admin = () => {
   const { user, userRole } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { updateShift, deleteShift } = useShiftMutations();
+  
+  const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [deletingShiftId, setDeletingShiftId] = useState<string | null>(null);
   
 
   // Fetch all profiles/employees
@@ -181,6 +190,70 @@ const Admin = () => {
       return { status: 'completed', icon: CheckCircle, label: 'Avsluttet' };
     } else {
       return { status: 'active', icon: Clock, label: 'Pågår' };
+    }
+  };
+
+  const handleSaveShift = async (
+    shiftId: string,
+    data: {
+      startDate: string;
+      startTime: string;
+      endDate: string;
+      endTime: string;
+      location: string;
+      notes: string;
+      autoPunchIn: boolean;
+    }
+  ) => {
+    try {
+      const startTimeUTC = createUTCFromNorwegianTime(data.startDate, data.startTime);
+      const endTimeUTC = createUTCFromNorwegianTime(data.endDate, data.endTime);
+
+      await updateShift.mutateAsync({
+        id: shiftId,
+        start_time: startTimeUTC,
+        end_time: endTimeUTC,
+        location: data.location || null,
+        notes: data.notes || null,
+        auto_punch_in: data.autoPunchIn,
+      });
+
+      setEditingShift(null);
+      toast({
+        title: "Vakten har blitt oppdatert",
+        description: "Endringene har blitt lagret.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-todays-shifts"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-weekly-shifts"] });
+    } catch (error) {
+      console.error("Error updating shift:", error);
+      toast({
+        title: "Feil",
+        description: "Kunne inte uppdatera vakten.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteShift = async () => {
+    if (!deletingShiftId) return;
+    
+    try {
+      await deleteShift.mutateAsync(deletingShiftId);
+      setDeletingShiftId(null);
+      toast({
+        title: "Vakten har blitt slettet",
+        description: "Vakten har blitt fjernet fra systemet.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-todays-shifts"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-weekly-shifts"] });
+    } catch (error) {
+      console.error("Error deleting shift:", error);
+      toast({
+        title: "Feil",
+        description: "Kunne inte ta bort vakten.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -310,8 +383,12 @@ const Admin = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <StatusIcon className="w-4 h-4" />
-                    <span className="text-sm font-medium">{label}</span>
+                    <Button size="sm" variant="outline" onClick={() => setEditingShift(shift)}>
+                      Endre
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setDeletingShiftId(shift.id)}>
+                      Ta bort
+                    </Button>
                   </div>
                 </div>
               );
@@ -342,8 +419,8 @@ const Admin = () => {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm">Endre</Button>
-                  <Button variant="ghost" size="sm" className="text-red-600">Ta bort</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setEditingShift(shift)}>Endre</Button>
+                  <Button variant="ghost" size="sm" className="text-red-600" onClick={() => setDeletingShiftId(shift.id)}>Ta bort</Button>
                 </div>
               </div>
             )) || <p className="text-center text-muted-foreground py-6">Ingen vakter planlagt denne uken</p>}
@@ -441,6 +518,30 @@ const Admin = () => {
           </div>
         </CardContent>
       </Card>
+
+      <EditShiftDialog
+        shift={editingShift}
+        open={!!editingShift}
+        onOpenChange={(open) => !open && setEditingShift(null)}
+        onSave={handleSaveShift}
+      />
+
+      <AlertDialog open={!!deletingShiftId} onOpenChange={(open) => !open && setDeletingShiftId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Er du sikker?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Dette vil permanent slette vakten. Denne handlingen kan ikke angres.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteShift}>
+              Slett vakt
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
