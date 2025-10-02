@@ -57,7 +57,7 @@ export function CompanyOrdersDialog({
         beställning={selectedBeställning!}
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl max-h-[90vh]">
+      <DialogContent className="max-w-[95vw] w-full max-h-[90vh]">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Button
@@ -90,15 +90,15 @@ export function CompanyOrdersDialog({
           </div>
         ) : (
           <ScrollArea className="h-[calc(90vh-180px)]">
-            <div className="border rounded-lg">
-              <Table>
+            <div className="border rounded-lg overflow-x-auto">
+              <Table className="min-w-[900px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[120px]">Datum</TableHead>
-                    <TableHead className="w-[140px]">Referens</TableHead>
-                    <TableHead className="min-w-[300px]">Beskrivning</TableHead>
-                    <TableHead className="w-[140px] text-right">Totalt pris</TableHead>
-                    <TableHead className="w-[180px] text-right">Åtgärd</TableHead>
+                    <TableHead className="w-[110px]">Datum</TableHead>
+                    <TableHead className="w-[130px]">Referens</TableHead>
+                    <TableHead className="min-w-[250px]">Beskrivning</TableHead>
+                    <TableHead className="w-[120px] text-right">Totalt pris</TableHead>
+                    <TableHead className="w-[160px] text-right">Åtgärd</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
