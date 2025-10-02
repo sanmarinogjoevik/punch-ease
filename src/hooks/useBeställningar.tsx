@@ -16,10 +16,16 @@ export interface Beställning {
   bedriftskunder?: {
     firmanamn: string;
     orgnr: string;
+    adress?: string;
+    postnummer?: string;
+    stad?: string;
+    telefon?: string;
+    epost?: string;
   };
   profiles?: {
     first_name: string;
     last_name: string;
+    email?: string;
   };
 }
 
@@ -229,7 +235,7 @@ export const fetchBeställningarByBedriftskunde = async (bedriftskundeId: string
       .from('beställningar')
       .select(`
         *,
-        bedriftskunder (firmanamn, orgnr)
+        bedriftskunder (firmanamn, orgnr, adress, postnummer, stad, telefon, epost)
       `)
       .eq('bedriftskunde_id', bedriftskundeId)
       .order('created_at', { ascending: false });
@@ -245,7 +251,7 @@ export const fetchBeställningarByBedriftskunde = async (bedriftskundeId: string
       
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('user_id, first_name, last_name')
+        .select('user_id, first_name, last_name, email')
         .in('user_id', uniqueUserIds);
       
       const profileMap = new Map(
@@ -259,7 +265,8 @@ export const fetchBeställningarByBedriftskunde = async (bedriftskundeId: string
           varor: Array.isArray(beställning.varor) ? beställning.varor as Array<{ vara: string; pris: number }> : [],
           profiles: profile ? {
             first_name: profile.first_name || '',
-            last_name: profile.last_name || ''
+            last_name: profile.last_name || '',
+            email: profile.email || ''
           } : undefined
         };
       });

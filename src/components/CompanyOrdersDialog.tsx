@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { format, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Search, Calendar, ArrowLeft } from 'lucide-react';
+import { Search, Calendar, ArrowLeft, FileText, Package } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -24,10 +24,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { BeställningCard } from '@/components/BeställningCard';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Beställning, fetchBeställningarByBedriftskunde } from '@/hooks/useBeställningar';
 import { Bedriftskunde } from '@/hooks/useBedriftskunder';
 import { useAuth } from '@/hooks/useAuth';
+import { InvoiceDialog } from '@/components/InvoiceDialog';
 
 interface CompanyOrdersDialogProps {
   open: boolean;
@@ -50,8 +51,15 @@ export function CompanyOrdersDialog({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'pris'>('date');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedBeställning, setSelectedBeställning] = useState<Beställning | null>(null);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
 
   const canManage = userRole === 'admin';
+
+  const handleViewInvoice = (beställning: Beställning) => {
+    setSelectedBeställning(beställning);
+    setInvoiceDialogOpen(true);
+  };
 
   useEffect(() => {
     if (open && bedriftskunde?.id) {
@@ -129,7 +137,13 @@ export function CompanyOrdersDialog({
   if (!bedriftskunde) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <InvoiceDialog 
+        open={invoiceDialogOpen}
+        onOpenChange={setInvoiceDialogOpen}
+        beställning={selectedBeställning!}
+      />
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
@@ -242,32 +256,72 @@ export function CompanyOrdersDialog({
             </CardHeader>
             <CardContent>
               {isLoadingCompany ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  Laddar beställningar...
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
               ) : filteredAndSortedBeställningar.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
-                  {searchQuery
-                    ? 'Inga beställningar matchade din sökning'
-                    : 'Inga beställningar för detta företag'}
+                  <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>
+                    {searchQuery
+                      ? 'Inga beställningar matchade din sökning'
+                      : 'Inga beställningar för detta företag'}
+                  </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredAndSortedBeställningar.map((beställning) => (
-                    <BeställningCard
-                      key={beställning.id}
-                      beställning={beställning}
-                      onEdit={canManage ? onEdit : undefined}
-                      onDelete={canManage ? onDelete : undefined}
-                      showActions={canManage}
-                    />
-                  ))}
+                <div className="border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Datum</TableHead>
+                        <TableHead>Referens</TableHead>
+                        <TableHead>Beskrivning</TableHead>
+                        <TableHead className="text-right">Totalt pris</TableHead>
+                        <TableHead className="text-right">Åtgärd</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAndSortedBeställningar.map((beställning) => {
+                        const varor = (beställning.varor || []) as { vara: string; pris: number }[];
+                        const totalPris = varor.reduce((sum, vara) => sum + vara.pris, 0);
+                        const totalMedMoms = totalPris * 1.25;
+                        
+                        return (
+                          <TableRow key={beställning.id}>
+                            <TableCell>
+                              {format(new Date(beställning.created_at), "d MMM yyyy", { locale: sv })}
+                            </TableCell>
+                            <TableCell>
+                              {beställning.referanse || `#${beställning.id.slice(0, 8)}`}
+                            </TableCell>
+                            <TableCell className="max-w-xs truncate">
+                              {beställning.beskrivning}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {totalMedMoms.toLocaleString('sv-SE')} kr
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                onClick={() => handleViewInvoice(beställning)}
+                                variant="ghost"
+                                size="sm"
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                Visa faktura
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </CardContent>
           </Card>
         </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
