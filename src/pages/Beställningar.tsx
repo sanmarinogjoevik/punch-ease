@@ -1,7 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ShoppingCart, Plus, Search, Calendar } from 'lucide-react';
-import { startOfMonth, endOfMonth, isWithinInterval, format } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { ShoppingCart, Plus, Search, Building2, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -12,12 +10,13 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,16 +28,16 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { BeställningForm } from '@/components/BeställningForm';
-import { BeställningCard } from '@/components/BeställningCard';
+import { CompanyOrdersDialog } from '@/components/CompanyOrdersDialog';
 import { useBeställningar, Beställning } from '@/hooks/useBeställningar';
-import { useBedriftskunder } from '@/hooks/useBedriftskunder';
+import { useBedriftskunder, Bedriftskunde } from '@/hooks/useBedriftskunder';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function Beställningar() {
   const { userRole } = useAuth();
   const { beställningar, isLoading, createBeställning, updateBeställning, deleteBeställning } =
     useBeställningar();
-  const { bedriftskunder } = useBedriftskunder();
+  const { bedriftskunder, isLoading: isLoadingCompanies } = useBedriftskunder();
 
   const [formOpen, setFormOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -46,8 +45,8 @@ export default function Beställningar() {
     useState<Beställning | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'date' | 'pris'>('date');
-  const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
+  const [selectedCompany, setSelectedCompany] = useState<Bedriftskunde | null>(null);
+  const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
 
   const handleCreate = () => {
     setIsEditing(false);
@@ -69,9 +68,15 @@ export default function Beställningar() {
     }
   };
 
+  const handleViewCompanyOrders = (bedriftskunde: Bedriftskunde) => {
+    setSelectedCompany(bedriftskunde);
+    setCompanyDialogOpen(true);
+  };
+
   const handleDeleteClick = (beställning: Beställning) => {
     setSelectedBeställning(beställning);
     setDeleteDialogOpen(true);
+    setCompanyDialogOpen(false);
   };
 
   const handleDelete = async () => {
@@ -84,71 +89,51 @@ export default function Beställningar() {
 
   const canManage = userRole === 'admin';
 
-  // Generate month options for the last 12 months
-  const monthOptions = useMemo(() => {
-    const options = [{ value: 'all', label: 'Alla månader' }];
-    const currentDate = new Date();
-    
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-      const value = format(date, 'yyyy-MM');
-      const label = format(date, 'MMMM yyyy', { locale: sv });
-      options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
-    }
-    
-    return options;
-  }, []);
-
-  // Filter and sort beställningar
-  const filteredAndSortedBeställningar = useMemo(() => {
-    let filtered = beställningar;
-
-    // Apply month filter
-    if (selectedMonth !== 'all') {
-      const [year, month] = selectedMonth.split('-').map(Number);
-      const monthStart = startOfMonth(new Date(year, month - 1));
-      const monthEnd = endOfMonth(new Date(year, month - 1));
+  // Calculate order counts per company
+  const companiesWithOrderCounts = useMemo(() => {
+    return bedriftskunder.map((company) => {
+      const orderCount = beställningar.filter(
+        (b) => b.bedriftskunde_id === company.id
+      ).length;
       
-      filtered = filtered.filter((b) => {
-        const createdDate = new Date(b.created_at);
-        return isWithinInterval(createdDate, { start: monthStart, end: monthEnd });
-      });
-    }
+      const totalValue = beställningar
+        .filter((b) => b.bedriftskunde_id === company.id)
+        .reduce((sum, b) => {
+          const beställningTotal = b.varor?.reduce((s, v) => s + (v.pris || 0), 0) || 0;
+          return sum + beställningTotal;
+        }, 0);
 
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (b) =>
-          b.bedriftskunder?.firmanamn?.toLowerCase().includes(query) ||
-          b.beskrivning?.toLowerCase().includes(query) ||
-          b.referanse?.toLowerCase().includes(query) ||
-          b.bedriftskunder?.orgnr?.toLowerCase().includes(query)
-      );
-    }
-
-    // Sort
-    const sorted = [...filtered].sort((a, b) => {
-      if (sortBy === 'date') {
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      } else if (sortBy === 'pris') {
-        const aPris = a.varor?.reduce((sum, v) => sum + (v.pris || 0), 0) || 0;
-        const bPris = b.varor?.reduce((sum, v) => sum + (v.pris || 0), 0) || 0;
-        return bPris - aPris;
-      }
-      return 0;
+      return {
+        ...company,
+        orderCount,
+        totalValue,
+      };
     });
+  }, [bedriftskunder, beställningar]);
 
-    return sorted;
-  }, [beställningar, searchQuery, sortBy, selectedMonth]);
+  // Filter companies by search
+  const filteredCompanies = useMemo(() => {
+    if (!searchQuery) return companiesWithOrderCounts;
 
-  // Calculate total price
-  const totalPris = useMemo(() => {
-    return filteredAndSortedBeställningar.reduce((sum, b) => {
+    const query = searchQuery.toLowerCase();
+    return companiesWithOrderCounts.filter(
+      (c) =>
+        c.firmanamn?.toLowerCase().includes(query) ||
+        c.orgnr?.toLowerCase().includes(query) ||
+        c.telefon?.toLowerCase().includes(query) ||
+        c.epost?.toLowerCase().includes(query)
+    );
+  }, [companiesWithOrderCounts, searchQuery]);
+
+  // Calculate statistics
+  const totalOrders = beställningar.length;
+  const totalCompanies = bedriftskunder.length;
+  const totalValue = useMemo(() => {
+    return beställningar.reduce((sum, b) => {
       const beställningTotal = b.varor?.reduce((s, v) => s + (v.pris || 0), 0) || 0;
       return sum + beställningTotal;
     }, 0);
-  }, [filteredAndSortedBeställningar]);
+  }, [beställningar]);
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -160,7 +145,7 @@ export default function Beställningar() {
           </h1>
           <p className="text-muted-foreground mt-2">
             {userRole === 'admin'
-              ? 'Visa alla beställningar'
+              ? 'Välj ett företag för att se deras beställningar'
               : 'Skapa och visa dina beställningar'}
           </p>
         </div>
@@ -170,117 +155,105 @@ export default function Beställningar() {
         </Button>
       </div>
 
-      {/* Filters and Search */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Filter och sök</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Välj månad" />
-                </SelectTrigger>
-                <SelectContent>
-                  {monthOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      <div className="flex items-center gap-2">
-                        {option.value !== 'all' && <Calendar className="h-4 w-4" />}
-                        {option.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Sök efter företag, beskrivning, referanse..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </div>
-            <div>
-              <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'date' | 'pris')}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sortera efter" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="date">Senaste först</SelectItem>
-                  <SelectItem value="pris">Högsta pris först</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Statistics Card */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Totalt antal</CardDescription>
-            <CardTitle className="text-3xl">{filteredAndSortedBeställningar.length}</CardTitle>
+            <CardDescription>Totalt antal företag</CardDescription>
+            <CardTitle className="text-3xl">{totalCompanies}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Totalt antal beställningar</CardDescription>
+            <CardTitle className="text-3xl">{totalOrders}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Totalt värde</CardDescription>
-            <CardTitle className="text-3xl">{totalPris.toLocaleString('sv-SE')} kr</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Genomsnittligt pris</CardDescription>
-            <CardTitle className="text-3xl">
-              {filteredAndSortedBeställningar.length > 0
-                ? (totalPris / filteredAndSortedBeställningar.length).toLocaleString('sv-SE', {
-                    maximumFractionDigits: 0,
-                  })
-                : 0}{' '}
-              kr
-            </CardTitle>
+            <CardTitle className="text-3xl">{totalValue.toLocaleString('sv-SE')} kr</CardTitle>
           </CardHeader>
         </Card>
       </div>
 
-      {/* Beställningar Grid */}
+      {/* Companies Table */}
       <Card>
         <CardHeader>
-          <CardTitle>
-            {userRole === 'admin' ? 'Alla beställningar' : 'Mina beställningar'}
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Företag
           </CardTitle>
           <CardDescription>
-            {filteredAndSortedBeställningar.length} av {beställningar.length} beställningar
+            Klicka på ett företag för att se deras beställningar
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="text-center py-12 text-muted-foreground">
-              Laddar...
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Sök efter företagsnamn, org.nr, telefon, e-post..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
             </div>
-          ) : filteredAndSortedBeställningar.length === 0 ? (
+          </div>
+
+          {isLoadingCompanies ? (
+            <div className="text-center py-12 text-muted-foreground">
+              Laddar företag...
+            </div>
+          ) : filteredCompanies.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               {searchQuery
-                ? 'Inga beställningar matchade din sökning'
-                : 'Inga beställningar än'}
+                ? 'Inga företag matchade din sökning'
+                : 'Inga företag registrerade än'}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredAndSortedBeställningar.map((beställning) => (
-                <BeställningCard
-                  key={beställning.id}
-                  beställning={beställning}
-                  onEdit={canManage ? handleEdit : undefined}
-                  onDelete={canManage ? handleDeleteClick : undefined}
-                  showActions={canManage}
-                />
-              ))}
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Firmanamn</TableHead>
+                    <TableHead>Org.nr</TableHead>
+                    <TableHead>Telefon</TableHead>
+                    <TableHead>E-post</TableHead>
+                    <TableHead className="text-right">Beställningar</TableHead>
+                    <TableHead className="text-right">Totalt värde</TableHead>
+                    <TableHead className="text-right">Åtgärder</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCompanies.map((company) => (
+                    <TableRow key={company.id}>
+                      <TableCell className="font-medium">{company.firmanamn}</TableCell>
+                      <TableCell>{company.orgnr}</TableCell>
+                      <TableCell>{company.telefon || '-'}</TableCell>
+                      <TableCell>{company.epost || '-'}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                          {company.orderCount}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {company.totalValue.toLocaleString('sv-SE')} kr
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewCompanyOrders(company)}
+                        >
+                          Visa beställningar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -293,6 +266,14 @@ export default function Beställningar() {
         bedriftskunder={bedriftskunder}
         initialData={isEditing ? selectedBeställning || undefined : undefined}
         isEdit={isEditing}
+      />
+
+      <CompanyOrdersDialog
+        open={companyDialogOpen}
+        onOpenChange={setCompanyDialogOpen}
+        bedriftskunde={selectedCompany}
+        onEdit={handleEdit}
+        onDelete={handleDeleteClick}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
