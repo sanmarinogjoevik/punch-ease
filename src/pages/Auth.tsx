@@ -17,13 +17,13 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { signIn, user } = useAuth();
+  const { signIn, user, companyId, loading: authLoading } = useAuth();
   const { companySlug, companyInfo, loading: companyLoading } = useCompanySlug();
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Redirect if already authenticated
-  if (user && companySlug) {
+  // Redirect if already authenticated with company access
+  if (user && companyId && !authLoading && companySlug) {
     return <Navigate to={`/${companySlug}`} replace />;
   }
 

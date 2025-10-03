@@ -28,9 +28,10 @@ const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, companyId } = useAuth();
-  const { companySlug } = useCompanySlug();
+  const { companySlug, loading: companyLoading } = useCompanySlug();
   
-  if (loading) {
+  // Wait for both auth and company to load
+  if (loading || companyLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-lg text-foreground">Laster...</div>
@@ -38,9 +39,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
   
+  // Only redirect if we have a companySlug and user is not authenticated
   if (!user || !companyId) {
-    // Redirect to company's auth page, not root
-    return <Navigate to={`/${companySlug}/auth`} replace />;
+    if (companySlug) {
+      return <Navigate to={`/${companySlug}/auth`} replace />;
+    }
+    return <Navigate to="/" replace />;
   }
   
   return <>{children}</>;
