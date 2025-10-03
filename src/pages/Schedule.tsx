@@ -277,9 +277,27 @@ const Schedule = () => {
         return;
       }
 
+      // Get company_id from current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile?.company_id) throw new Error('Company ID not found');
+
+      // Add company_id to all shifts
+      const shiftsWithCompany = shiftsToCreate.map(shift => ({
+        ...shift,
+        company_id: profile.company_id,
+      }));
+
       const { error } = await supabase
         .from('shifts')
-        .insert(shiftsToCreate);
+        .insert(shiftsWithCompany);
 
       if (error) throw error;
 

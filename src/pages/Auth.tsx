@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useCompanySlug } from '@/contexts/CompanySlugContext';
 import { EmployeeSelector } from '@/components/EmployeeSelector';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function Auth() {
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -17,10 +18,26 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   
   const { signIn, user } = useAuth();
+  const { companySlug, companyInfo, loading: companyLoading } = useCompanySlug();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Redirect if already authenticated
-  if (user) {
+  if (user && companySlug) {
+    return <Navigate to={`/${companySlug}`} replace />;
+  }
+
+  // Show loading while company is being fetched
+  if (companyLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // If no company found, redirect to home
+  if (!companyInfo) {
     return <Navigate to="/" replace />;
   }
 
@@ -48,6 +65,9 @@ export default function Auth() {
           description: result.error.message,
           variant: 'destructive',
         });
+      } else {
+        // Redirect to company-specific page after successful login
+        navigate(`/${companySlug}`);
       }
     } catch (error) {
       toast({
@@ -68,13 +88,13 @@ export default function Auth() {
             {isAdminMode ? 'Admin Inloggning' : selectedEmployee ? `Välkommen ${selectedEmployee.name}` : 'Välj Anställd'}
           </CardTitle>
           <CardDescription>
-            {isAdminMode ? 'Logga in med ditt admin-konto' : 'Välkommen tillbaka till PunchEase'}
+            {companyInfo.name}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {!isAdminMode && !selectedEmployee && (
             <div className="space-y-6">
-              <EmployeeSelector onSelectEmployee={handleEmployeeSelect} />
+              <EmployeeSelector companyId={companyInfo.id} onSelectEmployee={handleEmployeeSelect} />
               <Button
                 variant="outline"
                 className="w-full"

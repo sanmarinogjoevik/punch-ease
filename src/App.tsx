@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
+import { CompanySlugProvider } from "./contexts/CompanySlugContext";
 import { AppLayout } from "./components/layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
@@ -19,11 +20,12 @@ import Settings from "./pages/Settings";
 import Bedriftskunder from "./pages/Bedriftskunder";
 import Beställningar from "./pages/Beställningar";
 import NotFound from "./pages/NotFound";
+import Index from "./pages/Index";
 
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, companyId } = useAuth();
   
   if (loading) {
     return (
@@ -33,8 +35,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
   
-  if (!user) {
-    return <Navigate to="/auth" replace />;
+  if (!user || !companyId) {
+    return <Navigate to="/" replace />;
   }
   
   return <>{children}</>;
@@ -52,7 +54,7 @@ function RoleBasedRedirect() {
   }
   
   if (userRole === 'admin') {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to="admin" replace />;
   }
   
   return <Dashboard />;
@@ -61,11 +63,18 @@ function RoleBasedRedirect() {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/" element={
-        <ProtectedRoute>
-          <AppLayout />
-        </ProtectedRoute>
+      <Route path="/" element={<Index />} />
+      <Route path="/:companySlug/auth" element={
+        <CompanySlugProvider>
+          <Auth />
+        </CompanySlugProvider>
+      } />
+      <Route path="/:companySlug" element={
+        <CompanySlugProvider>
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        </CompanySlugProvider>
       }>
         <Route index element={<RoleBasedRedirect />} />
         <Route path="admin" element={<Admin />} />

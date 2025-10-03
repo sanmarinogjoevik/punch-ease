@@ -135,6 +135,7 @@ export type Database = {
           org_number: string | null
           phone: string | null
           postal_code: string | null
+          slug: string
           updated_at: string
         }
         Insert: {
@@ -147,6 +148,7 @@ export type Database = {
           org_number?: string | null
           phone?: string | null
           postal_code?: string | null
+          slug: string
           updated_at?: string
         }
         Update: {
@@ -159,6 +161,7 @@ export type Database = {
           org_number?: string | null
           phone?: string | null
           postal_code?: string | null
+          slug?: string
           updated_at?: string
         }
         Relationships: []

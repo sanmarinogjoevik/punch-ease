@@ -115,10 +115,24 @@ export function useUpdateCompanySettings() {
           .select()
           .single();
       } else {
-        // Insert new settings
+        // Insert new settings - get company_id from user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('company_id')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!profile?.company_id) throw new Error('Company ID not found');
+
         result = await supabase
           .from('company_settings')
-          .insert(settingsForDb)
+          .insert({
+            ...settingsForDb,
+            company_id: profile.company_id,
+          })
           .select()
           .single();
       }

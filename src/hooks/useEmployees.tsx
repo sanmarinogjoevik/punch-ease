@@ -19,10 +19,10 @@ export const employeesKeys = {
   byId: (id: string) => [...employeesKeys.all, id] as const,
 };
 
-// Hook to fetch all employees (excluding admins)
-export const useEmployees = () => {
+// Hook to fetch all employees (excluding admins) for a specific company
+export const useEmployees = (companyId?: string) => {
   return useQuery({
-    queryKey: [...employeesKeys.all, 'no-admins'],
+    queryKey: companyId ? [...employeesKeys.all, 'company', companyId] : [...employeesKeys.all, 'no-admins'],
     queryFn: async (): Promise<Employee[]> => {
       // First get all admin user IDs
       const { data: adminRoles, error: rolesError } = await supabase
@@ -36,34 +36,31 @@ export const useEmployees = () => {
       }
 
       const adminUserIds = adminRoles?.map(role => role.user_id) || [];
-      console.log('Admin user IDs to filter out:', adminUserIds);
 
-      // Fetch all profiles
-      const { data, error } = await supabase
+      // Build query for profiles
+      let query = supabase
         .from('profiles')
         .select('*')
         .order('first_name', { ascending: true });
+
+      // Filter by company if companyId provided
+      if (companyId) {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching employees:', error.message);
         throw error;
       }
-
-      console.log('All profiles before filtering:', data?.length);
       
       // Filter out admins on the client side
-      const employees = data?.filter(profile => {
-        const isAdmin = adminUserIds.includes(profile.user_id);
-        if (isAdmin) {
-          console.log('Filtering out admin:', profile.first_name, profile.last_name);
-        }
-        return !isAdmin;
-      }) || [];
-
-      console.log('Employees after filtering:', employees.length);
+      const employees = data?.filter(profile => !adminUserIds.includes(profile.user_id)) || [];
 
       return employees;
     },
+    enabled: !companyId || !!companyId, // Always enabled
   });
 };
 
