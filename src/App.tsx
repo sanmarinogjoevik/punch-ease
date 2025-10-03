@@ -22,6 +22,7 @@ import Beställningar from "./pages/Beställningar";
 import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
 import SuperAdmin from "./pages/SuperAdmin";
+import SuperAdminAuth from "./pages/SuperAdminAuth";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,28 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
   
   if (!user || !companyId) {
+    return <Navigate to="/" replace />;
+  }
+  
+  return <>{children}</>;
+}
+
+function SuperAdminProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading, isSuperAdmin } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-lg text-foreground">Laster...</div>
+      </div>
+    );
+  }
+  
+  if (!user) {
+    return <Navigate to="/superadmin/auth" replace />;
+  }
+  
+  if (!isSuperAdmin) {
     return <Navigate to="/" replace />;
   }
   
@@ -65,13 +88,18 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Index />} />
+      
+      {/* SuperAdmin routes - separate from company routes */}
+      <Route path="/superadmin/auth" element={<SuperAdminAuth />} />
       <Route path="/superadmin" element={
-        <ProtectedRoute>
+        <SuperAdminProtectedRoute>
           <AppLayout />
-        </ProtectedRoute>
+        </SuperAdminProtectedRoute>
       }>
         <Route index element={<SuperAdmin />} />
       </Route>
+      
+      {/* Company-specific routes */}
       <Route path="/:companySlug/auth" element={
         <CompanySlugProvider>
           <Auth />
@@ -97,6 +125,7 @@ function AppRoutes() {
         <Route path="reports" element={<Reports />} />
         <Route path="settings" element={<Settings />} />
       </Route>
+      
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
