@@ -10,10 +10,12 @@ import { LivePunchStatus } from "@/components/LivePunchStatus";
 import { TodaysTemperatureLogs } from "@/components/TodaysTemperatureLogs";
 import { EditShiftDialog } from "@/components/EditShiftDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { CompanyManagementDialog } from "@/components/CompanyManagementDialog";
 import { useShiftMutations } from "@/hooks/useShifts";
 import { createUTCFromNorwegianTime } from "@/lib/timeUtils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { 
   Users, 
   Clock, 
@@ -65,6 +67,7 @@ interface Company {
   name: string;
   slug: string;
   org_number: string | null;
+  access_code: string;
 }
 
 const SuperAdmin = () => {
@@ -374,25 +377,30 @@ const SuperAdmin = () => {
           </Card>
         </div>
 
-        {/* Company Selector */}
+        {/* Company Management */}
         <Card>
           <CardHeader>
-            <CardTitle>Välj Företag</CardTitle>
-            <CardDescription>Välj ett företag för att se och hantera dess data</CardDescription>
+            <CardTitle>Företagshantering</CardTitle>
+            <CardDescription>Hantera företag och deras inloggningskoder</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Select value={selectedCompanyId || undefined} onValueChange={setSelectedCompanyId}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Välj ett företag" />
-              </SelectTrigger>
-              <SelectContent>
-                {companies?.map((company) => (
-                  <SelectItem key={company.id} value={company.id}>
-                    {company.name} ({company.slug})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <CardContent className="space-y-4">
+            <CompanyManagementDialog companies={companies || []} />
+            
+            <div className="space-y-2">
+              <Label>Välj Företag för Dashboard</Label>
+              <Select value={selectedCompanyId || undefined} onValueChange={setSelectedCompanyId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Välj ett företag" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies?.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>
+                      {company.name} ({company.slug})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </CardContent>
         </Card>
 
