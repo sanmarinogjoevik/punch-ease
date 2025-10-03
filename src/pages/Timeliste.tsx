@@ -82,8 +82,9 @@ export default function Timeliste() {
   }, [user?.id]);
 
   useEffect(() => {
-    if (shifts && companySettings && timeEntries && !loading) {
-      const processedWorkDays = processIntoWorkDays(timeEntries, shifts, companySettings.business_hours);
+    if (shifts && timeEntries && !loading) {
+      const businessHours = companySettings?.business_hours || [];
+      const processedWorkDays = processIntoWorkDays(timeEntries, shifts, businessHours);
       setWorkDays(processedWorkDays);
     }
   }, [shifts, companySettings, timeEntries, loading]);
@@ -134,6 +135,11 @@ export default function Timeliste() {
   };
 
   const shouldUseScheduleTimes = (date: string, businessHours: any[]): boolean => {
+    // Om inga business hours finns, använd alltid schema
+    if (!businessHours || businessHours.length === 0) {
+      return true;
+    }
+    
     const sessionDate = parseISO(date);
     const now = new Date();
     const dayOfWeek = sessionDate.getDay();
@@ -157,6 +163,8 @@ export default function Timeliste() {
   };
 
   const applyHybridLogic = (sessions: WorkSession[], shifts: any[], businessHours: any[]): WorkSession[] => {
+    // Fallback om inga business hours finns
+    const safeBusinessHours = businessHours || [];
     const shiftsByDate = new Map<string, any[]>();
     
     shifts.forEach(shift => {
@@ -182,7 +190,7 @@ export default function Timeliste() {
     // Process dates that have punch data
     sessionsByDate.forEach((dateSessions, date) => {
       allProcessedDates.add(date);
-      const useSchedule = shouldUseScheduleTimes(date, businessHours);
+      const useSchedule = shouldUseScheduleTimes(date, safeBusinessHours);
       const dayShifts = shiftsByDate.get(date) || [];
       
       if (useSchedule && dayShifts.length > 0) {
@@ -214,7 +222,7 @@ export default function Timeliste() {
 
     // Add schedule-only entries for days without punch data (after closing only)
     shiftsByDate.forEach((dayShifts, date) => {
-      const useSchedule = shouldUseScheduleTimes(date, businessHours);
+      const useSchedule = shouldUseScheduleTimes(date, safeBusinessHours);
       
       if (useSchedule && !allProcessedDates.has(date)) {
         dayShifts.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
