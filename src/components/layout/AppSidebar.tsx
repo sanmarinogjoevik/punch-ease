@@ -13,11 +13,13 @@ import {
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useCompanySlug } from '@/contexts/CompanySlugContext';
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
   const { userRole } = useAuth();
+  const { companySlug } = useCompanySlug();
   const isMobile = useIsMobile();
   const collapsed = state === 'collapsed';
   
@@ -25,6 +27,10 @@ export function AppSidebar() {
   const isActive = (path: string) => currentPath === path;
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' : 'hover:bg-sidebar-accent/50';
+  
+  // SuperAdmin menu should ONLY show when on /superadmin route, not in company context
+  const isInCompanyContext = !!companySlug;
+  const effectiveRole = isInCompanyContext && userRole === 'superadmin' ? 'employee' : userRole;
 
   const employeeItems = [
     { title: 'Dashboard', url: '/', icon: Home },
@@ -59,8 +65,8 @@ export function AppSidebar() {
     { title: "SuperAdmin", url: "/superadmin", icon: Shield },
   ];
 
-  const items = userRole === 'superadmin' ? superadminItems :
-                userRole === 'admin' ? adminItems : 
+  const items = effectiveRole === 'superadmin' ? superadminItems :
+                effectiveRole === 'admin' ? adminItems : 
                 employeeItemsWithOrders;
 
   return (
@@ -79,7 +85,7 @@ export function AppSidebar() {
         
         <SidebarGroup>
           <SidebarGroupLabel>
-            {userRole === 'superadmin' ? 'SuperAdmin' : userRole === 'admin' ? 'Administrasjon' : 'Ansatt'}
+            {effectiveRole === 'superadmin' ? 'SuperAdmin' : effectiveRole === 'admin' ? 'Administrasjon' : 'Ansatt'}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
