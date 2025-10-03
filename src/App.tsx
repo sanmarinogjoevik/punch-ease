@@ -4,7 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
-import { CompanySlugProvider, useCompanySlug } from "./contexts/CompanySlugContext";
 import { AppLayout } from "./components/layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
@@ -20,40 +19,11 @@ import Settings from "./pages/Settings";
 import Bedriftskunder from "./pages/Bedriftskunder";
 import Beställningar from "./pages/Beställningar";
 import NotFound from "./pages/NotFound";
-import Index from "./pages/Index";
-import SuperAdmin from "./pages/SuperAdmin";
-import SuperAdminAuth from "./pages/SuperAdminAuth";
 
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, companyId } = useAuth();
-  const { companySlug, loading: companyLoading } = useCompanySlug();
-  
-  // Wait for both auth and company to load
-  if (loading || companyLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-lg text-foreground">Laster...</div>
-      </div>
-    );
-  }
-  
-  // Only redirect if we have a companySlug and user is not authenticated
-  if (!user || !companyId) {
-    if (companySlug) {
-      return <Navigate to={`/${companySlug}/auth`} replace />;
-    }
-    return <Navigate to="/" replace />;
-  }
-  
-  return <>{children}</>;
-}
-
-function SuperAdminProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, isSuperAdmin, userRole } = useAuth();
-  
-  console.log("SuperAdminProtectedRoute check", { user: !!user, loading, isSuperAdmin, userRole });
+  const { user, loading } = useAuth();
   
   if (loading) {
     return (
@@ -64,16 +34,9 @@ function SuperAdminProtectedRoute({ children }: { children: React.ReactNode }) {
   }
   
   if (!user) {
-    console.log("No user, redirecting to /superadmin/auth");
-    return <Navigate to="/superadmin/auth" replace />;
+    return <Navigate to="/auth" replace />;
   }
   
-  if (!isSuperAdmin) {
-    console.log("Not superadmin, redirecting to /", { userRole });
-    return <Navigate to="/" replace />;
-  }
-  
-  console.log("SuperAdmin access granted");
   return <>{children}</>;
 }
 
@@ -89,7 +52,7 @@ function RoleBasedRedirect() {
   }
   
   if (userRole === 'admin') {
-    return <Navigate to="admin" replace />;
+    return <Navigate to="/admin" replace />;
   }
   
   return <Dashboard />;
@@ -98,30 +61,11 @@ function RoleBasedRedirect() {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Index />} />
-      
-      {/* SuperAdmin routes - separate from company routes */}
-      <Route path="/superadmin/auth" element={<SuperAdminAuth />} />
-      <Route path="/superadmin" element={
-        <SuperAdminProtectedRoute>
+      <Route path="/auth" element={<Auth />} />
+      <Route path="/" element={
+        <ProtectedRoute>
           <AppLayout />
-        </SuperAdminProtectedRoute>
-      }>
-        <Route index element={<SuperAdmin />} />
-      </Route>
-      
-      {/* Company-specific routes */}
-      <Route path="/:companySlug/auth" element={
-        <CompanySlugProvider>
-          <Auth />
-        </CompanySlugProvider>
-      } />
-      <Route path="/:companySlug" element={
-        <CompanySlugProvider>
-          <ProtectedRoute>
-            <AppLayout />
-          </ProtectedRoute>
-        </CompanySlugProvider>
+        </ProtectedRoute>
       }>
         <Route index element={<RoleBasedRedirect />} />
         <Route path="admin" element={<Admin />} />
@@ -136,7 +80,6 @@ function AppRoutes() {
         <Route path="reports" element={<Reports />} />
         <Route path="settings" element={<Settings />} />
       </Route>
-      
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

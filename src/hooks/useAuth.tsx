@@ -9,8 +9,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
-  userRole: 'superadmin' | 'admin' | 'employee' | null;
-  companyId: string | null;
+  userRole: 'admin' | 'employee' | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,8 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<'superadmin' | 'admin' | 'employee' | null>(null);
-  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<'admin' | 'employee' | null>(null);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -30,33 +28,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Defer role and company fetching with setTimeout to avoid callback issues
+          // Defer role fetching with setTimeout to avoid callback issues
           setTimeout(async () => {
             try {
-              const [roleData, profileData] = await Promise.all([
-                supabase
-                  .from('user_roles')
-                  .select('role')
-                  .eq('user_id', session.user.id)
-                  .single(),
-                supabase
-                  .from('profiles')
-                  .select('company_id')
-                  .eq('user_id', session.user.id)
-                  .single()
-              ]);
-              
-              setUserRole(roleData.data?.role || 'employee');
-              setCompanyId(profileData.data?.company_id || null);
+              const { data } = await supabase
+                .from('user_roles')
+                .select('role')
+                .eq('user_id', session.user.id)
+                .single();
+              setUserRole(data?.role || 'employee');
             } catch (error) {
-              console.error('Error fetching user data:', error);
+              console.error('Error fetching user role:', error);
               setUserRole('employee');
-              setCompanyId(null);
             }
           }, 0);
         } else {
           setUserRole(null);
-          setCompanyId(null);
         }
         
         setLoading(false);
@@ -112,7 +99,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setSession(null);
       setUserRole(null);
-      setCompanyId(null);
     }
   };
 
@@ -124,7 +110,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUp,
     signOut,
     userRole,
-    companyId,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -137,7 +122,6 @@ export function useAuth() {
   }
   return {
     ...context,
-    isSuperAdmin: context.userRole === 'superadmin',
     isAdmin: context.userRole === 'admin',
     isEmployee: context.userRole === 'employee',
   };

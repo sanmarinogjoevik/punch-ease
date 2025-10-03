@@ -4,12 +4,11 @@ import { useEmployees } from '@/hooks/useEmployees';
 import { Loader2 } from 'lucide-react';
 
 interface EmployeeSelectorProps {
-  companyId: string;
   onSelectEmployee: (email: string, name: string) => void;
 }
 
-export function EmployeeSelector({ companyId, onSelectEmployee }: EmployeeSelectorProps) {
-  const { data: employees, isLoading } = useEmployees(companyId);
+export function EmployeeSelector({ onSelectEmployee }: EmployeeSelectorProps) {
+  const { data: employees, isLoading } = useEmployees();
 
   if (isLoading) {
     return (

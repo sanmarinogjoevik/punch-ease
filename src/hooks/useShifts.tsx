@@ -140,21 +140,9 @@ export const useShiftMutations = () => {
 
   const createShift = useMutation({
     mutationFn: async (shiftData: CreateShiftData) => {
-      // Get company_id from user profile
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile?.company_id) throw new Error('Company ID not found');
-
       const { data, error } = await supabase
         .from('shifts')
-        .insert([{ ...shiftData, company_id: profile.company_id }])
+        .insert([shiftData])
         .select()
         .single();
 
@@ -236,26 +224,9 @@ export const useShiftMutations = () => {
 
   const createMultipleShifts = useMutation({
     mutationFn: async (shifts: CreateShiftData[]) => {
-      // Get company_id from user profile
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile?.company_id) throw new Error('Company ID not found');
-
-      const shiftsWithCompany = shifts.map(shift => ({
-        ...shift,
-        company_id: profile.company_id,
-      }));
-
       const { data, error } = await supabase
         .from('shifts')
-        .insert(shiftsWithCompany)
+        .insert(shifts)
         .select();
 
       if (error) throw error;

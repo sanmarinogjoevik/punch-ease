@@ -104,20 +104,10 @@ export const AdminPunchDialog = ({ open, onOpenChange }: AdminPunchDialogProps) 
   // Mutation för att stämpla in/ut
   const punchMutation = useMutation({
     mutationFn: async ({ employeeId, entryType }: { employeeId: string; entryType: 'punch_in' | 'punch_out' }) => {
-      // Get company_id from employee profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', employeeId)
-        .single();
-
-      if (!profile?.company_id) throw new Error('Company ID not found');
-
       const { error } = await supabase
         .from('time_entries')
         .insert({
           employee_id: employeeId,
-          company_id: profile.company_id,
           entry_type: entryType,
           timestamp: new Date().toISOString(),
           is_automatic: false, // Manuell admin-stämpling

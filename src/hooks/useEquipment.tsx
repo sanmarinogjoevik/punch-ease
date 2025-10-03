@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from './useAuth';
 
 export interface Equipment {
   id: string;
@@ -24,7 +23,6 @@ export function useEquipment() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-  const { companyId } = useAuth();
 
   const fetchEquipment = async (activeOnly: boolean = true) => {
     try {
@@ -60,13 +58,9 @@ export function useEquipment() {
 
   const createEquipment = async (equipmentData: CreateEquipment) => {
     try {
-      if (!companyId) {
-        throw new Error('Company ID saknas');
-      }
-
       const { data, error: insertError } = await supabase
         .from('equipment')
-        .insert([{ ...equipmentData, company_id: companyId }])
+        .insert([equipmentData])
         .select()
         .single();
 
