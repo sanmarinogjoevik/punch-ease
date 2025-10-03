@@ -1,379 +1,284 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useShifts } from '@/hooks/useShifts';
+import { useEmployeeMonthShifts } from '@/hooks/useShifts';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { format, parseISO, isAfter, isSameDay } from 'date-fns';
+import { useCurrentUserProfile } from '@/hooks/useCurrentUserProfile';
+import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
-import { Clock, Calendar, Info } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { calculateDurationMinutes, extractTime, extractDate, formatTimeNorway } from '@/lib/timeUtils';
+import { formatTimeNorway } from '@/lib/timeUtils';
 
-interface TimeEntry {
-  id: string;
-  timestamp: string;
-  entry_type: 'punch_in' | 'punch_out';
-  employee_id: string;
-  created_at: string;
-  employee_name?: string;
-}
+const NORWEGIAN_DAYS = ['Sön', 'Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör'];
 
-interface WorkSession {
-  id: string;
+interface TimelistEntry {
   date: string;
-  punchIn?: string;
-  punchOut?: string;
-  scheduledStart?: string;
-  scheduledEnd?: string;
-  duration: number;
-  status: 'active' | 'completed' | 'scheduled_only';
-  isAdjusted: boolean;
-  employeeName?: string;
-}
-
-interface WorkDay {
-  date: string;
-  totalHours: number;
-  totalMinutes: number;
-  shifts: number;
-  startTime: string;
-  endTime: string;
-  sessions: WorkSession[];
+  day: string;
+  dayName: string;
+  punchIn: string | null;
+  punchOut: string | null;
+  lunch: string;
+  total: string;
+  hasData: boolean;
 }
 
 export default function Timeliste() {
   const { user } = useAuth();
-  const { data: shifts, isLoading: shiftsLoading } = useShifts({ employeeId: user?.id });
+  const { data: userProfile } = useCurrentUserProfile();
+  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [timelistEntries, setTimelistEntries] = useState<TimelistEntry[]>([]);
+  
+  const { data: shifts, isLoading: shiftsLoading } = useEmployeeMonthShifts(
+    user?.id || '',
+    selectedMonth
+  );
+  
   const { data: companySettings, isLoading: settingsLoading } = useCompanySettings();
-  const [workDays, setWorkDays] = useState<WorkDay[]>([]);
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-  const [timeEntriesLoading, setTimeEntriesLoading] = useState(true);
 
-  const loading = shiftsLoading || settingsLoading || timeEntriesLoading;
+  const isLoading = shiftsLoading || settingsLoading;
 
-  const fetchTimeEntries = async () => {
-    if (!user?.id) return;
+  useEffect(() => {
+    if (!isLoading && shifts) {
+      generateTimelist();
+    }
+  }, [shifts, companySettings, selectedMonth, isLoading]);
+
+  const generateTimelist = () => {
+    if (!shifts) {
+      setTimelistEntries([]);
+      return;
+    }
     
     try {
-      setTimeEntriesLoading(true);
-      let query = supabase
-        .from('time_entries')
-        .select('*')
-        .eq('employee_id', user.id)
-        .order('timestamp', { ascending: false });
-
-      const { data, error } = await query;
+      const monthStart = startOfMonth(new Date(selectedMonth + '-01'));
+      const monthEnd = endOfMonth(monthStart);
       
-      if (error) throw error;
-      
-      setTimeEntries(data || []);
-    } catch (error) {
-      console.error('Error fetching time entries:', error);
-      setTimeEntries([]);
-    } finally {
-      setTimeEntriesLoading(false);
-    }
-  };
+      // Generate all days of the month
+      const allDaysInMonth = eachDayOfInterval({
+        start: monthStart,
+        end: monthEnd
+      });
 
-  useEffect(() => {
-    fetchTimeEntries();
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (shifts && timeEntries && !loading) {
-      const businessHours = companySettings?.business_hours || [];
-      const processedWorkDays = processIntoWorkDays(timeEntries, shifts, businessHours);
-      setWorkDays(processedWorkDays);
-    }
-  }, [shifts, companySettings, timeEntries, loading]);
-
-  const groupIntoWorkSessions = (timeEntries: TimeEntry[]): WorkSession[] => {
-    const sessions: WorkSession[] = [];
-    const entriesByDate = new Map<string, TimeEntry[]>();
-
-    timeEntries.forEach(entry => {
-      const date = format(parseISO(entry.timestamp), 'yyyy-MM-dd');
-      if (!entriesByDate.has(date)) {
-        entriesByDate.set(date, []);
-      }
-      entriesByDate.get(date)!.push(entry);
-    });
-
-    entriesByDate.forEach((entries, date) => {
-      const sortedEntries = entries.sort((a, b) => 
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
-
-      for (let i = 0; i < sortedEntries.length; i += 2) {
-        const punchIn = sortedEntries[i];
-        const punchOut = sortedEntries[i + 1];
-
-        if (punchIn?.entry_type === 'punch_in') {
-          const session: WorkSession = {
-            id: punchIn.id,
-            date,
-            punchIn: punchIn.timestamp,
-            punchOut: punchOut?.entry_type === 'punch_out' ? punchOut.timestamp : undefined,
-            duration: 0,
-            status: punchOut ? 'completed' : 'active',
-            isAdjusted: false,
-            employeeName: punchIn.employee_name
-          };
-
-          if (session.punchIn && session.punchOut) {
-            session.duration = calculateDurationMinutes(session.punchIn, session.punchOut);
+      // Process shifts into daily data with dynamic display logic
+      const now = new Date();
+      const processedEntries = allDaysInMonth.map(date => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const dayOfWeek = getDay(date);
+        
+        // Find shift for this day
+        const dayShift = shifts.find(shift => 
+          shift.start_time.startsWith(dateStr)
+        );
+        
+        // Get business hours for this day of week
+        const businessHour = companySettings?.business_hours?.find(bh => bh.day === dayOfWeek);
+        
+        let punchIn = null;
+        let punchOut = null;
+        let total = '';
+        let lunch = '';
+        let hasData = false;
+        
+        if (dayShift) {
+          // Använd formatTimeNorway för att konvertera UTC till norsk tid
+          const startTimeStr = formatTimeNorway(dayShift.start_time);
+          const endTimeStr = formatTimeNorway(dayShift.end_time);
+          
+          // Skapa Date-objekt för jämförelser
+          const [startHour, startMinute] = startTimeStr.split(':').map(Number);
+          const [endHour, endMinute] = endTimeStr.split(':').map(Number);
+          
+          const shiftStart = new Date(date);
+          shiftStart.setHours(startHour, startMinute, 0, 0);
+          
+          const shiftEnd = new Date(date);
+          shiftEnd.setHours(endHour, endMinute, 0, 0);
+          
+          // Dynamic logic based on business hours and current time
+          const shiftHasStarted = now >= shiftStart;
+          
+          // Determine when to show OUT time - when store closes for the day
+          let storeHasClosed = false;
+          if (businessHour && businessHour.isOpen) {
+            // Create closing time for this date
+            const [closeHour, closeMinute] = businessHour.closeTime.split(':').map(Number);
+            const storeCloseTime = new Date(date);
+            storeCloseTime.setHours(closeHour, closeMinute, 0, 0);
+            storeHasClosed = now >= storeCloseTime;
+          } else {
+            // Fallback to shift end time if no business hours configured
+            storeHasClosed = now >= shiftEnd;
           }
-
-          sessions.push(session);
+          
+          if (shiftHasStarted) {
+            // Show IN time when shift has started
+            punchIn = startTimeStr;
+            hasData = true;
+            
+            if (storeHasClosed) {
+              // Show scheduled OUT time when store closes for the day
+              punchOut = endTimeStr;
+              
+              const totalMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
+              
+              // Automatically add 30 min pause for work days 8 hours or more (480 minutes)
+              const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
+              const workMinutes = totalMinutes - pauseMinutes;
+              
+              const hours = Math.floor(workMinutes / 60);
+              const minutes = workMinutes % 60;
+              total = `${hours}:${minutes.toString().padStart(2, '0')}`;
+              lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
+            }
+          }
         }
-      }
-    });
 
-    return sessions;
-  };
-
-  const shouldUseScheduleTimes = (date: string, businessHours: any[]): boolean => {
-    // Om inga business hours finns, använd alltid schema
-    if (!businessHours || businessHours.length === 0) {
-      return true;
-    }
-    
-    const sessionDate = parseISO(date);
-    const now = new Date();
-    const dayOfWeek = sessionDate.getDay();
-    
-    if (sessionDate < now && !isSameDay(sessionDate, now)) {
-      return true;
-    }
-    
-    if (isSameDay(sessionDate, now)) {
-      const dayBusinessHours = businessHours.find(bh => bh.day === dayOfWeek);
-      if (dayBusinessHours && dayBusinessHours.isOpen) {
-        const [closeHour, closeMin] = dayBusinessHours.closeTime.split(':').map(Number);
-        const closingTime = new Date(now);
-        closingTime.setHours(closeHour, closeMin, 0, 0);
-        return isAfter(now, closingTime);
-      }
-      return true;
-    }
-    
-    return false;
-  };
-
-  const applyHybridLogic = (sessions: WorkSession[], shifts: any[], businessHours: any[]): WorkSession[] => {
-    // Fallback om inga business hours finns
-    const safeBusinessHours = businessHours || [];
-    const shiftsByDate = new Map<string, any[]>();
-    
-    shifts.forEach(shift => {
-      const date = shift.start_time.substring(0, 10); // "yyyy-MM-dd"
-      if (!shiftsByDate.has(date)) {
-        shiftsByDate.set(date, []);
-      }
-      shiftsByDate.get(date)!.push(shift);
-    });
-
-    // Group sessions by date
-    const sessionsByDate = new Map<string, WorkSession[]>();
-    sessions.forEach(session => {
-      if (!sessionsByDate.has(session.date)) {
-        sessionsByDate.set(session.date, []);
-      }
-      sessionsByDate.get(session.date)!.push(session);
-    });
-
-    const resultSessions: WorkSession[] = [];
-    const allProcessedDates = new Set<string>();
-
-    // Process dates that have punch data
-    sessionsByDate.forEach((dateSessions, date) => {
-      allProcessedDates.add(date);
-      const useSchedule = shouldUseScheduleTimes(date, safeBusinessHours);
-      const dayShifts = shiftsByDate.get(date) || [];
-      
-      if (useSchedule && dayShifts.length > 0) {
-        // After closing: Create ONLY ONE entry per date from schedule, ignore all punch data
-        dayShifts.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-        
-        const scheduledStart = new Date(dayShifts[0].start_time);
-        const scheduledEnd = new Date(dayShifts[dayShifts.length - 1].end_time);
-        const duration = calculateDurationMinutes(scheduledStart, scheduledEnd);
-        
-        resultSessions.push({
-          id: `schedule-date-${date}`,
-          date: date,
-          scheduledStart: dayShifts[0].start_time,
-          scheduledEnd: dayShifts[dayShifts.length - 1].end_time,
-          duration,
-          status: 'completed',
-          isAdjusted: false,
-          employeeName: dateSessions[0].employeeName
-        });
-      } else if (!useSchedule) {
-        // During the day: Show all punch sessions as they are
-        dateSessions.forEach(session => {
-          resultSessions.push(session);
-        });
-      }
-      // If useSchedule is true but no shifts exist, don't show anything (no duplicates)
-    });
-
-    // Add schedule-only entries for days without punch data (after closing only)
-    shiftsByDate.forEach((dayShifts, date) => {
-      const useSchedule = shouldUseScheduleTimes(date, safeBusinessHours);
-      
-      if (useSchedule && !allProcessedDates.has(date)) {
-        dayShifts.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-        
-        const scheduledStart = new Date(dayShifts[0].start_time);
-        const scheduledEnd = new Date(dayShifts[dayShifts.length - 1].end_time);
-        const duration = Math.round((scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60));
-        
-        resultSessions.push({
-          id: `scheduled-only-${date}`,
-          date,
-          scheduledStart: dayShifts[0].start_time,
-          scheduledEnd: dayShifts[dayShifts.length - 1].end_time,
-          duration,
-          status: 'scheduled_only',
-          isAdjusted: false
-        });
-      }
-    });
-
-    return resultSessions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  };
-
-  const processIntoWorkDays = (timeEntries: TimeEntry[], shifts: any[], businessHours: any[]): WorkDay[] => {
-    const sessions = groupIntoWorkSessions(timeEntries);
-    const enhancedSessions = applyHybridLogic(sessions, shifts, businessHours);
-    
-    const workDayMap = new Map<string, WorkSession[]>();
-    
-    enhancedSessions.forEach(session => {
-      if (!workDayMap.has(session.date)) {
-        workDayMap.set(session.date, []);
-      }
-      workDayMap.get(session.date)!.push(session);
-    });
-
-    const workDays: WorkDay[] = [];
-    
-    workDayMap.forEach((sessions, date) => {
-      let totalMinutes = 0;
-      
-      sessions.forEach(session => {
-        totalMinutes += session.duration;
+        return {
+          date: dateStr,
+          day: date.getDate().toString(),
+          dayName: NORWEGIAN_DAYS[dayOfWeek],
+          punchIn,
+          punchOut,
+          lunch,
+          total,
+          hasData
+        };
       });
 
-      const firstSession = sessions[0];
-      const lastSession = sessions[sessions.length - 1];
-      
-      const startTime = firstSession.scheduledStart || firstSession.punchIn || '';
-      const endTime = lastSession.scheduledEnd || lastSession.punchOut || '';
+      setTimelistEntries(processedEntries);
+    } catch (error) {
+      console.error('Error generating timelist:', error);
+    }
+  };
 
-      workDays.push({
-        date,
-        totalHours: Math.floor(totalMinutes / 60),
-        totalMinutes: Math.round(totalMinutes % 60),
-        shifts: sessions.length,
-        startTime,
-        endTime,
-        sessions
-      });
+  const handlePreviousMonth = () => {
+    const currentDate = new Date(selectedMonth + '-01');
+    const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+    setSelectedMonth(format(previousMonth, 'yyyy-MM'));
+  };
+
+  const handleNextMonth = () => {
+    const currentDate = new Date(selectedMonth + '-01');
+    const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+    setSelectedMonth(format(nextMonth, 'yyyy-MM'));
+  };
+
+  const calculateTotalHours = () => {
+    let totalMinutes = 0;
+    timelistEntries.forEach(entry => {
+      if (entry.total) {
+        const [hours, minutes] = entry.total.split(':').map(Number);
+        totalMinutes += hours * 60 + minutes;
+      }
     });
-
-    return workDays.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours}:${minutes.toString().padStart(2, '0')}`;
   };
 
-  const formatTime = (timestamp: string) => {
-    return formatTimeNorway(timestamp);
-  };
-
-  const formatDate = (dateString: string) => {
-    return format(parseISO(dateString), 'dd.MM.yyyy', { locale: nb });
-  };
-
-  const getWorkDayBadge = (workDay: WorkDay) => {
-    return null; // No badges shown anymore
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-lg text-foreground">Laster timeliste...</div>
+      <div className="container mx-auto p-6">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <p className="text-muted-foreground">Laddar timelista...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center gap-3">
-          <Calendar className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold text-foreground">Timeliste</h1>
-        </div>
-
-        {workDays.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-lg text-muted-foreground">
-                Ingen arbeidsdager registrert ennå.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            <TooltipProvider>
-              {workDays.map((workDay) => (
-                <Card key={workDay.date} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-foreground">
-                            {formatDate(workDay.date)}
-                          </h3>
-                          <Badge variant="outline">
-                            {workDay.shifts} vakt{workDay.shifts !== 1 ? 'er' : ''}
-                          </Badge>
-                          {getWorkDayBadge(workDay)}
-                        </div>
-                        
-                        <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4" />
-                            <span>
-                              {formatTime(workDay.startTime)} - {formatTime(workDay.endTime)}
-                            </span>
-                          </div>
-                          
-                          <div className="text-sm">
-                            <span className="text-muted-foreground">Arbeidstid: </span>
-                            <span className="font-medium text-foreground">
-                              {workDay.totalHours}t {workDay.totalMinutes}min
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-primary">
-                          {workDay.totalHours}:{workDay.totalMinutes.toString().padStart(2, '0')}
-                        </div>
-                        <div className="text-sm text-muted-foreground">timer</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </TooltipProvider>
-          </div>
-        )}
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="text-center mb-6">
+        <h1 className="text-3xl font-bold mb-2">Min Timelista</h1>
+        <p className="text-muted-foreground">
+          {userProfile?.first_name} {userProfile?.last_name}
+        </p>
       </div>
+
+      {/* Month Navigation */}
+      <div className="flex items-center justify-center gap-4 mb-6">
+        <Button variant="outline" size="sm" onClick={handlePreviousMonth}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <div className="text-xl font-semibold min-w-[180px] text-center">
+          {format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb })}
+        </div>
+        <Button variant="outline" size="sm" onClick={handleNextMonth}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Timelist Table */}
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-center border-r">DATUM</TableHead>
+                <TableHead className="text-center border-r">DAG</TableHead>
+                <TableHead className="text-center border-r">IN</TableHead>
+                <TableHead className="text-center border-r">UT</TableHead>
+                <TableHead className="text-center border-r">PAUSE</TableHead>
+                <TableHead className="text-center">TOTALT</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {timelistEntries.map((entry, index) => {
+                // Check if this is an ongoing shift
+                const todayStr = format(new Date(), 'yyyy-MM-dd');
+                const isToday = entry.date === todayStr;
+                const isOngoing = isToday && entry.punchIn && !entry.punchOut;
+                
+                return (
+                  <TableRow 
+                    key={entry.date} 
+                    className={`
+                      ${index % 2 === 0 ? 'bg-muted/20' : ''} 
+                      ${isOngoing ? 'bg-primary/10 border-l-4 border-l-primary' : ''}
+                    `}
+                  >
+                    <TableCell className="text-center border-r font-mono">{entry.day}</TableCell>
+                    <TableCell className="text-center border-r">
+                      {entry.dayName}
+                      {isOngoing && <span className="ml-2 text-xs text-primary font-semibold">(Pågående)</span>}
+                    </TableCell>
+                    <TableCell className="text-center border-r font-mono">
+                      {entry.punchIn || '-'}
+                    </TableCell>
+                    <TableCell className="text-center border-r font-mono">
+                      {entry.punchOut || '-'}
+                    </TableCell>
+                    <TableCell className="text-center border-r font-mono">
+                      {entry.lunch || '-'}
+                    </TableCell>
+                    <TableCell className="text-center font-mono font-semibold">
+                      {entry.total || '-'}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              
+              {/* Total Row */}
+              <TableRow className="bg-primary/5 font-bold border-t-2 border-t-primary">
+                <TableCell colSpan={5} className="text-right pr-4">
+                  TOTALT:
+                </TableCell>
+                <TableCell className="text-center font-mono text-lg">
+                  {calculateTotalHours()}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {timelistEntries.filter(e => e.hasData).length === 0 && (
+        <div className="text-center py-8 text-muted-foreground">
+          Inga pass hittades för denna månad
+        </div>
+      )}
     </div>
   );
 }
