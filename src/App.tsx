@@ -21,6 +21,7 @@ import Bedriftskunder from "./pages/Bedriftskunder";
 import Beställningar from "./pages/Beställningar";
 import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
+import SuperAdmin from "./pages/SuperAdmin";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +65,13 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Index />} />
+      <Route path="/superadmin" element={
+        <ProtectedRoute>
+          <AppLayout />
+        </ProtectedRoute>
+      }>
+        <Route index element={<SuperAdmin />} />
+      </Route>
       <Route path="/:companySlug/auth" element={
         <CompanySlugProvider>
           <Auth />

@@ -55,7 +55,13 @@ export function AppSidebar() {
     { title: 'Timeliste', url: '/timeliste', icon: BarChart3 },
   ];
 
-  const items = userRole === 'admin' ? adminItems : employeeItemsWithOrders;
+  const superadminItems = [
+    { title: "SuperAdmin", url: "/superadmin", icon: Shield },
+  ];
+
+  const items = userRole === 'superadmin' ? superadminItems :
+                userRole === 'admin' ? adminItems : 
+                employeeItemsWithOrders;
 
   return (
     <Sidebar 
@@ -73,7 +79,7 @@ export function AppSidebar() {
         
         <SidebarGroup>
           <SidebarGroupLabel>
-            {userRole === 'admin' ? 'Administrasjon' : 'Ansatt'}
+            {userRole === 'superadmin' ? 'SuperAdmin' : userRole === 'admin' ? 'Administrasjon' : 'Ansatt'}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
