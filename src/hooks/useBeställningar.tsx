@@ -43,7 +43,7 @@ export const useBeställningar = () => {
   const [beställningar, setBeställningar] = useState<Beställning[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { user, userRole } = useAuth();
+  const { user, userRole, companyId } = useAuth();
 
   const fetchBeställningar = useCallback(async () => {
     try {
@@ -112,11 +112,16 @@ export const useBeställningar = () => {
         throw new Error('Du måste vara inloggad');
       }
 
+      if (!companyId) {
+        throw new Error('Company ID saknas');
+      }
+
       const { error } = await supabase
         .from('beställningar')
         .insert([{
           ...data,
-          created_by: user.id
+          created_by: user.id,
+          company_id: companyId
         }]);
 
       if (error) throw error;

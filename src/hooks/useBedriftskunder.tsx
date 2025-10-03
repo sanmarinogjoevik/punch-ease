@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from './useAuth';
 
 export interface Bedriftskunde {
   id: string;
@@ -23,6 +24,7 @@ export interface CreateBedriftskunde {
 
 export const useBedriftskunder = () => {
   const [bedriftskunder, setBedriftskunder] = useState<Bedriftskunde[]>([]);
+  const { companyId } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -49,9 +51,13 @@ export const useBedriftskunder = () => {
 
   const createBedriftskunde = async (data: CreateBedriftskunde) => {
     try {
+      if (!companyId) {
+        throw new Error('Company ID saknas');
+      }
+
       const { error } = await supabase
         .from('bedriftskunder')
-        .insert([data]);
+        .insert([{ ...data, company_id: companyId }]);
 
       if (error) throw error;
 
