@@ -312,6 +312,7 @@ const SuperAdmin = () => {
   };
 
   if (!isSuperAdmin) {
+    console.log("SuperAdmin access denied", { user, userRole, isSuperAdmin });
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="w-96">
@@ -319,6 +320,8 @@ const SuperAdmin = () => {
             <CardTitle className="text-destructive">Ingen tilgang</CardTitle>
             <CardDescription>
               Du har ikke tilgang til superadmin-panelet.
+              <br />
+              <span className="text-xs">Role: {userRole || 'ingen'}</span>
             </CardDescription>
           </CardHeader>
         </Card>

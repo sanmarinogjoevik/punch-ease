@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -12,14 +12,17 @@ const SuperAdminAuth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { signIn, user, isSuperAdmin } = useAuth();
+  const { signIn, user, isSuperAdmin, userRole } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   // Redirect if already logged in as superadmin
-  if (user && isSuperAdmin) {
-    navigate("/superadmin");
-  }
+  useEffect(() => {
+    if (user && isSuperAdmin) {
+      console.log("Redirecting to /superadmin - user is superadmin", { user, isSuperAdmin, userRole });
+      navigate("/superadmin", { replace: true });
+    }
+  }, [user, isSuperAdmin, navigate, userRole]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,10 +38,11 @@ const SuperAdminAuth = () => {
           variant: "destructive",
         });
       } else {
-        // Wait a moment to check if user is superadmin
-        setTimeout(() => {
-          // The auth context will update, and redirect will happen automatically
-        }, 500);
+        toast({
+          title: "Inloggad!",
+          description: "Omdirigerar...",
+        });
+        // The useEffect will handle the redirect when isSuperAdmin is set
       }
     } catch (error: any) {
       toast({

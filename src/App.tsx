@@ -45,7 +45,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function SuperAdminProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, isSuperAdmin } = useAuth();
+  const { user, loading, isSuperAdmin, userRole } = useAuth();
+  
+  console.log("SuperAdminProtectedRoute check", { user: !!user, loading, isSuperAdmin, userRole });
   
   if (loading) {
     return (
@@ -56,13 +58,16 @@ function SuperAdminProtectedRoute({ children }: { children: React.ReactNode }) {
   }
   
   if (!user) {
+    console.log("No user, redirecting to /superadmin/auth");
     return <Navigate to="/superadmin/auth" replace />;
   }
   
   if (!isSuperAdmin) {
+    console.log("Not superadmin, redirecting to /", { userRole });
     return <Navigate to="/" replace />;
   }
   
+  console.log("SuperAdmin access granted");
   return <>{children}</>;
 }
 
