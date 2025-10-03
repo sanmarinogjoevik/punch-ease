@@ -126,6 +126,7 @@ export type Database = {
       }
       companies: {
         Row: {
+          access_code: string
           address: string | null
           city: string | null
           created_at: string
@@ -139,6 +140,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          access_code?: string
           address?: string | null
           city?: string | null
           created_at?: string
@@ -152,6 +154,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          access_code?: string
           address?: string | null
           city?: string | null
           created_at?: string
