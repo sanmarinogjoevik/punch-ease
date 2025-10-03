@@ -6,10 +6,19 @@ import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useCompanySlug } from '@/contexts/CompanySlugContext';
+import { useNavigate } from 'react-router-dom';
 
 export function AppLayout() {
   const { signOut } = useAuth();
+  const { companySlug } = useCompanySlug();
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate(`/${companySlug}/auth`);
+  };
 
   return (
     <SidebarProvider>
@@ -24,7 +33,7 @@ export function AppLayout() {
               <Button 
                 variant="ghost" 
                 size={isMobile ? "sm" : "sm"}
-                onClick={signOut}
+                onClick={handleSignOut}
                 className="text-muted-foreground hover:text-foreground"
               >
                 <LogOut className="h-4 w-4 mr-2" />

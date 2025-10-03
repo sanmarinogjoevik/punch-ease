@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
-import { CompanySlugProvider } from "./contexts/CompanySlugContext";
+import { CompanySlugProvider, useCompanySlug } from "./contexts/CompanySlugContext";
 import { AppLayout } from "./components/layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
@@ -28,6 +28,7 @@ const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, companyId } = useAuth();
+  const { companySlug } = useCompanySlug();
   
   if (loading) {
     return (
@@ -38,7 +39,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
   
   if (!user || !companyId) {
-    return <Navigate to="/" replace />;
+    // Redirect to company's auth page, not root
+    return <Navigate to={`/${companySlug}/auth`} replace />;
   }
   
   return <>{children}</>;
