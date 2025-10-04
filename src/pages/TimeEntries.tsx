@@ -317,6 +317,7 @@ export default function TimeEntries() {
 
   const getSessionBadge = (session: WorkSession) => {
     const badges = [];
+    const now = new Date();
     
     if (!session.punch_out) {
       badges.push(
@@ -325,13 +326,22 @@ export default function TimeEntries() {
         </Badge>
       );
     } else {
-      badges.push(
-        <Badge key="completed" variant="outline" className="border-green-200 text-green-700 bg-green-50">
-          Fullført
-        </Badge>
-      );
+      const punchOutTime = new Date(session.punch_out.timestamp);
+      
+      if (punchOutTime > now) {
+        badges.push(
+          <Badge key="active" variant="outline" className="border-yellow-200 text-yellow-700 bg-yellow-50">
+            Aktiv
+          </Badge>
+        );
+      } else {
+        badges.push(
+          <Badge key="completed" variant="outline" className="border-green-200 text-green-700 bg-green-50">
+            Fullført
+          </Badge>
+        );
+      }
     }
-
 
     return <div className="flex flex-wrap gap-1">{badges}</div>;
   };
