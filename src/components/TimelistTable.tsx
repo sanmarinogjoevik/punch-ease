@@ -166,11 +166,12 @@ export default function TimelistTable({
         let lunch = '';
         let hasData = false;
         
-        if (dayShift || punchInEntry) {
+        // Only show entries for days with a scheduled shift
+        if (dayShift) {
           hasData = true;
           
-          if (isStoreClosed && dayShift) {
-            // Store closed - use schedule times from shift
+          if (isStoreClosed) {
+            // Store closed - always use schedule times from shift
             punchIn = formatTimeNorway(dayShift.start_time);
             punchOut = formatTimeNorway(dayShift.end_time);
             
@@ -183,7 +184,7 @@ export default function TimelistTable({
             total = `${hours}:${minutes.toString().padStart(2, '0')}`;
             lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
           } else if (punchInEntry && punchOutEntry) {
-            // Store open OR has actual punches - use actual times
+            // Store open and has actual punches - use actual times
             punchIn = formatTimeNorway(punchInEntry.timestamp);
             punchOut = formatTimeNorway(punchOutEntry.timestamp);
             
@@ -199,10 +200,10 @@ export default function TimelistTable({
             total = `${hours}:${minutes.toString().padStart(2, '0')}`;
             lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
           } else if (punchInEntry) {
-            // Only punch in, no punch out
+            // Only punch in, no punch out - show ongoing
             punchIn = formatTimeNorway(punchInEntry.timestamp);
-          } else if (dayShift) {
-            // No punches, show schedule if shift exists
+          } else {
+            // No punches yet, show scheduled times
             punchIn = formatTimeNorway(dayShift.start_time);
             punchOut = formatTimeNorway(dayShift.end_time);
             
