@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, parseISO, isSameDay, isToday, startOfDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
-import { formatTimeNorway, formatDuration } from '@/lib/timeUtils';
+import { formatTimeNorway, formatDuration, calculateDurationMinutes, isAfterClosingTime } from '@/lib/timeUtils';
 import { processTimeEntry, type TimeEntry as TimeEntryType } from '@/lib/timeEntryUtils';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -118,28 +118,65 @@ export default function Timeliste() {
         );
 
         const dayTimeEntries = entriesByDate.get(dateStr);
+        const punchInEntry = dayTimeEntries?.punchIn;
+        const punchOutEntry = dayTimeEntries?.punchOut;
 
-        // Use shared processing logic
-        const processed = processTimeEntry(
-          date,
-          dayShift,
-          dayTimeEntries?.punchIn,
-          dayTimeEntries?.punchOut,
-          businessHours,
-          isTodayDate
-        );
+        const isStoreClosed = isAfterClosingTime(date, businessHours);
 
-        const lunch = processed.lunchMinutes > 0 ? `0:${processed.lunchMinutes}` : '';
+        let punchIn: string | null = null;
+        let punchOut: string | null = null;
+        let lunch = '';
+        let totalMinutes = 0;
+        let hasData = false;
+
+        if (dayShift || punchInEntry) {
+          hasData = true;
+          
+          if (isStoreClosed && dayShift) {
+            // Store closed - use schedule times from shift
+            punchIn = formatTimeNorway(dayShift.start_time);
+            punchOut = formatTimeNorway(dayShift.end_time);
+            
+            const totalMins = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
+            const pauseMinutes = totalMins > 330 ? 30 : 0;
+            totalMinutes = totalMins - pauseMinutes;
+            lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
+          } else if (punchInEntry && punchOutEntry) {
+            // Store open OR has actual punches - use actual times
+            punchIn = formatTimeNorway(punchInEntry.timestamp);
+            punchOut = formatTimeNorway(punchOutEntry.timestamp);
+            
+            const totalMins = calculateDurationMinutes(
+              punchInEntry.timestamp, 
+              punchOutEntry.timestamp
+            );
+            const pauseMinutes = totalMins > 330 ? 30 : 0;
+            totalMinutes = totalMins - pauseMinutes;
+            lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
+          } else if (punchInEntry) {
+            // Only punch in, no punch out
+            punchIn = formatTimeNorway(punchInEntry.timestamp);
+          } else if (dayShift) {
+            // No punches, show schedule if shift exists
+            punchIn = formatTimeNorway(dayShift.start_time);
+            punchOut = formatTimeNorway(dayShift.end_time);
+            
+            const totalMins = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
+            const pauseMinutes = totalMins > 330 ? 30 : 0;
+            totalMinutes = totalMins - pauseMinutes;
+            lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
+          }
+        }
 
         return {
           date: dateStr,
           day: date.getDate().toString(),
           dayName: NORWEGIAN_DAYS[dayOfWeek],
-          punchIn: processed.punchIn ? formatTimeNorway(processed.punchIn) : null,
-          punchOut: processed.punchOut ? formatTimeNorway(processed.punchOut) : null,
+          punchIn,
+          punchOut,
           lunch,
-          totalMinutes: processed.totalMinutes,
-          hasData: processed.hasData
+          totalMinutes,
+          hasData
         };
       });
 
