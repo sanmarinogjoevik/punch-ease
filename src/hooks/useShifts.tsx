@@ -177,6 +177,28 @@ export const useShiftMutations = () => {
         .single();
 
       if (error) throw error;
+      
+      // If start_time or end_time changed, re-normalize time entries for that date
+      if (updateData.start_time || updateData.end_time) {
+        const shiftDate = format(new Date(data.start_time), 'yyyy-MM-dd');
+        console.log('Shift times changed, re-normalizing time entries for', shiftDate);
+        
+        try {
+          const { error: normalizeError } = await supabase.functions.invoke('normalize-time-entries', {
+            body: { 
+              date: shiftDate,
+              force: true 
+            }
+          });
+
+          if (normalizeError) {
+            console.error('Error re-normalizing time entries:', normalizeError);
+          }
+        } catch (err) {
+          console.error('Failed to invoke normalize-time-entries:', err);
+        }
+      }
+      
       return data;
     },
     onSuccess: () => {

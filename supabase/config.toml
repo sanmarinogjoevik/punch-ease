@@ -3,6 +3,9 @@ project_id = "eynulvphjcojanzryfyi"
 [functions.create-employee]
 verify_jwt = false
 
+[functions.normalize-time-entries]
+verify_jwt = false
+
 [functions.delete-employee]
 verify_jwt = false
 

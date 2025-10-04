@@ -340,6 +340,25 @@ Deno.serve(async (req) => {
       }
     }
 
+    // After all punch-outs are created, normalize time entries for today
+    console.log('Normalizing time entries for today...');
+    
+    const todayDateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    try {
+      const { error: normalizeError } = await supabase.functions.invoke('normalize-time-entries', {
+        body: { date: todayDateStr }
+      });
+
+      if (normalizeError) {
+        console.error('Error normalizing time entries:', normalizeError);
+      } else {
+        console.log('Time entries normalized successfully');
+      }
+    } catch (normalizeErr) {
+      console.error('Failed to invoke normalize-time-entries:', normalizeErr);
+    }
+
     const result = {
       message: 'Auto punch-out processing complete',
       currentTime,
