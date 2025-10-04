@@ -5,6 +5,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper function to add random time variation (±10 minutes)
+function addRandomVariation(timestamp: string): string {
+  const date = new Date(timestamp);
+  const randomMinutes = Math.floor(Math.random() * 21) - 10; // -10 to +10
+  const newDate = new Date(date.getTime() + randomMinutes * 60 * 1000);
+  return newDate.toISOString();
+}
+
 interface BusinessHours {
   day: number; // 0-6 (söndag-lördag)
   dayName: string;
@@ -241,9 +249,9 @@ Deno.serve(async (req) => {
       console.error('Error fetching shifts:', shiftsError);
     }
 
-    // Create a set of employee IDs who have shifts today
-    const employeesWithShifts = new Set(todayShifts?.map(shift => shift.employee_id) || []);
-    console.log('Employees with shifts today:', employeesWithShifts.size);
+    // Create a map of employee IDs to their shifts for today
+    const employeeShifts = new Map(todayShifts?.map(shift => [shift.employee_id, shift]) || []);
+    console.log('Employees with shifts today:', employeeShifts.size);
 
     let punchedOutCount = 0;
     let alreadyPunchedOutCount = 0;
@@ -251,7 +259,8 @@ Deno.serve(async (req) => {
 
     for (const employeeId of punchedInEmployeeIds) {
       // Check if employee has a shift today
-      const hasShift = employeesWithShifts.has(employeeId);
+      const shift = employeeShifts.get(employeeId);
+      const hasShift = !!shift;
 
       // Punch out if: 
       // 1. It's closing time (shouldPunchOut = true), OR
@@ -264,7 +273,7 @@ Deno.serve(async (req) => {
           .insert({
             employee_id: employeeId,
             entry_type: 'punch_out',
-            timestamp: now.toISOString(),
+            timestamp: addRandomVariation(now.toISOString()),
             is_automatic: true,
           });
 
@@ -276,15 +285,15 @@ Deno.serve(async (req) => {
         noShiftPunchedOut++;
         console.log('Successfully punched out employee (no shift):', employeeId);
       } else if (shouldPunchOut) {
-        // Employee has a shift but it's closing time
-        console.log('Creating automatic punch-out for employee:', employeeId);
+        // Employee has a shift but it's closing time - use shift end_time with variation
+        console.log('Creating automatic punch-out for employee:', employeeId, 'using shift end time');
 
         const { error: insertError } = await supabase
           .from('time_entries')
           .insert({
             employee_id: employeeId,
             entry_type: 'punch_out',
-            timestamp: now.toISOString(),
+            timestamp: addRandomVariation(shift.end_time),
             is_automatic: true,
           });
 
