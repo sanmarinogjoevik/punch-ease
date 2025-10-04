@@ -65,6 +65,22 @@ export default function Timeliste() {
     generateTimelist(entries || []);
   };
 
+  const isBusinessClosed = (date: Date, closeTime: string): boolean => {
+    if (!isToday(date)) return true; // Alla gamla dagar räknas som "stängda"
+    
+    const now = new Date();
+    const [closeHour, closeMinute] = closeTime.split(':').map(Number);
+    const closingTime = new Date(date);
+    closingTime.setHours(closeHour, closeMinute, 0, 0);
+    
+    // Om stängningstid är efter midnatt (t.ex. 03:00), lägg till en dag
+    if (closeHour < 6) {
+      closingTime.setDate(closingTime.getDate() + 1);
+    }
+    
+    return now > closingTime;
+  };
+
   const generateTimelist = (entries: any[]) => {
     if (!shifts) {
       setTimelistEntries([]);
@@ -112,38 +128,52 @@ export default function Timeliste() {
         let lunch = '';
         let hasData = false;
         
-        if (punchInEntry || dayShift) {
+        if (dayShift) {
           hasData = true;
           
-          // Use actual punch time if available, otherwise use scheduled time
-          if (punchInEntry) {
-            punchIn = format(parseISO(punchInEntry.timestamp), 'HH:mm');
-          } else if (dayShift) {
+          // Hitta stängningstid för denna dag
+          const dayOfWeek = getDay(date);
+          const businessDay = companySettings?.business_hours?.find(
+            (bh: any) => bh.day === dayOfWeek
+          );
+          const closeTime = businessDay?.closeTime || '22:00';
+          const closed = isBusinessClosed(date, closeTime);
+          
+          // Om butiken är stängd ELLER det inte är idag: visa ENDAST vaktlistans tider
+          if (closed || !isToday(date)) {
             punchIn = formatTimeNorway(dayShift.start_time);
-          }
-          
-          // Check if this is an active session (punch in without punch out on today)
-          const isActiveToday = isToday(date) && punchInEntry && !punchOutEntry;
-          
-          if (isActiveToday) {
-            // Don't show OUT time for active shift
-            punchOut = null;
-            totalMinutes = 0;
-          } else if (punchOutEntry) {
-            // Use actual punch out time
-            punchOut = format(parseISO(punchOutEntry.timestamp), 'HH:mm');
+            punchOut = formatTimeNorway(dayShift.end_time);
             
-            // Calculate total hours from actual times
-            const durationMinutes = calculateDurationMinutes(
-              punchInEntry.timestamp, 
-              punchOutEntry.timestamp
-            );
-            const lunchMinutes = durationMinutes >= 480 ? 30 : 0; // 30 min lunch if 8+ hours
+            const durationMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
+            const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
             const workMinutes = Math.max(0, durationMinutes - lunchMinutes);
             totalMinutes = workMinutes;
             lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
-          } else if (dayShift) {
-            // Use scheduled times as fallback
+          } 
+          // Om butiken är öppen OCH det är idag: visa live punch times
+          else if (isToday(date) && punchInEntry) {
+            punchIn = format(parseISO(punchInEntry.timestamp), 'HH:mm');
+            
+            if (punchOutEntry) {
+              // Har punchat ut - visa faktiska tider
+              punchOut = format(parseISO(punchOutEntry.timestamp), 'HH:mm');
+              const durationMinutes = calculateDurationMinutes(
+                punchInEntry.timestamp, 
+                punchOutEntry.timestamp
+              );
+              const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
+              const workMinutes = Math.max(0, durationMinutes - lunchMinutes);
+              totalMinutes = workMinutes;
+              lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
+            } else {
+              // Pågående pass - visa ingen sluttid eller total än
+              punchOut = null;
+              totalMinutes = 0;
+            }
+          }
+          // Fallback: visa vaktlistans tider
+          else {
+            punchIn = formatTimeNorway(dayShift.start_time);
             punchOut = formatTimeNorway(dayShift.end_time);
             
             const durationMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
