@@ -61,10 +61,23 @@ Deno.serve(async (req) => {
           if (entryDate < todayStartCleanup) {
             console.log('Found old punch-in from', entry.timestamp, 'for employee', employeeId, '- cleaning up');
             
+            // Get company_id from employee profile
+            const { data: cleanupProfile } = await supabase
+              .from('profiles')
+              .select('company_id')
+              .eq('user_id', employeeId)
+              .single();
+
+            if (!cleanupProfile?.company_id) {
+              console.error(`No company_id found for employee ${employeeId} during cleanup`);
+              continue;
+            }
+
             const { error: cleanupError } = await supabase
               .from('time_entries')
               .insert({
                 employee_id: employeeId,
+                company_id: cleanupProfile.company_id,
                 entry_type: 'punch_out',
                 timestamp: new Date(entryDate.getTime() + 1000).toISOString(), // 1 second after punch-in
                 is_automatic: true,
@@ -268,10 +281,23 @@ Deno.serve(async (req) => {
       if (!hasShift) {
         console.log('Employee', employeeId, 'has NO shift today - auto punching out');
         
+        // Get company_id from employee profile
+        const { data: noShiftProfile } = await supabase
+          .from('profiles')
+          .select('company_id')
+          .eq('user_id', employeeId)
+          .single();
+
+        if (!noShiftProfile?.company_id) {
+          console.error(`No company_id found for employee ${employeeId}`);
+          continue;
+        }
+
         const { error: insertError } = await supabase
           .from('time_entries')
           .insert({
             employee_id: employeeId,
+            company_id: noShiftProfile.company_id,
             entry_type: 'punch_out',
             timestamp: addRandomVariation(now.toISOString()),
             is_automatic: true,
@@ -288,10 +314,23 @@ Deno.serve(async (req) => {
         // Employee has a shift but it's closing time - use shift end_time with variation
         console.log('Creating automatic punch-out for employee:', employeeId, 'using shift end time');
 
+        // Get company_id from employee profile
+        const { data: closingProfile } = await supabase
+          .from('profiles')
+          .select('company_id')
+          .eq('user_id', employeeId)
+          .single();
+
+        if (!closingProfile?.company_id) {
+          console.error(`No company_id found for employee ${employeeId}`);
+          continue;
+        }
+
         const { error: insertError } = await supabase
           .from('time_entries')
           .insert({
             employee_id: employeeId,
+            company_id: closingProfile.company_id,
             entry_type: 'punch_out',
             timestamp: addRandomVariation(shift.end_time),
             is_automatic: true,

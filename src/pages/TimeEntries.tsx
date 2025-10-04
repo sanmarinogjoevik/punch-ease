@@ -271,43 +271,6 @@ export default function TimeEntries() {
       }
     });
 
-    // Add schedule-only entries for keys without any punch data (after closing only)
-    shiftKeyMap.forEach((keyShifts, key) => {
-      const dateStr = key.split('_')[0]; // Extract date from key
-      const useScheduleTimes = shouldUseScheduleTimes(dateStr);
-      
-      if (useScheduleTimes && !allProcessedKeys.has(key)) {
-        const shift = keyShifts[0];
-        const shiftDuration = calculateDurationMinutes(shift.start_time, shift.end_time);
-
-        // Get employee name from shift data or use fallback
-        const employeeName = userRole === 'admin' 
-          ? (shift.profiles?.first_name && shift.profiles?.last_name 
-              ? `${shift.profiles.first_name} ${shift.profiles.last_name}` 
-              : 'Ukjent ansatt')
-          : (user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name);
-
-        resultSessions.push({
-          id: 'schedule_only_' + key,
-          punch_in: {
-            id: 'schedule_in_' + key,
-            entry_type: 'punch_in' as const,
-            timestamp: shift.start_time,
-            employee_id: shift.employee_id,
-            employee_name: employeeName
-          },
-          punch_out: {
-            id: 'schedule_out_' + key,
-            entry_type: 'punch_out' as const,
-            timestamp: shift.end_time,
-            employee_id: shift.employee_id,
-            employee_name: employeeName
-          },
-          duration: shiftDuration,
-          employee_name: employeeName
-        });
-      }
-    });
 
     return resultSessions.sort((a, b) => 
       new Date(b.punch_in.timestamp).getTime() - new Date(a.punch_in.timestamp).getTime()

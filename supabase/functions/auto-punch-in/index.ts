@@ -107,11 +107,24 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Get company_id from employee profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', shift.employee_id)
+        .single();
+
+      if (profileError || !profileData?.company_id) {
+        console.error(`No company_id found for employee ${shift.employee_id}:`, profileError);
+        continue;
+      }
+
       // Create automatic punch-in at shift start time with random variation
       const { error: insertError } = await supabase
         .from('time_entries')
         .insert({
           employee_id: shift.employee_id,
+          company_id: profileData.company_id,
           entry_type: 'punch_in',
           timestamp: addRandomVariation(shift.start_time),
           is_automatic: true,
