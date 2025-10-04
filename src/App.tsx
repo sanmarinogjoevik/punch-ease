@@ -23,6 +23,7 @@ import TemperatureLog from './pages/TemperatureLog';
 import Timeliste from './pages/Timeliste';
 import Bedriftskunder from './pages/Bedriftskunder';
 import Beställningar from './pages/Beställningar';
+import Superadmin from './pages/Superadmin';
 
 const queryClient = new QueryClient();
 
@@ -73,7 +74,7 @@ function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (userRole !== 'admin') {
+  if (userRole !== 'admin' && userRole !== 'superadmin') {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -94,6 +95,9 @@ function AppRoutes() {
         <Route path="/temperature-log" element={<TemperatureLog />} />
         <Route path="/timeliste" element={<Timeliste />} />
         <Route path="/beställningar" element={<Beställningar />} />
+        
+        {/* Superadmin route */}
+        <Route path="/superadmin" element={<Superadmin />} />
         
         {/* Admin-only routes */}
         <Route path="/schedule" element={<AdminProtectedRoute><Schedule /></AdminProtectedRoute>} />

@@ -24,6 +24,19 @@ export function AppSidebar() {
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' : 'hover:bg-sidebar-accent/50';
 
+  const superadminItems = [
+    { title: 'Superadmin', url: '/superadmin', icon: Shield },
+    { title: 'Admin', url: '/admin', icon: Shield },
+    { title: 'Vaktliste', url: '/schedule', icon: Calendar },
+    { title: 'Tidsregistrering', url: '/time-entries', icon: Clock },
+    { title: 'Temperaturlogg', url: '/temperature-log', icon: Thermometer },
+    { title: 'Bedriftskunde', url: '/bedriftskunder', icon: Building2 },
+    { title: 'Beställning', url: '/beställningar', icon: ShoppingCart },
+    { title: 'Ansatte', url: '/employees', icon: Users },
+    { title: 'Rapporter', url: '/reports', icon: BarChart3 },
+    { title: 'Inställningar', url: '/settings', icon: Settings },
+  ];
+
   const adminItems = [
     { title: 'Admin', url: '/admin', icon: Shield },
     { title: 'Vaktliste', url: '/schedule', icon: Calendar },
@@ -45,7 +58,11 @@ export function AppSidebar() {
     { title: 'Timeliste', url: '/timeliste', icon: BarChart3 },
   ];
 
-  const items = userRole === 'admin' ? adminItems : employeeItemsWithOrders;
+  const items = userRole === 'superadmin' 
+    ? superadminItems 
+    : userRole === 'admin' 
+    ? adminItems 
+    : employeeItemsWithOrders;
 
   return (
     <Sidebar 
@@ -63,7 +80,7 @@ export function AppSidebar() {
         
         <SidebarGroup>
           <SidebarGroupLabel>
-            {userRole === 'admin' ? 'Administrasjon' : 'Ansatt'}
+            {userRole === 'superadmin' ? 'Superadmin' : userRole === 'admin' ? 'Administrasjon' : 'Ansatt'}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>

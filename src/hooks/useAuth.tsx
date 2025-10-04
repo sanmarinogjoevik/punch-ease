@@ -122,5 +122,6 @@ export function useAuth() {
     ...context,
     isAdmin: context.userRole === 'admin',
     isEmployee: context.userRole === 'employee',
+    isSuperadmin: context.userRole === 'superadmin',
   };
 }
