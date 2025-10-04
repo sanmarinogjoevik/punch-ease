@@ -59,23 +59,27 @@ Deno.serve(async (req) => {
     for (const shift of upcomingShifts) {
       console.log(`Processing shift ${shift.id} for employee ${shift.employee_id}`);
 
-      // Check if employee is already punched in
-      const { data: latestEntry, error: entryError } = await supabase
+      // Check if employee already has a punch-in today (same date as shift start)
+      const shiftDate = new Date(shift.start_time);
+      const startOfShiftDay = new Date(shiftDate.setHours(0, 0, 0, 0));
+      const endOfShiftDay = new Date(shiftDate.setHours(23, 59, 59, 999));
+
+      const { data: todayPunchIns, error: entryError } = await supabase
         .from('time_entries')
         .select('*')
         .eq('employee_id', shift.employee_id)
-        .order('timestamp', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .eq('entry_type', 'punch_in')
+        .gte('timestamp', startOfShiftDay.toISOString())
+        .lte('timestamp', endOfShiftDay.toISOString());
 
       if (entryError) {
         console.error(`Error checking time entries for employee ${shift.employee_id}:`, entryError);
         continue;
       }
 
-      // If latest entry is a punch_in, employee is already punched in
-      if (latestEntry && latestEntry.entry_type === 'punch_in') {
-        console.log(`Employee ${shift.employee_id} is already punched in, skipping`);
+      // If employee already has a punch-in today, skip automatic punch-in
+      if (todayPunchIns && todayPunchIns.length > 0) {
+        console.log(`Employee ${shift.employee_id} already has a punch-in today, skipping automatic punch-in`);
         alreadyPunchedInCount++;
         continue;
       }

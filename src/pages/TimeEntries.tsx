@@ -111,45 +111,51 @@ export default function TimeEntries() {
     // For each employee, pair punch-in and punch-out entries
     entriesByEmployee.forEach((employeeEntries, employeeId) => {
       // Sort by timestamp (oldest first for pairing)
-      const sortedEntries = employeeEntries.sort((a, b) => 
+      const sortedEntries = [...employeeEntries].sort((a, b) => 
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
 
-      let i = 0;
-      while (i < sortedEntries.length) {
-        const entry = sortedEntries[i];
-        
+      const punchIns: TimeEntry[] = [];
+      const punchOuts: TimeEntry[] = [];
+
+      // Separate punch-ins and punch-outs
+      sortedEntries.forEach(entry => {
         if (entry.entry_type === 'punch_in') {
-          // Look for matching punch_out
-          let punchOut: TimeEntry | undefined;
-          let j = i + 1;
-          
-          while (j < sortedEntries.length) {
-            if (sortedEntries[j].entry_type === 'punch_out' && 
-                sortedEntries[j].employee_id === entry.employee_id) {
-              punchOut = sortedEntries[j];
-              sortedEntries.splice(j, 1); // Remove the punch_out from array
-              break;
-            }
-            j++;
-          }
-
-          // Calculate duration if we have both punch in and out
-          let duration: number | undefined;
-          if (punchOut) {
-            duration = calculateDurationMinutes(entry.timestamp, punchOut.timestamp);
-          }
-
-          sessions.push({
-            id: entry.id,
-            punch_in: entry,
-            punch_out: punchOut,
-            duration,
-            employee_name: entry.employee_name
-          });
+          punchIns.push(entry);
+        } else {
+          punchOuts.push(entry);
         }
-        i++;
-      }
+      });
+
+      // Pair punch-ins with punch-outs
+      const paired = new Set<number>();
+      punchIns.forEach((punchIn, i) => {
+        // Find the first unpaired punch-out that comes after this punch-in
+        let matchingPunchOutIndex = -1;
+        for (let j = 0; j < punchOuts.length; j++) {
+          if (!paired.has(j) && new Date(punchOuts[j].timestamp) > new Date(punchIn.timestamp)) {
+            matchingPunchOutIndex = j;
+            paired.add(j);
+            break;
+          }
+        }
+
+        let punchOut: TimeEntry | undefined;
+        let duration: number | undefined;
+
+        if (matchingPunchOutIndex !== -1) {
+          punchOut = punchOuts[matchingPunchOutIndex];
+          duration = calculateDurationMinutes(punchIn.timestamp, punchOut.timestamp);
+        }
+
+        sessions.push({
+          id: punchIn.id,
+          punch_in: punchIn,
+          punch_out: punchOut,
+          duration,
+          employee_name: punchIn.employee_name
+        });
+      });
     });
 
     // Sort sessions by punch_in timestamp (newest first)
@@ -304,34 +310,19 @@ export default function TimeEntries() {
 
 
   const getSessionBadge = (session: WorkSession) => {
-    const badges = [];
-    const now = new Date();
-    
     if (!session.punch_out) {
-      badges.push(
-        <Badge key="active" variant="outline" className="border-yellow-200 text-yellow-700 bg-yellow-50">
+      return (
+        <Badge variant="outline" className="border-yellow-200 text-yellow-700 bg-yellow-50">
           Aktiv
         </Badge>
       );
-    } else {
-      const punchOutTime = new Date(session.punch_out.timestamp);
-      
-      if (punchOutTime > now) {
-        badges.push(
-          <Badge key="active" variant="outline" className="border-yellow-200 text-yellow-700 bg-yellow-50">
-            Aktiv
-          </Badge>
-        );
-      } else {
-        badges.push(
-          <Badge key="completed" variant="outline" className="border-green-200 text-green-700 bg-green-50">
-            Fullført
-          </Badge>
-        );
-      }
     }
-
-    return <div className="flex flex-wrap gap-1">{badges}</div>;
+    
+    return (
+      <Badge variant="outline" className="border-green-200 text-green-700 bg-green-50">
+        Fullført
+      </Badge>
+    );
   };
 
   if (loading) {
