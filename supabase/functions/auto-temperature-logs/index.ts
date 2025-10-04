@@ -95,6 +95,27 @@ Deno.serve(async (req) => {
       console.log(`Using fallback: employee ${employeeId} at current time`);
     }
 
+    // Fetch employee profile to get company_id
+    const { data: employeeProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('user_id', employeeId)
+      .single();
+
+    if (profileError || !employeeProfile?.company_id) {
+      console.error('Error fetching employee profile or no company_id found:', profileError);
+      return new Response(
+        JSON.stringify({ 
+          message: 'No company found for employee', 
+          logsCreated: 0,
+          error: profileError?.message 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
+    console.log(`Employee company_id: ${employeeProfile.company_id}`);
+
     // Generate temperature logs
     const logsToCreate = equipment.map(eq => {
       let temperature: number;
@@ -119,7 +140,8 @@ Deno.serve(async (req) => {
         employee_id: employeeId,
         equipment_name: eq.name,
         temperature: temperature,
-        timestamp: logTimestamp.toISOString()
+        timestamp: logTimestamp.toISOString(),
+        company_id: employeeProfile.company_id,
       };
     });
 
