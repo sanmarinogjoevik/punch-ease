@@ -27,7 +27,7 @@ export function AppSidebar() {
     isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' : 'hover:bg-sidebar-accent/50';
 
   const employeeItems = [
-    { title: 'Dashboard', url: '/', icon: Home },
+    { title: 'Dashboard', url: '/dashboard', icon: Home },
     { title: 'Min Plan', url: '/employee-schedule', icon: Calendar },
     { title: 'Tidsregistrering', url: '/time-entries', icon: Clock },
     { title: 'Temperaturlogg', url: '/temperature-log', icon: Thermometer },
@@ -47,7 +47,7 @@ export function AppSidebar() {
   ];
 
   const employeeItemsWithOrders = [
-    { title: 'Dashboard', url: '/', icon: Home },
+    { title: 'Dashboard', url: '/dashboard', icon: Home },
     { title: 'Min Plan', url: '/employee-schedule', icon: Calendar },
     { title: 'Tidsregistrering', url: '/time-entries', icon: Clock },
     { title: 'Temperaturlogg', url: '/temperature-log', icon: Thermometer },

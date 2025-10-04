@@ -61,10 +61,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Role-based redirect component - redirects to dashboard after employee login
-function RoleBasedRedirect() {
-  return <Dashboard />;
-}
 
 function AppRoutes() {
   return (
@@ -73,7 +69,7 @@ function AppRoutes() {
       <Route path="/auth" element={<TenantProtectedRoute><Auth /></TenantProtectedRoute>} />
       
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-        <Route path="/dashboard" element={<RoleBasedRedirect />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/schedule" element={<Schedule />} />
         <Route path="/employee-schedule" element={<EmployeeSchedule />} />
         <Route path="/time-entries" element={<TimeEntries />} />
