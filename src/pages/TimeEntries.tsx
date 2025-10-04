@@ -187,6 +187,20 @@ export default function TimeEntries() {
     return false;
   };
 
+  const adjustTimeToSchedule = (actualTime: string, scheduleTime: string): string => {
+    const actual = new Date(actualTime);
+    const schedule = new Date(scheduleTime);
+    const diffMinutes = (actual.getTime() - schedule.getTime()) / (1000 * 60);
+    
+    // If within ±10 minutes, use schedule time
+    if (Math.abs(diffMinutes) <= 10) {
+      return scheduleTime;
+    }
+    
+    // Otherwise, use actual time
+    return actualTime;
+  };
+
   const applyHybridLogic = (sessions: WorkSession[]): WorkSession[] => {
     if (!shiftsData || !companySettings) return sessions;
 
@@ -233,44 +247,52 @@ export default function TimeEntries() {
       const useScheduleTimes = shouldUseScheduleTimes(dateStr);
       
       if (useScheduleTimes) {
-        // After closing: Create ONLY ONE entry per key from schedule, ignore all punch data
+        // After closing: Adjust times to schedule with ±10 min tolerance
         const keyShifts = shiftKeyMap.get(key);
         if (keyShifts && keyShifts.length > 0) {
           const shift = keyShifts[0];
-        const shiftDuration = calculateDurationMinutes(shift.start_time, shift.end_time);
-
-          // Use first session for employee name reference
           const firstSession = keySessions[0];
           
+          // Adjust actual punch times to schedule if within ±10 minutes
+          const adjustedPunchIn = firstSession.punch_in.timestamp 
+            ? adjustTimeToSchedule(firstSession.punch_in.timestamp, shift.start_time)
+            : shift.start_time;
+          
+          const adjustedPunchOut = firstSession.punch_out?.timestamp
+            ? adjustTimeToSchedule(firstSession.punch_out.timestamp, shift.end_time)
+            : shift.end_time;
+          
+          const adjustedDuration = calculateDurationMinutes(adjustedPunchIn, adjustedPunchOut);
+          
           resultSessions.push({
-            id: 'schedule_key_' + key,
+            id: 'adjusted_' + key,
             punch_in: {
-              id: 'schedule_in_' + key,
+              id: 'adjusted_in_' + key,
               entry_type: 'punch_in' as const,
-              timestamp: shift.start_time,
+              timestamp: adjustedPunchIn,
               employee_id: shift.employee_id,
               employee_name: firstSession.employee_name
             },
             punch_out: {
-              id: 'schedule_out_' + key,
+              id: 'adjusted_out_' + key,
               entry_type: 'punch_out' as const,
-              timestamp: shift.end_time,
+              timestamp: adjustedPunchOut,
               employee_id: shift.employee_id,
               employee_name: firstSession.employee_name
             },
-            duration: shiftDuration,
+            duration: adjustedDuration,
             employee_name: firstSession.employee_name
           });
+        } else {
+          // No schedule exists, don't show anything
         }
-        // If no schedule exists for this key after closing, don't show anything
       } else {
-        // During the day: Show all punch sessions as they are
+        // During opening hours: Show exact punch times
         keySessions.forEach(session => {
           resultSessions.push(session);
         });
       }
     });
-
 
     return resultSessions.sort((a, b) => 
       new Date(b.punch_in.timestamp).getTime() - new Date(a.punch_in.timestamp).getTime()

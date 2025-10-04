@@ -5,13 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Helper function to add random time variation (±10 minutes)
-function addRandomVariation(timestamp: string): string {
-  const date = new Date(timestamp);
-  const randomMinutes = Math.floor(Math.random() * 21) - 10; // -10 to +10
-  const newDate = new Date(date.getTime() + randomMinutes * 60 * 1000);
-  return newDate.toISOString();
-}
+// No random variation - punch in at exact schedule time
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -119,14 +113,14 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Create automatic punch-in at shift start time with random variation
+      // Create automatic punch-in at exact shift start time
       const { error: insertError } = await supabase
         .from('time_entries')
         .insert({
           employee_id: shift.employee_id,
           company_id: profileData.company_id,
           entry_type: 'punch_in',
-          timestamp: addRandomVariation(shift.start_time),
+          timestamp: shift.start_time,
           is_automatic: true,
         });
 

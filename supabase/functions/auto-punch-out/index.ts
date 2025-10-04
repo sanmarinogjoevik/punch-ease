@@ -5,13 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Helper function to add random time variation (±10 minutes)
-function addRandomVariation(timestamp: string): string {
-  const date = new Date(timestamp);
-  const randomMinutes = Math.floor(Math.random() * 21) - 10; // -10 to +10
-  const newDate = new Date(date.getTime() + randomMinutes * 60 * 1000);
-  return newDate.toISOString();
-}
+// No random variation - punch out at exact time
 
 interface BusinessHours {
   day: number; // 0-6 (söndag-lördag)
@@ -299,7 +293,7 @@ Deno.serve(async (req) => {
             employee_id: employeeId,
             company_id: noShiftProfile.company_id,
             entry_type: 'punch_out',
-            timestamp: addRandomVariation(now.toISOString()),
+            timestamp: now.toISOString(),
             is_automatic: true,
           });
 
@@ -332,7 +326,7 @@ Deno.serve(async (req) => {
             employee_id: employeeId,
             company_id: closingProfile.company_id,
             entry_type: 'punch_out',
-            timestamp: addRandomVariation(shift.end_time),
+            timestamp: shift.end_time,
             is_automatic: true,
           });
 

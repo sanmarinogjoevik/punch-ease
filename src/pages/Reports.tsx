@@ -15,10 +15,11 @@ import { useEmployees } from '@/hooks/useEmployees';
 import { useEquipment } from '@/hooks/useEquipment';
 import { useTemperatureLogs } from '@/hooks/useTemperatureLogs';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addWeeks, startOfWeek, startOfDay, subMonths, addMonths, subDays, addDays } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addWeeks, startOfWeek, startOfDay, subMonths, addMonths, subDays, addDays, isAfter } from 'date-fns';
 import { nb, sv } from 'date-fns/locale';
 import html2pdf from 'html2pdf.js';
-import { formatTimeNorway, createUTCFromNorwegianTime } from '@/lib/timeUtils';
+import { formatTimeNorway, createUTCFromNorwegianTime, calculateDurationMinutes } from '@/lib/timeUtils';
+import { supabase } from '@/integrations/supabase/client';
 
 
 interface TimeEntry {
@@ -56,6 +57,7 @@ export default function Reports() {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [timelistEntries, setTimelistEntries] = useState<TimelistEntry[]>([]);
   const [activeTab, setActiveTab] = useState<'timelista' | 'vaktlista' | 'temperatur'>('timelista');
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   
   // Use the new hooks
   const { data: employees = [], isLoading: employeesLoading } = useEmployees();
@@ -131,12 +133,88 @@ export default function Reports() {
 
   const loading = employeesLoading || shiftsLoading;
 
-  // Generate timelist whenever shifts data changes
+  // Fetch time entries when employee or month changes
+  useEffect(() => {
+    if (selectedEmployee && selectedMonth) {
+      fetchTimeEntries();
+    }
+  }, [selectedEmployee, selectedMonth]);
+
+  // Generate timelist whenever shifts or time entries data changes
   useEffect(() => {
     if (selectedEmployee && shifts) {
       generateTimelist();
     }
-  }, [shifts, selectedEmployee, selectedMonth, companySettings]);
+  }, [shifts, timeEntries, selectedEmployee, selectedMonth, companySettings]);
+
+  const fetchTimeEntries = async () => {
+    if (!selectedEmployee) return;
+    
+    try {
+      const monthStart = startOfMonth(new Date(selectedMonth + '-01'));
+      const monthEnd = endOfMonth(monthStart);
+      
+      const { data, error } = await supabase
+        .from('time_entries')
+        .select('*')
+        .eq('employee_id', selectedEmployee)
+        .gte('timestamp', monthStart.toISOString())
+        .lte('timestamp', monthEnd.toISOString())
+        .order('timestamp', { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching time entries:', error);
+        return;
+      }
+      
+      setTimeEntries(data || []);
+    } catch (error) {
+      console.error('Error fetching time entries:', error);
+    }
+  };
+
+  const adjustTimeToSchedule = (actualTime: string, scheduleTime: string): string => {
+    const actual = new Date(actualTime);
+    const schedule = new Date(scheduleTime);
+    const diffMinutes = (actual.getTime() - schedule.getTime()) / (1000 * 60);
+    
+    // If within ±10 minutes, use schedule time
+    if (Math.abs(diffMinutes) <= 10) {
+      return scheduleTime;
+    }
+    
+    // Otherwise, use actual time
+    return actualTime;
+  };
+
+  const shouldUseScheduleTimes = (sessionDate: string): boolean => {
+    if (!companySettings?.business_hours) return false;
+    
+    const sessionDay = startOfDay(parseISO(sessionDate));
+    const today = startOfDay(new Date());
+    
+    // Always use schedule times for past days
+    if (sessionDay < today) return true;
+    
+    // For today, check if we're past closing time
+    if (sessionDay.getTime() === today.getTime()) {
+      const currentTime = new Date();
+      const dayOfWeek = currentTime.getDay();
+      
+      const businessHours = companySettings.business_hours as any[];
+      const todayHours = businessHours.find(h => h.day === dayOfWeek);
+      
+      if (!todayHours || !todayHours.isOpen) return true;
+      
+      const [closeHour, closeMinute] = todayHours.closeTime.split(':').map(Number);
+      const closingTime = new Date();
+      closingTime.setHours(closeHour, closeMinute, 0, 0);
+      
+      return isAfter(currentTime, closingTime);
+    }
+    
+    return false;
+  };
 
   const generateTimelist = () => {
     if (!selectedEmployee || !shifts) return;
@@ -151,19 +229,30 @@ export default function Reports() {
         end: monthEnd
       });
 
-      // Process shifts into daily data with dynamic display logic
-      const now = new Date();
+      // Group time entries by date
+      const entriesByDate = new Map<string, TimeEntry[]>();
+      timeEntries.forEach(entry => {
+        const dateStr = format(parseISO(entry.timestamp), 'yyyy-MM-dd');
+        if (!entriesByDate.has(dateStr)) {
+          entriesByDate.set(dateStr, []);
+        }
+        entriesByDate.get(dateStr)!.push(entry);
+      });
+
       const processedEntries = allDaysInMonth.map(date => {
         const dateStr = format(date, 'yyyy-MM-dd');
         const dayOfWeek = getDay(date);
+        const useScheduleTimes = shouldUseScheduleTimes(dateStr);
         
         // Find shift for this day
         const dayShift = shifts.find(shift => 
           shift.start_time.startsWith(dateStr)
         );
         
-        // Get business hours for this day of week
-        const businessHour = companySettings?.business_hours?.find(bh => bh.day === dayOfWeek);
+        // Get time entries for this day
+        const dayEntries = entriesByDate.get(dateStr) || [];
+        const punchInEntry = dayEntries.find(e => e.entry_type === 'punch_in');
+        const punchOutEntry = dayEntries.find(e => e.entry_type === 'punch_out');
         
         let punchIn = null;
         let punchOut = null;
@@ -172,55 +261,62 @@ export default function Reports() {
         let hasData = false;
         
         if (dayShift) {
-          // Använd formatTimeNorway för att konvertera UTC till norsk tid
-          const startTimeStr = formatTimeNorway(dayShift.start_time);
-          const endTimeStr = formatTimeNorway(dayShift.end_time);
+          hasData = true;
           
-          // Skapa Date-objekt för jämförelser
-          const [startHour, startMinute] = startTimeStr.split(':').map(Number);
-          const [endHour, endMinute] = endTimeStr.split(':').map(Number);
-          
-          const shiftStart = new Date(date);
-          shiftStart.setHours(startHour, startMinute, 0, 0);
-          
-          const shiftEnd = new Date(date);
-          shiftEnd.setHours(endHour, endMinute, 0, 0);
-          
-          // Dynamic logic based on business hours and current time
-          const shiftHasStarted = now >= shiftStart;
-          
-          // Determine when to show OUT time - when store closes for the day
-          let storeHasClosed = false;
-          if (businessHour && businessHour.isOpen) {
-            // Create closing time for this date
-            const [closeHour, closeMinute] = businessHour.closeTime.split(':').map(Number);
-            const storeCloseTime = new Date(date);
-            storeCloseTime.setHours(closeHour, closeMinute, 0, 0);
-            storeHasClosed = now >= storeCloseTime;
-          } else {
-            // Fallback to shift end time if no business hours configured
-            storeHasClosed = now >= shiftEnd;
-          }
-          
-          if (shiftHasStarted) {
-            // Show IN time when shift has started
-            punchIn = startTimeStr;
-            hasData = true;
+          if (useScheduleTimes) {
+            // After closing: Adjust actual times to schedule with ±10 min tolerance
+            const actualPunchIn = punchInEntry?.timestamp;
+            const actualPunchOut = punchOutEntry?.timestamp;
             
-            if (storeHasClosed) {
-              // Show scheduled OUT time when store closes for the day
-              punchOut = endTimeStr;
+            const adjustedPunchIn = actualPunchIn 
+              ? adjustTimeToSchedule(actualPunchIn, dayShift.start_time)
+              : dayShift.start_time;
+            
+            const adjustedPunchOut = actualPunchOut
+              ? adjustTimeToSchedule(actualPunchOut, dayShift.end_time)
+              : dayShift.end_time;
+            
+            punchIn = formatTimeNorway(adjustedPunchIn);
+            punchOut = formatTimeNorway(adjustedPunchOut);
+            
+            const totalMinutes = calculateDurationMinutes(adjustedPunchIn, adjustedPunchOut);
+            const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
+            const workMinutes = totalMinutes - pauseMinutes;
+            
+            const hours = Math.floor(workMinutes / 60);
+            const minutes = workMinutes % 60;
+            total = `${hours}:${minutes.toString().padStart(2, '0')}`;
+            lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
+          } else {
+            // During opening hours: Show exact punch times or schedule if no punch yet
+            if (punchInEntry) {
+              punchIn = formatTimeNorway(punchInEntry.timestamp);
+            } else {
+              // If shift has started but no punch-in yet, show schedule time
+              const now = new Date();
+              const shiftStart = parseISO(dayShift.start_time);
+              if (now >= shiftStart) {
+                punchIn = formatTimeNorway(dayShift.start_time);
+              }
+            }
+            
+            if (punchOutEntry) {
+              punchOut = formatTimeNorway(punchOutEntry.timestamp);
               
-              const totalMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
-              
-              // Automatically add 30 min pause for work days 8 hours or more (480 minutes)
-              const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
-              const workMinutes = totalMinutes - pauseMinutes;
-              
-              const hours = Math.floor(workMinutes / 60);
-              const minutes = workMinutes % 60;
-              total = `${hours}:${minutes.toString().padStart(2, '0')}`;
-              lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
+              if (punchIn) {
+                // Calculate total based on actual times
+                const totalMinutes = calculateDurationMinutes(
+                  punchInEntry!.timestamp, 
+                  punchOutEntry.timestamp
+                );
+                const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
+                const workMinutes = totalMinutes - pauseMinutes;
+                
+                const hours = Math.floor(workMinutes / 60);
+                const minutes = workMinutes % 60;
+                total = `${hours}:${minutes.toString().padStart(2, '0')}`;
+                lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
+              }
             }
           }
         }
