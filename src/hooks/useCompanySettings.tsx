@@ -21,6 +21,8 @@ export interface CompanySettings {
   website?: string;
   logo_url?: string;
   business_hours?: BusinessHours[];
+  tenant_username?: string;
+  tenant_password_hash?: string;
   created_at: string;
   updated_at: string;
 }
@@ -35,6 +37,8 @@ export interface CompanySettingsUpdate {
   email?: string;
   website?: string;
   business_hours?: BusinessHours[];
+  tenant_username?: string;
+  tenant_password?: string; // Cleartext password, will be hashed via edge function
 }
 
 export function useCompanySettings() {
@@ -91,12 +95,31 @@ export function useUpdateCompanySettings() {
 
   return useMutation({
     mutationFn: async (settings: CompanySettingsUpdate) => {
+      // Hash password if provided
+      let tenant_password_hash: string | undefined = undefined;
+      if (settings.tenant_password) {
+        const { data: hashData, error: hashError } = await supabase.functions.invoke(
+          'hash-tenant-password',
+          {
+            body: { password: settings.tenant_password },
+          }
+        );
+
+        if (hashError) {
+          throw new Error(`Failed to hash password: ${hashError.message}`);
+        }
+
+        tenant_password_hash = hashData.hash;
+      }
+
       // Convert business_hours to Json format for database
       const settingsForDb = {
         ...settings,
         business_hours: settings.business_hours 
           ? JSON.stringify(settings.business_hours) as any
           : undefined,
+        tenant_password_hash,
+        tenant_password: undefined, // Remove cleartext password
       };
 
       // First, check if settings exist

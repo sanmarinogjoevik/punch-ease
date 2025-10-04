@@ -177,6 +177,8 @@ export type Database = {
           org_number: string | null
           phone: string | null
           postal_code: string | null
+          tenant_password_hash: string | null
+          tenant_username: string | null
           updated_at: string
           website: string | null
         }
@@ -193,6 +195,8 @@ export type Database = {
           org_number?: string | null
           phone?: string | null
           postal_code?: string | null
+          tenant_password_hash?: string | null
+          tenant_username?: string | null
           updated_at?: string
           website?: string | null
         }
@@ -209,6 +213,8 @@ export type Database = {
           org_number?: string | null
           phone?: string | null
           postal_code?: string | null
+          tenant_password_hash?: string | null
+          tenant_username?: string | null
           updated_at?: string
           website?: string | null
         }
