@@ -22,7 +22,7 @@ interface TimelistEntry {
   punchIn: string | null;
   punchOut: string | null;
   lunch: string;
-  totalMinutes: number;
+  total: string;
   hasData: boolean;
 }
 
@@ -175,7 +175,7 @@ export default function Timeliste() {
           punchIn,
           punchOut,
           lunch,
-          totalMinutes,
+          total: totalMinutes > 0 ? formatDuration(totalMinutes) : '',
           hasData
         };
       });
@@ -199,8 +199,19 @@ export default function Timeliste() {
   };
 
   const calculateTotalHours = () => {
-    const totalMinutes = timelistEntries.reduce((sum, entry) => sum + entry.totalMinutes, 0);
-    return formatDuration(totalMinutes);
+    return timelistEntries.reduce((total, entry) => {
+      if (entry.total && entry.total !== '') {
+        const [hours, minutes] = entry.total.split(':').map(Number);
+        return total + (hours * 60) + minutes;
+      }
+      return total;
+    }, 0);
+  };
+
+  const formatTotalMinutes = (totalMinutes: number) => {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours}:${minutes.toString().padStart(2, '0')}`;
   };
 
   if (isLoading) {
@@ -279,7 +290,7 @@ export default function Timeliste() {
                       {entry.lunch || '-'}
                     </TableCell>
                     <TableCell className="text-center font-mono font-semibold">
-                      {entry.totalMinutes > 0 ? formatDuration(entry.totalMinutes) : '-'}
+                      {entry.total || '-'}
                     </TableCell>
                   </TableRow>
                 );
@@ -291,7 +302,7 @@ export default function Timeliste() {
                   TOTALT:
                 </TableCell>
                 <TableCell className="text-center font-mono text-lg">
-                  {calculateTotalHours()}
+                  {formatTotalMinutes(calculateTotalHours())}
                 </TableCell>
               </TableRow>
             </TableBody>
