@@ -7,9 +7,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, parseISO, isSameDay, isToday } from 'date-fns';
 import { nb } from 'date-fns/locale';
-import { formatTimeNorway } from '@/lib/timeUtils';
+import { formatTimeNorway, calculateDurationMinutes, formatDuration } from '@/lib/timeUtils';
+import { supabase } from '@/integrations/supabase/client';
 
 const NORWEGIAN_DAYS = ['Sön', 'Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör'];
 
@@ -20,7 +21,7 @@ interface TimelistEntry {
   punchIn: string | null;
   punchOut: string | null;
   lunch: string;
-  total: string;
+  totalMinutes: number;
   hasData: boolean;
 }
 
@@ -29,6 +30,7 @@ export default function Timeliste() {
   const { data: userProfile } = useCurrentUserProfile();
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [timelistEntries, setTimelistEntries] = useState<TimelistEntry[]>([]);
+  const [timeEntries, setTimeEntries] = useState<any[]>([]);
   
   const { data: shifts, isLoading: shiftsLoading } = useEmployeeMonthShifts(
     user?.id || '',
@@ -40,12 +42,30 @@ export default function Timeliste() {
   const isLoading = shiftsLoading || settingsLoading;
 
   useEffect(() => {
-    if (!isLoading && shifts) {
-      generateTimelist();
+    if (!isLoading && shifts && user) {
+      fetchTimeEntriesAndGenerate();
     }
-  }, [shifts, companySettings, selectedMonth, isLoading]);
+  }, [shifts, companySettings, selectedMonth, isLoading, user]);
 
-  const generateTimelist = () => {
+  const fetchTimeEntriesAndGenerate = async () => {
+    if (!user) return;
+    
+    const monthStart = startOfMonth(new Date(selectedMonth + '-01'));
+    const monthEnd = endOfMonth(monthStart);
+    
+    const { data: entries } = await supabase
+      .from('time_entries')
+      .select('*')
+      .eq('employee_id', user.id)
+      .gte('timestamp', monthStart.toISOString())
+      .lte('timestamp', monthEnd.toISOString())
+      .order('timestamp', { ascending: true });
+    
+    setTimeEntries(entries || []);
+    generateTimelist(entries || []);
+  };
+
+  const generateTimelist = (entries: any[]) => {
     if (!shifts) {
       setTimelistEntries([]);
       return;
@@ -61,8 +81,17 @@ export default function Timeliste() {
         end: monthEnd
       });
 
-      // Process shifts into daily data with dynamic display logic
-      const now = new Date();
+      // Group time entries by date
+      const entriesByDate: { [key: string]: any[] } = {};
+      entries.forEach(entry => {
+        const entryDate = format(parseISO(entry.timestamp), 'yyyy-MM-dd');
+        if (!entriesByDate[entryDate]) {
+          entriesByDate[entryDate] = [];
+        }
+        entriesByDate[entryDate].push(entry);
+      });
+
+      // Process shifts into daily data with actual time entries
       const processedEntries = allDaysInMonth.map(date => {
         const dateStr = format(date, 'yyyy-MM-dd');
         const dayOfWeek = getDay(date);
@@ -72,66 +101,56 @@ export default function Timeliste() {
           shift.start_time.startsWith(dateStr)
         );
         
-        // Get business hours for this day of week
-        const businessHour = companySettings?.business_hours?.find(bh => bh.day === dayOfWeek);
+        // Find actual punch in/out from time entries
+        const entriesForDay = entriesByDate[dateStr] || [];
+        const punchInEntry = entriesForDay.find(e => e.entry_type === 'punch_in');
+        const punchOutEntry = entriesForDay.find(e => e.entry_type === 'punch_out');
         
         let punchIn = null;
         let punchOut = null;
-        let total = '';
+        let totalMinutes = 0;
         let lunch = '';
         let hasData = false;
         
-        if (dayShift) {
-          // Använd formatTimeNorway för att konvertera UTC till norsk tid
-          const startTimeStr = formatTimeNorway(dayShift.start_time);
-          const endTimeStr = formatTimeNorway(dayShift.end_time);
+        if (punchInEntry || dayShift) {
+          hasData = true;
           
-          // Skapa Date-objekt för jämförelser
-          const [startHour, startMinute] = startTimeStr.split(':').map(Number);
-          const [endHour, endMinute] = endTimeStr.split(':').map(Number);
-          
-          const shiftStart = new Date(date);
-          shiftStart.setHours(startHour, startMinute, 0, 0);
-          
-          const shiftEnd = new Date(date);
-          shiftEnd.setHours(endHour, endMinute, 0, 0);
-          
-          // Dynamic logic based on business hours and current time
-          const shiftHasStarted = now >= shiftStart;
-          
-          // Determine when to show OUT time - when store closes for the day
-          let storeHasClosed = false;
-          if (businessHour && businessHour.isOpen) {
-            // Create closing time for this date
-            const [closeHour, closeMinute] = businessHour.closeTime.split(':').map(Number);
-            const storeCloseTime = new Date(date);
-            storeCloseTime.setHours(closeHour, closeMinute, 0, 0);
-            storeHasClosed = now >= storeCloseTime;
-          } else {
-            // Fallback to shift end time if no business hours configured
-            storeHasClosed = now >= shiftEnd;
+          // Use actual punch time if available, otherwise use scheduled time
+          if (punchInEntry) {
+            punchIn = format(parseISO(punchInEntry.timestamp), 'HH:mm');
+          } else if (dayShift) {
+            punchIn = formatTimeNorway(dayShift.start_time);
           }
           
-          if (shiftHasStarted) {
-            // Show IN time when shift has started
-            punchIn = startTimeStr;
-            hasData = true;
+          // Check if this is an active session (punch in without punch out on today)
+          const isActiveToday = isToday(date) && punchInEntry && !punchOutEntry;
+          
+          if (isActiveToday) {
+            // Don't show OUT time for active shift
+            punchOut = null;
+            totalMinutes = 0;
+          } else if (punchOutEntry) {
+            // Use actual punch out time
+            punchOut = format(parseISO(punchOutEntry.timestamp), 'HH:mm');
             
-            if (storeHasClosed) {
-              // Show scheduled OUT time when store closes for the day
-              punchOut = endTimeStr;
-              
-              const totalMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
-              
-              // Automatically add 30 min pause for work days 8 hours or more (480 minutes)
-              const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
-              const workMinutes = totalMinutes - pauseMinutes;
-              
-              const hours = Math.floor(workMinutes / 60);
-              const minutes = workMinutes % 60;
-              total = `${hours}:${minutes.toString().padStart(2, '0')}`;
-              lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
-            }
+            // Calculate total hours from actual times
+            const durationMinutes = calculateDurationMinutes(
+              punchInEntry.timestamp, 
+              punchOutEntry.timestamp
+            );
+            const lunchMinutes = durationMinutes >= 480 ? 30 : 0; // 30 min lunch if 8+ hours
+            const workMinutes = Math.max(0, durationMinutes - lunchMinutes);
+            totalMinutes = workMinutes;
+            lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
+          } else if (dayShift) {
+            // Use scheduled times as fallback
+            punchOut = formatTimeNorway(dayShift.end_time);
+            
+            const durationMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
+            const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
+            const workMinutes = Math.max(0, durationMinutes - lunchMinutes);
+            totalMinutes = workMinutes;
+            lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
           }
         }
 
@@ -142,7 +161,7 @@ export default function Timeliste() {
           punchIn,
           punchOut,
           lunch,
-          total,
+          totalMinutes,
           hasData
         };
       });
@@ -166,16 +185,8 @@ export default function Timeliste() {
   };
 
   const calculateTotalHours = () => {
-    let totalMinutes = 0;
-    timelistEntries.forEach(entry => {
-      if (entry.total) {
-        const [hours, minutes] = entry.total.split(':').map(Number);
-        totalMinutes += hours * 60 + minutes;
-      }
-    });
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${hours}:${minutes.toString().padStart(2, '0')}`;
+    const totalMinutes = timelistEntries.reduce((sum, entry) => sum + entry.totalMinutes, 0);
+    return formatDuration(totalMinutes);
   };
 
   if (isLoading) {
@@ -254,7 +265,7 @@ export default function Timeliste() {
                       {entry.lunch || '-'}
                     </TableCell>
                     <TableCell className="text-center font-mono font-semibold">
-                      {entry.total || '-'}
+                      {entry.totalMinutes > 0 ? formatDuration(entry.totalMinutes) : '-'}
                     </TableCell>
                   </TableRow>
                 );

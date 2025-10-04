@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompanySettings, useUpdateCompanySettings, BusinessHours, CompanySettingsUpdate } from '@/hooks/useCompanySettings';
 import { useToast } from '@/hooks/use-toast';
@@ -49,6 +50,14 @@ const companySettingsSchema = z.object({
   email: z.string().email('Ogiltig e-postadress').optional().or(z.literal('')),
   website: z.string().url('Ogiltig webbadress').optional().or(z.literal('')),
   business_hours: z.array(businessHoursSchema).optional(),
+  tenant_username: z.string()
+    .min(3, 'Användarnamn måste vara minst 3 tecken')
+    .regex(/^[a-z0-9-]+$/, 'Endast små bokstäver, siffror och bindestreck')
+    .optional()
+    .or(z.literal('')),
+  tenant_password: z.string()
+    .optional()
+    .or(z.literal('')),
 });
 
 type CompanySettingsForm = z.infer<typeof companySettingsSchema>;
@@ -81,6 +90,8 @@ export default function Settings() {
       email: "",
       website: "",
       business_hours: defaultBusinessHours,
+      tenant_username: "",
+      tenant_password: "",
     },
   });
 
@@ -105,6 +116,8 @@ export default function Settings() {
         email: companySettings.email || "",
         website: companySettings.website || "",
         business_hours: companySettings.business_hours || defaultBusinessHours,
+        tenant_username: companySettings.tenant_username || "",
+        tenant_password: "", // Never populate password field
       });
       setHasInitialized(true);
     }
@@ -143,7 +156,12 @@ export default function Settings() {
       const settingsData: CompanySettingsUpdate = {
         ...data,
         company_name: data.company_name || 'Mitt Företag AB',
-        business_hours: data.business_hours as BusinessHours[]
+        business_hours: data.business_hours as BusinessHours[],
+        tenant_username: data.tenant_username || undefined,
+        // Only include password if it's been changed (not empty)
+        tenant_password: data.tenant_password && data.tenant_password.length > 0 
+          ? data.tenant_password 
+          : undefined,
       };
       console.log('Sending to server:', settingsData);
       console.log('Business hours being saved:', settingsData.business_hours);
@@ -278,6 +296,50 @@ export default function Settings() {
                     {form.formState.errors.website.message}
                   </p>
                 )}
+              </div>
+
+              <div className="col-span-2">
+                <Separator className="my-4" />
+                <h3 className="text-sm font-semibold mb-4">Företagsinloggning (Multi-tenant)</h3>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Ange ett unikt användarnamn och lösenord för företaget. Detta används för att komma åt företagets system.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tenant_username">Användarnamn *</Label>
+                <Input
+                  id="tenant_username"
+                  {...form.register('tenant_username')}
+                  placeholder="mittforetag"
+                />
+                {form.formState.errors.tenant_username && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.tenant_username.message}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Endast små bokstäver, siffror och bindestreck
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tenant_password">Företagslösenord</Label>
+                <Input
+                  id="tenant_password"
+                  type="password"
+                  {...form.register('tenant_password')}
+                  placeholder="Minst 8 tecken"
+                  autoComplete="new-password"
+                />
+                {form.formState.errors.tenant_password && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.tenant_password.message}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Lämna tomt för att behålla nuvarande lösenord
+                </p>
               </div>
             </div>
           </CardContent>

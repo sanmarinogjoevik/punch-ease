@@ -5,6 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// No random variation - punch out at exact time
+
 interface BusinessHours {
   day: number; // 0-6 (söndag-lördag)
   dayName: string;
@@ -53,10 +55,23 @@ Deno.serve(async (req) => {
           if (entryDate < todayStartCleanup) {
             console.log('Found old punch-in from', entry.timestamp, 'for employee', employeeId, '- cleaning up');
             
+            // Get company_id from employee profile
+            const { data: cleanupProfile } = await supabase
+              .from('profiles')
+              .select('company_id')
+              .eq('user_id', employeeId)
+              .single();
+
+            if (!cleanupProfile?.company_id) {
+              console.error(`No company_id found for employee ${employeeId} during cleanup`);
+              continue;
+            }
+
             const { error: cleanupError } = await supabase
               .from('time_entries')
               .insert({
                 employee_id: employeeId,
+                company_id: cleanupProfile.company_id,
                 entry_type: 'punch_out',
                 timestamp: new Date(entryDate.getTime() + 1000).toISOString(), // 1 second after punch-in
                 is_automatic: true,
@@ -241,9 +256,9 @@ Deno.serve(async (req) => {
       console.error('Error fetching shifts:', shiftsError);
     }
 
-    // Create a set of employee IDs who have shifts today
-    const employeesWithShifts = new Set(todayShifts?.map(shift => shift.employee_id) || []);
-    console.log('Employees with shifts today:', employeesWithShifts.size);
+    // Create a map of employee IDs to their shifts for today
+    const employeeShifts = new Map(todayShifts?.map(shift => [shift.employee_id, shift]) || []);
+    console.log('Employees with shifts today:', employeeShifts.size);
 
     let punchedOutCount = 0;
     let alreadyPunchedOutCount = 0;
@@ -251,7 +266,8 @@ Deno.serve(async (req) => {
 
     for (const employeeId of punchedInEmployeeIds) {
       // Check if employee has a shift today
-      const hasShift = employeesWithShifts.has(employeeId);
+      const shift = employeeShifts.get(employeeId);
+      const hasShift = !!shift;
 
       // Punch out if: 
       // 1. It's closing time (shouldPunchOut = true), OR
@@ -259,10 +275,23 @@ Deno.serve(async (req) => {
       if (!hasShift) {
         console.log('Employee', employeeId, 'has NO shift today - auto punching out');
         
+        // Get company_id from employee profile
+        const { data: noShiftProfile } = await supabase
+          .from('profiles')
+          .select('company_id')
+          .eq('user_id', employeeId)
+          .single();
+
+        if (!noShiftProfile?.company_id) {
+          console.error(`No company_id found for employee ${employeeId}`);
+          continue;
+        }
+
         const { error: insertError } = await supabase
           .from('time_entries')
           .insert({
             employee_id: employeeId,
+            company_id: noShiftProfile.company_id,
             entry_type: 'punch_out',
             timestamp: now.toISOString(),
             is_automatic: true,
@@ -276,15 +305,28 @@ Deno.serve(async (req) => {
         noShiftPunchedOut++;
         console.log('Successfully punched out employee (no shift):', employeeId);
       } else if (shouldPunchOut) {
-        // Employee has a shift but it's closing time
-        console.log('Creating automatic punch-out for employee:', employeeId);
+        // Employee has a shift but it's closing time - use shift end_time with variation
+        console.log('Creating automatic punch-out for employee:', employeeId, 'using shift end time');
+
+        // Get company_id from employee profile
+        const { data: closingProfile } = await supabase
+          .from('profiles')
+          .select('company_id')
+          .eq('user_id', employeeId)
+          .single();
+
+        if (!closingProfile?.company_id) {
+          console.error(`No company_id found for employee ${employeeId}`);
+          continue;
+        }
 
         const { error: insertError } = await supabase
           .from('time_entries')
           .insert({
             employee_id: employeeId,
+            company_id: closingProfile.company_id,
             entry_type: 'punch_out',
-            timestamp: now.toISOString(),
+            timestamp: shift.end_time,
             is_automatic: true,
           });
 

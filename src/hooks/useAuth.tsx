@@ -9,7 +9,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
-  userRole: 'admin' | 'employee' | null;
+  userRole: 'admin' | 'employee' | 'superadmin' | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,7 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<'admin' | 'employee' | null>(null);
+  const [userRole, setUserRole] = useState<'admin' | 'employee' | 'superadmin' | null>(null);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -91,11 +91,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await supabase.auth.signOut();
     } catch (error) {
-      // Even if logout fails on server, clear local session
       console.error('Logout error:', error);
     } finally {
-      // Force clear local storage to ensure clean logout
-      localStorage.removeItem('sb-eynulvphjcojanzryfyi-auth-token');
+      // Supabase SDK hanterar localStorage cleanup automatiskt
       setUser(null);
       setSession(null);
       setUserRole(null);

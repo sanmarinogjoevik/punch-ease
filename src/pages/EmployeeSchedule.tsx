@@ -94,15 +94,7 @@ export default function EmployeeSchedule() {
     // Find other employees working on the same day
     const { data: coworkerShifts, error } = await supabase
       .from('shifts')
-      .select(`
-        employee_id,
-        profiles:employee_id (
-          id,
-          first_name,
-          last_name,
-          email
-        )
-      `)
+      .select('employee_id')
       .neq('employee_id', user!.id)
       .gte('start_time', shiftDateStr + 'T00:00:00.000Z')
       .lt('start_time', shiftDateStr + 'T23:59:59.999Z');
@@ -112,21 +104,31 @@ export default function EmployeeSchedule() {
       return [];
     }
 
-    // Extract unique coworkers
-    const uniqueCoworkers = coworkerShifts?.reduce((acc: Coworker[], shift) => {
-      const profile = shift.profiles as any;
-      if (profile && !acc.find(c => c.id === profile.id)) {
-        acc.push({
-          id: profile.id,
-          first_name: profile.first_name,
-          last_name: profile.last_name,
-          email: profile.email,
-        });
-      }
-      return acc;
-    }, []) || [];
+    if (!coworkerShifts || coworkerShifts.length === 0) {
+      return [];
+    }
 
-    return uniqueCoworkers;
+    // Get unique employee IDs
+    const uniqueEmployeeIds = [...new Set(coworkerShifts.map(s => s.employee_id))];
+
+    // Fetch profiles for these employees
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('user_id, first_name, last_name, email')
+      .in('user_id', uniqueEmployeeIds);
+
+    if (profilesError) {
+      console.error('Error fetching coworker profiles:', profilesError);
+      return [];
+    }
+
+    // Map to Coworker format
+    return profiles?.map(profile => ({
+      id: profile.user_id,
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+      email: profile.email,
+    })) || [];
   };
 
   const getShiftBadge = (startTime: string, isPast = false) => {

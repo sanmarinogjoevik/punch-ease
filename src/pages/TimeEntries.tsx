@@ -108,10 +108,10 @@ export default function TimeEntries() {
       });
     });
 
-    // For each employee, pair punch-in and punch-out entries
-    entriesByEmployee.forEach((employeeEntries, employeeId) => {
-      // Sort by timestamp (oldest first for pairing)
-      const sortedEntries = employeeEntries.sort((a, b) => 
+    // For each employee, create sessions by pairing punch-ins with punch-outs
+    entriesByEmployee.forEach((employeeEntries) => {
+      // Sort by timestamp (oldest first)
+      const sortedEntries = [...employeeEntries].sort((a, b) => 
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
 
@@ -120,35 +120,37 @@ export default function TimeEntries() {
         const entry = sortedEntries[i];
         
         if (entry.entry_type === 'punch_in') {
-          // Look for matching punch_out
-          let punchOut: TimeEntry | undefined;
-          let j = i + 1;
+          // Find the next punch_out after this punch_in
+          let nextPunchOut: TimeEntry | undefined;
+          let nextPunchOutIndex = -1;
           
-          while (j < sortedEntries.length) {
-            if (sortedEntries[j].entry_type === 'punch_out' && 
-                sortedEntries[j].employee_id === entry.employee_id) {
-              punchOut = sortedEntries[j];
-              sortedEntries.splice(j, 1); // Remove the punch_out from array
+          for (let j = i + 1; j < sortedEntries.length; j++) {
+            if (sortedEntries[j].entry_type === 'punch_out') {
+              nextPunchOut = sortedEntries[j];
+              nextPunchOutIndex = j;
               break;
             }
-            j++;
           }
-
-          // Calculate duration if we have both punch in and out
-          let duration: number | undefined;
-          if (punchOut) {
-            duration = calculateDurationMinutes(entry.timestamp, punchOut.timestamp);
-          }
-
+          
+          // Create session
+          const duration = nextPunchOut 
+            ? calculateDurationMinutes(entry.timestamp, nextPunchOut.timestamp)
+            : undefined;
+          
           sessions.push({
             id: entry.id,
             punch_in: entry,
-            punch_out: punchOut,
+            punch_out: nextPunchOut,
             duration,
             employee_name: entry.employee_name
           });
+          
+          // Skip to after the punch_out if found, otherwise just move to next entry
+          i = nextPunchOutIndex !== -1 ? nextPunchOutIndex + 1 : i + 1;
+        } else {
+          // Skip standalone punch_outs
+          i++;
         }
-        i++;
       }
     });
 
@@ -185,6 +187,23 @@ export default function TimeEntries() {
     }
     
     return false;
+  };
+
+  const adjustTimeToSchedule = (actualTime: string, scheduleTime: string): string => {
+    const actual = new Date(actualTime);
+    const schedule = new Date(scheduleTime);
+    const diffMinutes = (actual.getTime() - schedule.getTime()) / (1000 * 60);
+    
+    // If within ±10 minutes, use exact schedule time
+    if (Math.abs(diffMinutes) <= 10) {
+      return scheduleTime;
+    }
+    
+    // If outside ±10 minutes, use schedule time with random variation (-10 to +10 minutes)
+    const randomMinutes = Math.floor(Math.random() * 21) - 10; // -10 to +10
+    const adjustedTime = new Date(schedule);
+    adjustedTime.setMinutes(adjustedTime.getMinutes() + randomMinutes);
+    return adjustedTime.toISOString();
   };
 
   const applyHybridLogic = (sessions: WorkSession[]): WorkSession[] => {
@@ -233,78 +252,51 @@ export default function TimeEntries() {
       const useScheduleTimes = shouldUseScheduleTimes(dateStr);
       
       if (useScheduleTimes) {
-        // After closing: Create ONLY ONE entry per key from schedule, ignore all punch data
+        // After closing: Adjust times to schedule with ±10 min tolerance
         const keyShifts = shiftKeyMap.get(key);
         if (keyShifts && keyShifts.length > 0) {
           const shift = keyShifts[0];
-        const shiftDuration = calculateDurationMinutes(shift.start_time, shift.end_time);
-
-          // Use first session for employee name reference
           const firstSession = keySessions[0];
           
+          // Adjust actual punch times to schedule if within ±10 minutes
+          const adjustedPunchIn = firstSession.punch_in.timestamp 
+            ? adjustTimeToSchedule(firstSession.punch_in.timestamp, shift.start_time)
+            : shift.start_time;
+          
+        const adjustedPunchOut = firstSession.punch_out?.timestamp
+          ? adjustTimeToSchedule(firstSession.punch_out.timestamp, shift.end_time)
+          : undefined;
+
+        const adjustedDuration = adjustedPunchOut 
+          ? calculateDurationMinutes(adjustedPunchIn, adjustedPunchOut)
+          : undefined;
+          
           resultSessions.push({
-            id: 'schedule_key_' + key,
+            id: 'adjusted_' + key,
             punch_in: {
-              id: 'schedule_in_' + key,
+              id: 'adjusted_in_' + key,
               entry_type: 'punch_in' as const,
-              timestamp: shift.start_time,
+              timestamp: adjustedPunchIn,
               employee_id: shift.employee_id,
               employee_name: firstSession.employee_name
             },
-            punch_out: {
-              id: 'schedule_out_' + key,
-              entry_type: 'punch_out' as const,
-              timestamp: shift.end_time,
-              employee_id: shift.employee_id,
-              employee_name: firstSession.employee_name
-            },
-            duration: shiftDuration,
+          punch_out: adjustedPunchOut ? {
+            id: 'adjusted_out_' + key,
+            entry_type: 'punch_out' as const,
+            timestamp: adjustedPunchOut,
+            employee_id: shift.employee_id,
+            employee_name: firstSession.employee_name
+          } : undefined,
+            duration: adjustedDuration,
             employee_name: firstSession.employee_name
           });
+        } else {
+          // No schedule exists, don't show anything
         }
-        // If no schedule exists for this key after closing, don't show anything
       } else {
-        // During the day: Show all punch sessions as they are
+        // During opening hours: Show exact punch times
         keySessions.forEach(session => {
           resultSessions.push(session);
-        });
-      }
-    });
-
-    // Add schedule-only entries for keys without any punch data (after closing only)
-    shiftKeyMap.forEach((keyShifts, key) => {
-      const dateStr = key.split('_')[0]; // Extract date from key
-      const useScheduleTimes = shouldUseScheduleTimes(dateStr);
-      
-      if (useScheduleTimes && !allProcessedKeys.has(key)) {
-        const shift = keyShifts[0];
-        const shiftDuration = calculateDurationMinutes(shift.start_time, shift.end_time);
-
-        // Get employee name from shift data or use fallback
-        const employeeName = userRole === 'admin' 
-          ? (shift.profiles?.first_name && shift.profiles?.last_name 
-              ? `${shift.profiles.first_name} ${shift.profiles.last_name}` 
-              : 'Ukjent ansatt')
-          : (user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name);
-
-        resultSessions.push({
-          id: 'schedule_only_' + key,
-          punch_in: {
-            id: 'schedule_in_' + key,
-            entry_type: 'punch_in' as const,
-            timestamp: shift.start_time,
-            employee_id: shift.employee_id,
-            employee_name: employeeName
-          },
-          punch_out: {
-            id: 'schedule_out_' + key,
-            entry_type: 'punch_out' as const,
-            timestamp: shift.end_time,
-            employee_id: shift.employee_id,
-            employee_name: employeeName
-          },
-          duration: shiftDuration,
-          employee_name: employeeName
         });
       }
     });
@@ -316,24 +308,19 @@ export default function TimeEntries() {
 
 
   const getSessionBadge = (session: WorkSession) => {
-    const badges = [];
-    
     if (!session.punch_out) {
-      badges.push(
-        <Badge key="active" variant="outline" className="border-yellow-200 text-yellow-700 bg-yellow-50">
+      return (
+        <Badge variant="outline" className="border-yellow-200 text-yellow-700 bg-yellow-50">
           Aktiv
         </Badge>
       );
-    } else {
-      badges.push(
-        <Badge key="completed" variant="outline" className="border-green-200 text-green-700 bg-green-50">
-          Fullført
-        </Badge>
-      );
     }
-
-
-    return <div className="flex flex-wrap gap-1">{badges}</div>;
+    
+    return (
+      <Badge variant="outline" className="border-green-200 text-green-700 bg-green-50">
+        Fullført
+      </Badge>
+    );
   };
 
   if (loading) {

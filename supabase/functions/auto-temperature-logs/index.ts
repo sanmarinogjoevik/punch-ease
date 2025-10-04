@@ -73,45 +73,69 @@ Deno.serve(async (req) => {
       logTimestamp = new Date(punchInTimestamp);
       console.log(`Using punch-in data: employee ${employeeId} at ${logTimestamp.toISOString()}`);
     } else {
-      // Fallback: get the most recent employee from any temperature log
-      console.log('No punch-in data provided, using fallback employee');
-      const { data: recentLog } = await supabase
-        .from('temperature_logs')
-        .select('employee_id')
-        .order('created_at', { ascending: false })
+      // Fallback: get today's first punch-in
+      console.log('No punch-in data provided, finding today\'s first punch-in');
+      const { data: firstPunchIn } = await supabase
+        .from('time_entries')
+        .select('employee_id, timestamp')
+        .eq('entry_type', 'punch_in')
+        .gte('timestamp', todayStart.toISOString())
+        .lte('timestamp', todayEnd.toISOString())
+        .order('timestamp', { ascending: true })
         .limit(1)
         .single();
 
-      if (!recentLog) {
-        console.log('No recent logs found, cannot create automatic logs');
+      if (!firstPunchIn) {
+        console.log('No punch-ins found for today, cannot create automatic logs');
         return new Response(
-          JSON.stringify({ message: 'No employee found to assign logs', logsCreated: 0 }),
+          JSON.stringify({ message: 'No employee has punched in today yet', logsCreated: 0 }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         );
       }
 
-      employeeId = recentLog.employee_id;
-      logTimestamp = new Date();
-      console.log(`Using fallback: employee ${employeeId} at current time`);
+      employeeId = firstPunchIn.employee_id;
+      logTimestamp = new Date(firstPunchIn.timestamp);
+      console.log(`Using first punch-in of today: employee ${employeeId} at ${logTimestamp.toISOString()}`);
     }
+
+    // Fetch employee profile to get company_id
+    const { data: employeeProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('user_id', employeeId)
+      .single();
+
+    if (profileError || !employeeProfile?.company_id) {
+      console.error('Error fetching employee profile or no company_id found:', profileError);
+      return new Response(
+        JSON.stringify({ 
+          message: 'No company found for employee', 
+          logsCreated: 0,
+          error: profileError?.message 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
+    console.log(`Employee company_id: ${employeeProfile.company_id}`);
 
     // Generate temperature logs
     const logsToCreate = equipment.map(eq => {
       let temperature: number;
       
       if (eq.type === 'refrigerator') {
-        // Kyl: -1.0 to 4.0°C
+        // Kyl: -1 to 4°C
         temperature = Math.random() * 5 - 1; // Generates -1 to 4
       } else if (eq.type === 'freezer') {
-        // Frys: -18.0 to -22.0°C
+        // Frys: -18 to -22°C
         temperature = -18 - Math.random() * 4; // Generates -18 to -22
       } else {
         // Default to fridge temperatures for unknown types
         temperature = Math.random() * 5 - 1; // -1 to 4
       }
 
-      // Round to 1 decimal place
-      temperature = Math.round(temperature * 10) / 10;
+      // Round to whole number (heltal)
+      temperature = Math.round(temperature);
 
       console.log(`Creating log for ${eq.name} (${eq.type}): ${temperature}°C at ${logTimestamp.toISOString()}`);
 
@@ -119,7 +143,8 @@ Deno.serve(async (req) => {
         employee_id: employeeId,
         equipment_name: eq.name,
         temperature: temperature,
-        timestamp: logTimestamp.toISOString()
+        timestamp: logTimestamp.toISOString(),
+        company_id: employeeProfile.company_id,
       };
     });
 

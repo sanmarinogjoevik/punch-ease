@@ -58,9 +58,17 @@ export function useEquipment() {
 
   const createEquipment = async (equipmentData: CreateEquipment) => {
     try {
+      // Get company_id from current user
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user?.id)
+        .single();
+
       const { data, error: insertError } = await supabase
         .from('equipment')
-        .insert([equipmentData])
+        .insert([{ ...equipmentData, company_id: profile?.company_id || '' }])
         .select()
         .single();
 

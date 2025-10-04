@@ -28,6 +28,7 @@ export interface CreateShiftData {
   location?: string;
   notes?: string;
   auto_punch_in?: boolean;
+  company_id: string;
 }
 
 export interface UpdateShiftData extends Partial<CreateShiftData> {
