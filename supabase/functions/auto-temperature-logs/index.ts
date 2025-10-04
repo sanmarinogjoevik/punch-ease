@@ -73,26 +73,29 @@ Deno.serve(async (req) => {
       logTimestamp = new Date(punchInTimestamp);
       console.log(`Using punch-in data: employee ${employeeId} at ${logTimestamp.toISOString()}`);
     } else {
-      // Fallback: get the most recent employee from any temperature log
-      console.log('No punch-in data provided, using fallback employee');
-      const { data: recentLog } = await supabase
-        .from('temperature_logs')
-        .select('employee_id')
-        .order('created_at', { ascending: false })
+      // Fallback: get today's first punch-in
+      console.log('No punch-in data provided, finding today\'s first punch-in');
+      const { data: firstPunchIn } = await supabase
+        .from('time_entries')
+        .select('employee_id, timestamp')
+        .eq('entry_type', 'punch_in')
+        .gte('timestamp', todayStart.toISOString())
+        .lte('timestamp', todayEnd.toISOString())
+        .order('timestamp', { ascending: true })
         .limit(1)
         .single();
 
-      if (!recentLog) {
-        console.log('No recent logs found, cannot create automatic logs');
+      if (!firstPunchIn) {
+        console.log('No punch-ins found for today, cannot create automatic logs');
         return new Response(
-          JSON.stringify({ message: 'No employee found to assign logs', logsCreated: 0 }),
+          JSON.stringify({ message: 'No employee has punched in today yet', logsCreated: 0 }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         );
       }
 
-      employeeId = recentLog.employee_id;
-      logTimestamp = new Date();
-      console.log(`Using fallback: employee ${employeeId} at current time`);
+      employeeId = firstPunchIn.employee_id;
+      logTimestamp = new Date(firstPunchIn.timestamp);
+      console.log(`Using first punch-in of today: employee ${employeeId} at ${logTimestamp.toISOString()}`);
     }
 
     // Fetch employee profile to get company_id
