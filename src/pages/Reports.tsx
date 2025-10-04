@@ -18,7 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addWeeks, startOfWeek, startOfDay, subMonths, addMonths, subDays, addDays, isAfter } from 'date-fns';
 import { nb, sv } from 'date-fns/locale';
 import html2pdf from 'html2pdf.js';
-import { formatTimeNorway, createUTCFromNorwegianTime, calculateDurationMinutes } from '@/lib/timeUtils';
+import { formatTimeNorway, createUTCFromNorwegianTime, calculateDurationMinutes, isAfterClosingTime } from '@/lib/timeUtils';
 import { supabase } from '@/integrations/supabase/client';
 
 
@@ -173,52 +173,6 @@ export default function Reports() {
     }
   };
 
-  const adjustTimeToSchedule = (actualTime: string, scheduleTime: string): string => {
-    const actual = new Date(actualTime);
-    const schedule = new Date(scheduleTime);
-    const diffMinutes = (actual.getTime() - schedule.getTime()) / (1000 * 60);
-    
-    // If within ±10 minutes, use exact schedule time
-    if (Math.abs(diffMinutes) <= 10) {
-      return scheduleTime;
-    }
-    
-    // If outside ±10 minutes, use schedule time with random variation (-10 to +10 minutes)
-    const randomMinutes = Math.floor(Math.random() * 21) - 10; // -10 to +10
-    const adjustedTime = new Date(schedule);
-    adjustedTime.setMinutes(adjustedTime.getMinutes() + randomMinutes);
-    return adjustedTime.toISOString();
-  };
-
-  const shouldUseScheduleTimes = (sessionDate: string): boolean => {
-    if (!companySettings?.business_hours) return false;
-    
-    const sessionDay = startOfDay(parseISO(sessionDate));
-    const today = startOfDay(new Date());
-    
-    // Always use schedule times for past days
-    if (sessionDay < today) return true;
-    
-    // For today, check if we're past closing time
-    if (sessionDay.getTime() === today.getTime()) {
-      const currentTime = new Date();
-      const dayOfWeek = currentTime.getDay();
-      
-      const businessHours = companySettings.business_hours as any[];
-      const todayHours = businessHours.find(h => h.day === dayOfWeek);
-      
-      if (!todayHours || !todayHours.isOpen) return true;
-      
-      const [closeHour, closeMinute] = todayHours.closeTime.split(':').map(Number);
-      const closingTime = new Date();
-      closingTime.setHours(closeHour, closeMinute, 0, 0);
-      
-      return isAfter(currentTime, closingTime);
-    }
-    
-    return false;
-  };
-
   const generateTimelist = () => {
     if (!selectedEmployee || !shifts) return;
     
@@ -245,7 +199,12 @@ export default function Reports() {
       const processedEntries = allDaysInMonth.map(date => {
         const dateStr = format(date, 'yyyy-MM-dd');
         const dayOfWeek = getDay(date);
-        const useScheduleTimes = shouldUseScheduleTimes(dateStr);
+        
+        // Check if store is closed for this date
+        const today = startOfDay(new Date());
+        const currentDate = startOfDay(date);
+        const isPastDay = currentDate < today;
+        const isStoreClosed = isPastDay || (currentDate.getTime() === today.getTime() && isAfterClosingTime(date, companySettings?.business_hours as any[]));
         
         // Find shift for this day
         const dayShift = shifts.find(shift => 
@@ -263,26 +222,15 @@ export default function Reports() {
         let lunch = '';
         let hasData = false;
         
-        if (dayShift) {
+        if (dayShift || punchInEntry) {
           hasData = true;
           
-          if (useScheduleTimes) {
-            // After closing: Adjust actual times to schedule with ±10 min tolerance
-            const actualPunchIn = punchInEntry?.timestamp;
-            const actualPunchOut = punchOutEntry?.timestamp;
+          if (isStoreClosed && dayShift) {
+            // Store closed - use schedule times from shift
+            punchIn = formatTimeNorway(dayShift.start_time);
+            punchOut = formatTimeNorway(dayShift.end_time);
             
-            const adjustedPunchIn = actualPunchIn 
-              ? adjustTimeToSchedule(actualPunchIn, dayShift.start_time)
-              : dayShift.start_time;
-            
-            const adjustedPunchOut = actualPunchOut
-              ? adjustTimeToSchedule(actualPunchOut, dayShift.end_time)
-              : dayShift.end_time;
-            
-            punchIn = formatTimeNorway(adjustedPunchIn);
-            punchOut = formatTimeNorway(adjustedPunchOut);
-            
-            const totalMinutes = calculateDurationMinutes(adjustedPunchIn, adjustedPunchOut);
+            const totalMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
             const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
             const workMinutes = totalMinutes - pauseMinutes;
             
@@ -290,37 +238,38 @@ export default function Reports() {
             const minutes = workMinutes % 60;
             total = `${hours}:${minutes.toString().padStart(2, '0')}`;
             lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
-          } else {
-            // During opening hours: Show exact punch times or schedule if no punch yet
-            if (punchInEntry) {
-              punchIn = formatTimeNorway(punchInEntry.timestamp);
-            } else {
-              // If shift has started but no punch-in yet, show schedule time
-              const now = new Date();
-              const shiftStart = parseISO(dayShift.start_time);
-              if (now >= shiftStart) {
-                punchIn = formatTimeNorway(dayShift.start_time);
-              }
-            }
+          } else if (punchInEntry && punchOutEntry) {
+            // Store open OR has actual punches - use actual times
+            punchIn = formatTimeNorway(punchInEntry.timestamp);
+            punchOut = formatTimeNorway(punchOutEntry.timestamp);
             
-            if (punchOutEntry) {
-              punchOut = formatTimeNorway(punchOutEntry.timestamp);
-              
-              if (punchIn) {
-                // Calculate total based on actual times
-                const totalMinutes = calculateDurationMinutes(
-                  punchInEntry!.timestamp, 
-                  punchOutEntry.timestamp
-                );
-                const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
-                const workMinutes = totalMinutes - pauseMinutes;
-                
-                const hours = Math.floor(workMinutes / 60);
-                const minutes = workMinutes % 60;
-                total = `${hours}:${minutes.toString().padStart(2, '0')}`;
-                lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
-              }
-            }
+            const totalMinutes = calculateDurationMinutes(
+              punchInEntry.timestamp, 
+              punchOutEntry.timestamp
+            );
+            const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
+            const workMinutes = totalMinutes - pauseMinutes;
+            
+            const hours = Math.floor(workMinutes / 60);
+            const minutes = workMinutes % 60;
+            total = `${hours}:${minutes.toString().padStart(2, '0')}`;
+            lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
+          } else if (punchInEntry) {
+            // Only punch in, no punch out
+            punchIn = formatTimeNorway(punchInEntry.timestamp);
+          } else if (dayShift) {
+            // No punches, show schedule if shift exists
+            punchIn = formatTimeNorway(dayShift.start_time);
+            punchOut = formatTimeNorway(dayShift.end_time);
+            
+            const totalMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
+            const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
+            const workMinutes = totalMinutes - pauseMinutes;
+            
+            const hours = Math.floor(workMinutes / 60);
+            const minutes = workMinutes % 60;
+            total = `${hours}:${minutes.toString().padStart(2, '0')}`;
+            lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
           }
         }
 
