@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, parseISO, isSameDay, isToday, startOfDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
-import { formatTimeNorway, calculateDurationMinutes, formatDuration, isAfterClosingTime } from '@/lib/timeUtils';
+import { formatTimeNorway, formatDuration } from '@/lib/timeUtils';
+import { processTimeEntry, type TimeEntry as TimeEntryType } from '@/lib/timeEntryUtils';
 import { supabase } from '@/integrations/supabase/client';
 
 const NORWEGIAN_DAYS = ['Sön', 'Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör'];
@@ -75,98 +76,70 @@ export default function Timeliste() {
       const monthStart = startOfMonth(new Date(selectedMonth + '-01'));
       const monthEnd = endOfMonth(monthStart);
       
-      // Generate all days of the month
       const allDaysInMonth = eachDayOfInterval({
         start: monthStart,
         end: monthEnd
       });
 
+      const businessHours = companySettings?.business_hours as Array<{
+        day: number;
+        isOpen: boolean;
+        openTime: string;
+        closeTime: string;
+      }> | undefined;
+
       // Group time entries by date
-      const entriesByDate: { [key: string]: any[] } = {};
+      const entriesByDate = new Map<string, { punchIn?: TimeEntryType; punchOut?: TimeEntryType }>();
+      
       entries.forEach(entry => {
         const entryDate = format(parseISO(entry.timestamp), 'yyyy-MM-dd');
-        if (!entriesByDate[entryDate]) {
-          entriesByDate[entryDate] = [];
+        
+        if (!entriesByDate.has(entryDate)) {
+          entriesByDate.set(entryDate, {});
         }
-        entriesByDate[entryDate].push(entry);
+        
+        const dayEntry = entriesByDate.get(entryDate)!;
+        if (entry.entry_type === 'punch_in') {
+          dayEntry.punchIn = entry as TimeEntryType;
+        } else {
+          dayEntry.punchOut = entry as TimeEntryType;
+        }
       });
 
-      // Process shifts into daily data with actual time entries
+      // Process each day using shared logic
       const processedEntries = allDaysInMonth.map(date => {
         const dateStr = format(date, 'yyyy-MM-dd');
         const dayOfWeek = getDay(date);
-        
-        // Check if store is closed for this date
-        const today = startOfDay(new Date());
-        const currentDate = startOfDay(date);
-        const isPastDay = currentDate < today;
-        const isStoreClosed = isPastDay || (isSameDay(date, new Date()) && isAfterClosingTime(date, companySettings?.business_hours as any[]));
-        
-        // Find shift for this day
+        const now = new Date();
+        const isTodayDate = startOfDay(date).getTime() === startOfDay(now).getTime();
+
         const dayShift = shifts.find(shift => 
           shift.start_time.startsWith(dateStr)
         );
-        
-        // Find actual punch in/out from time entries
-        const entriesForDay = entriesByDate[dateStr] || [];
-        const punchInEntry = entriesForDay.find(e => e.entry_type === 'punch_in');
-        const punchOutEntry = entriesForDay.find(e => e.entry_type === 'punch_out');
-        
-        let punchIn = null;
-        let punchOut = null;
-        let totalMinutes = 0;
-        let lunch = '';
-        let hasData = false;
-        
-        if (punchInEntry || dayShift) {
-          hasData = true;
-          
-          // Check if this is an active session (punch in without punch out on today)
-          const isActiveToday = isToday(date) && punchInEntry && !punchOutEntry;
-          
-          if (isActiveToday) {
-            // Active shift - show exact punch in time, no out time
-            punchIn = format(parseISO(punchInEntry.timestamp), 'HH:mm');
-            punchOut = null;
-            totalMinutes = 0;
-          } else if (isStoreClosed && dayShift) {
-            // Store closed - use schedule times from shift
-            punchIn = formatTimeNorway(dayShift.start_time);
-            punchOut = formatTimeNorway(dayShift.end_time);
-            
-            const durationMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
-            const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
-            const workMinutes = Math.max(0, durationMinutes - lunchMinutes);
-            totalMinutes = workMinutes;
-            lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
-          } else if (punchInEntry && punchOutEntry) {
-            // Store open OR has actual punches - use actual times
-            punchIn = format(parseISO(punchInEntry.timestamp), 'HH:mm');
-            punchOut = format(parseISO(punchOutEntry.timestamp), 'HH:mm');
-            
-            const durationMinutes = calculateDurationMinutes(
-              punchInEntry.timestamp, 
-              punchOutEntry.timestamp
-            );
-            const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
-            const workMinutes = Math.max(0, durationMinutes - lunchMinutes);
-            totalMinutes = workMinutes;
-            lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
-          } else if (punchInEntry) {
-            // Only punch in, no punch out (shouldn't happen except for active today)
-            punchIn = format(parseISO(punchInEntry.timestamp), 'HH:mm');
-          }
-        }
+
+        const dayTimeEntries = entriesByDate.get(dateStr);
+
+        // Use shared processing logic
+        const processed = processTimeEntry(
+          date,
+          dayShift,
+          dayTimeEntries?.punchIn,
+          dayTimeEntries?.punchOut,
+          businessHours,
+          isTodayDate
+        );
+
+        const lunch = processed.lunchMinutes > 0 ? `0:${processed.lunchMinutes}` : '';
 
         return {
           date: dateStr,
           day: date.getDate().toString(),
           dayName: NORWEGIAN_DAYS[dayOfWeek],
-          punchIn,
-          punchOut,
+          punchIn: processed.punchIn ? formatTimeNorway(processed.punchIn) : null,
+          punchOut: processed.punchOut ? formatTimeNorway(processed.punchOut) : null,
           lunch,
-          totalMinutes,
-          hasData
+          totalMinutes: processed.totalMinutes,
+          hasData: processed.hasData
         };
       });
 

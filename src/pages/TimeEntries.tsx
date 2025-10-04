@@ -6,27 +6,22 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { format, parseISO, startOfDay } from 'date-fns';
+import { format, startOfDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
 import { Clock, ArrowUp, ArrowDown } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { formatDuration, calculateDurationMinutes, formatTimeNorway, isAfterClosingTime } from '@/lib/timeUtils';
-
-interface TimeEntry {
-  id: string;
-  entry_type: 'punch_in' | 'punch_out';
-  timestamp: string;
-  employee_id: string;
-  employee_name?: string;
-}
+import { formatTimeNorway } from '@/lib/timeUtils';
+import { processTimeEntry, type TimeEntry as TimeEntryType } from '@/lib/timeEntryUtils';
 
 interface WorkSession {
   id: string;
-  punch_in: TimeEntry;
-  punch_out?: TimeEntry;
-  duration?: number; // in minutes
-  employee_name?: string;
+  date: string;
+  punchIn: string;
+  punchOut: string | null;
+  duration: string | null;
+  employeeName?: string;
+  source?: 'schedule' | 'actual' | 'none';
 }
 
 export default function TimeEntries() {
@@ -45,13 +40,12 @@ export default function TimeEntries() {
     if (!user) return;
 
     try {
-      // First, fetch time entries
+      // Fetch time entries
       let query = supabase
         .from('time_entries')
         .select('*')
         .order('timestamp', { ascending: false });
 
-      // If not admin, only show user's own entries
       if (userRole !== 'admin') {
         query = query.eq('employee_id', user.id);
       }
@@ -63,7 +57,7 @@ export default function TimeEntries() {
         return;
       }
 
-      // If admin, fetch profile data for employee names
+      // Fetch employee names if admin
       let profilesMap = new Map();
       if (userRole === 'admin' && entriesData && entriesData.length > 0) {
         const employeeIds = Array.from(new Set(entriesData.map(entry => entry.employee_id)));
@@ -81,12 +75,9 @@ export default function TimeEntries() {
         );
       }
 
-      // Group entries into work sessions
-      const sessions = groupIntoWorkSessions(entriesData || [], profilesMap);
-      
-      // Apply schedule logic when store is closed
-      const finalSessions = applyScheduleWhenClosed(sessions);
-      setWorkSessions(finalSessions);
+      // Process entries into sessions using shared logic
+      const sessions = processEntriesIntoSessions(entriesData || [], profilesMap);
+      setWorkSessions(sessions);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -94,125 +85,98 @@ export default function TimeEntries() {
     }
   };
 
-  const groupIntoWorkSessions = (entries: TimeEntry[], profilesMap: Map<string, string>): WorkSession[] => {
-    const sessions: WorkSession[] = [];
-    const entriesByEmployee = new Map<string, TimeEntry[]>();
+  const processEntriesIntoSessions = (entries: any[], profilesMap: Map<string, string>): WorkSession[] => {
+    const businessHours = companySettings?.business_hours as Array<{
+      day: number;
+      isOpen: boolean;
+      openTime: string;
+      closeTime: string;
+    }> | undefined;
 
-    // Group entries by employee
+    // Group entries by employee and date
+    const entriesByEmployeeAndDate = new Map<string, Map<string, any[]>>();
+    
     entries.forEach(entry => {
-      if (!entriesByEmployee.has(entry.employee_id)) {
-        entriesByEmployee.set(entry.employee_id, []);
+      const entryDate = startOfDay(new Date(entry.timestamp));
+      const dateKey = entryDate.toISOString();
+      
+      if (!entriesByEmployeeAndDate.has(entry.employee_id)) {
+        entriesByEmployeeAndDate.set(entry.employee_id, new Map());
       }
-      entriesByEmployee.get(entry.employee_id)!.push({
-        ...entry,
-        employee_name: profilesMap.get(entry.employee_id)
+      
+      const employeeMap = entriesByEmployeeAndDate.get(entry.employee_id)!;
+      if (!employeeMap.has(dateKey)) {
+        employeeMap.set(dateKey, []);
+      }
+      
+      employeeMap.get(dateKey)!.push(entry);
+    });
+
+    const sessions: WorkSession[] = [];
+
+    // Process each employee's dates
+    entriesByEmployeeAndDate.forEach((dateMap, employeeId) => {
+      dateMap.forEach((dayEntries, dateKey) => {
+        const date = new Date(dateKey);
+        const now = new Date();
+        const isToday = startOfDay(date).getTime() === startOfDay(now).getTime();
+
+        // Sort entries by timestamp
+        const sortedEntries = [...dayEntries].sort((a, b) => 
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+
+        const punchInEntry = sortedEntries.find(e => e.entry_type === 'punch_in');
+        const punchOutEntry = sortedEntries.find(e => e.entry_type === 'punch_out');
+
+        // Find matching shift
+        const dayShift = shiftsData?.find(shift => {
+          const shiftDate = startOfDay(new Date(shift.start_time));
+          return shift.employee_id === employeeId && 
+                 shiftDate.getTime() === date.getTime();
+        });
+
+        // Use shared processing logic
+        const processed = processTimeEntry(
+          date,
+          dayShift,
+          punchInEntry,
+          punchOutEntry,
+          businessHours,
+          isToday
+        );
+
+        if (processed.hasData) {
+          // Format duration
+          const hours = Math.floor(processed.totalMinutes / 60);
+          const minutes = processed.totalMinutes % 60;
+          
+          const duration = processed.punchOut && !processed.isOngoing
+            ? `${hours}h ${minutes}m`
+            : processed.isOngoing
+            ? `${hours}h ${minutes}m (pågående)`
+            : null;
+
+          sessions.push({
+            id: punchInEntry?.id || `schedule-${dayShift?.id}`,
+            date: format(new Date(processed.punchIn!), 'dd MMM yyyy', { locale: nb }),
+            punchIn: processed.punchIn!,
+            punchOut: processed.punchOut,
+            duration,
+            employeeName: profilesMap.get(employeeId),
+            source: processed.source
+          });
+        }
       });
     });
 
-    // For each employee, create sessions by pairing punch-ins with punch-outs
-    entriesByEmployee.forEach((employeeEntries) => {
-      // Sort by timestamp (oldest first)
-      const sortedEntries = [...employeeEntries].sort((a, b) => 
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
-
-      let i = 0;
-      while (i < sortedEntries.length) {
-        const entry = sortedEntries[i];
-        
-        if (entry.entry_type === 'punch_in') {
-          // Find the next punch_out after this punch_in
-          let nextPunchOut: TimeEntry | undefined;
-          let nextPunchOutIndex = -1;
-          
-          for (let j = i + 1; j < sortedEntries.length; j++) {
-            if (sortedEntries[j].entry_type === 'punch_out') {
-              nextPunchOut = sortedEntries[j];
-              nextPunchOutIndex = j;
-              break;
-            }
-          }
-          
-          // Create session
-          const duration = nextPunchOut 
-            ? calculateDurationMinutes(entry.timestamp, nextPunchOut.timestamp)
-            : undefined;
-          
-          sessions.push({
-            id: entry.id,
-            punch_in: entry,
-            punch_out: nextPunchOut,
-            duration,
-            employee_name: entry.employee_name
-          });
-          
-          // Skip to after the punch_out if found, otherwise just move to next entry
-          i = nextPunchOutIndex !== -1 ? nextPunchOutIndex + 1 : i + 1;
-        } else {
-          // Skip standalone punch_outs
-          i++;
-        }
-      }
-    });
-
-    // Sort sessions by punch_in timestamp (newest first)
     return sessions.sort((a, b) => 
-      new Date(b.punch_in.timestamp).getTime() - new Date(a.punch_in.timestamp).getTime()
+      new Date(b.punchIn).getTime() - new Date(a.punchIn).getTime()
     );
   };
 
-  // Replace punch times with schedule times when store is closed
-  const applyScheduleWhenClosed = (sessions: WorkSession[]): WorkSession[] => {
-    if (!shiftsData || !companySettings?.business_hours) return sessions;
-
-    return sessions.map(session => {
-      const sessionDate = parseISO(session.punch_in.timestamp);
-      const today = startOfDay(new Date());
-      const sessionDay = startOfDay(sessionDate);
-      
-      // Check if this is a past day or if store is closed today
-      const isPastDay = sessionDay < today;
-      const isStoreClosed = isPastDay || isAfterClosingTime(sessionDate, companySettings.business_hours as any[]);
-      
-      if (!isStoreClosed) {
-        // Store is open - show exact punch times
-        return session;
-      }
-      
-      // Store is closed - try to find matching shift and use schedule times
-      const dateStr = format(sessionDate, 'yyyy-MM-dd');
-      const matchingShift = shiftsData.find(shift => 
-        shift.employee_id === session.punch_in.employee_id &&
-        format(parseISO(shift.start_time), 'yyyy-MM-dd') === dateStr
-      );
-      
-      if (!matchingShift) {
-        // No shift found - return original session
-        return session;
-      }
-      
-      // Replace with schedule times
-      const scheduleDuration = session.punch_out 
-        ? calculateDurationMinutes(matchingShift.start_time, matchingShift.end_time)
-        : undefined;
-      
-      return {
-        ...session,
-        punch_in: {
-          ...session.punch_in,
-          timestamp: matchingShift.start_time
-        },
-        punch_out: session.punch_out ? {
-          ...session.punch_out,
-          timestamp: matchingShift.end_time
-        } : undefined,
-        duration: scheduleDuration
-      };
-    });
-  };
-
   const getSessionBadge = (session: WorkSession) => {
-    if (!session.punch_out) {
+    if (!session.punchOut) {
       return (
         <Badge variant="outline" className="border-yellow-200 text-yellow-700 bg-yellow-50">
           Aktiv
@@ -271,7 +235,7 @@ export default function TimeEntries() {
                       <TableRow key={session.id}>
                         <TableCell>
                           <div className="font-medium text-sm">
-                            {format(new Date(session.punch_in.timestamp), isMobile ? 'dd/MM' : 'dd MMM yyyy', { locale: nb })}
+                            {session.date}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -279,15 +243,15 @@ export default function TimeEntries() {
                             <div className="flex items-center gap-1">
                               <ArrowUp className="h-3 w-3 text-green-600" />
                               <span className="text-xs">
-                                {formatTimeNorway(session.punch_in.timestamp)}
+                                {formatTimeNorway(session.punchIn)}
                               </span>
                             </div>
-                            {session.punch_out && (
+                            {session.punchOut && (
                               <div className="flex items-center gap-1">
                                 {!isMobile && <span className="text-muted-foreground">→</span>}
                                 <ArrowDown className="h-3 w-3 text-red-600" />
                                 <span className="text-xs">
-                                  {formatTimeNorway(session.punch_out.timestamp)}
+                                  {formatTimeNorway(session.punchOut)}
                                 </span>
                               </div>
                             )}
@@ -295,11 +259,7 @@ export default function TimeEntries() {
                         </TableCell>
                         <TableCell>
                           <div className="font-medium text-sm">
-                            {session.duration !== undefined ? (
-                              formatDuration(session.duration)
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
+                            {session.duration || <span className="text-muted-foreground">-</span>}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -307,7 +267,7 @@ export default function TimeEntries() {
                         </TableCell>
                         {userRole === 'admin' && (
                           <TableCell className="text-sm">
-                            {session.employee_name || 'Ukjent ansatt'}
+                            {session.employeeName || 'Ukjent ansatt'}
                           </TableCell>
                         )}
                       </TableRow>

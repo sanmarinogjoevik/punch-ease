@@ -18,7 +18,8 @@ import { useToast } from '@/hooks/use-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addWeeks, startOfWeek, startOfDay, subMonths, addMonths, subDays, addDays, isAfter } from 'date-fns';
 import { nb, sv } from 'date-fns/locale';
 import html2pdf from 'html2pdf.js';
-import { formatTimeNorway, createUTCFromNorwegianTime, calculateDurationMinutes, isAfterClosingTime } from '@/lib/timeUtils';
+import { formatDuration, formatTimeNorway, calculateDurationMinutes, isAfterClosingTime, createUTCFromNorwegianTime } from '@/lib/timeUtils';
+import { processTimeEntry, type TimeEntry as TimeEntryType } from '@/lib/timeEntryUtils';
 import { supabase } from '@/integrations/supabase/client';
 
 
