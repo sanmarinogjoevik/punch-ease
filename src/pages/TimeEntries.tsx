@@ -136,6 +136,11 @@ export default function TimeEntries() {
                  shiftDate.getTime() === date.getTime();
         });
 
+        // Only show days with scheduled shifts (same logic as TimelistTable)
+        if (!dayShift) {
+          return;
+        }
+
         // Use shared processing logic
         const processed = processTimeEntry(
           date,
