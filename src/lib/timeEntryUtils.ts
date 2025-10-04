@@ -71,7 +71,7 @@ export function processTimeEntry(
     const shiftEnd = new Date(shift.end_time);
     const durationMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
     const lunchMinutes = durationMinutes > 330 ? 30 : 0;
-    const totalMinutes = durationMinutes - lunchMinutes;
+    const totalMinutes = durationMinutes; // Include pause in total
 
     return {
       punchIn: shift.start_time,
@@ -103,7 +103,7 @@ export function processTimeEntry(
         lunchMinutes = 30;
       }
       
-      totalMinutes = durationMinutes - lunchMinutes;
+      totalMinutes = durationMinutes; // Include pause in total
     } else if (isToday) {
       // Ongoing shift
       const start = new Date(punchIn);
@@ -113,7 +113,7 @@ export function processTimeEntry(
         lunchMinutes = 30;
       }
       
-      totalMinutes = durationMinutes - lunchMinutes;
+      totalMinutes = durationMinutes; // Include pause in total
       isOngoing = true;
     }
 
