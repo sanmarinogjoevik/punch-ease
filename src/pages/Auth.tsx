@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,9 +17,10 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { signIn, user } = useAuth();
+  const { signIn, signOut, user } = useAuth();
   const { tenantUsername, logoutTenant } = useTenant();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleEmployeeSelect = (employeeEmail: string, employeeName: string) => {
     setSelectedEmployee({ email: employeeEmail, name: employeeName });
@@ -45,6 +46,9 @@ export default function Auth() {
           description: result.error.message,
           variant: 'destructive',
         });
+      } else {
+        // Navigate to dashboard after successful login
+        navigate('/dashboard');
       }
     } catch (error) {
       toast({
@@ -73,7 +77,11 @@ export default function Auth() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={logoutTenant}
+              onClick={async () => {
+                await signOut();
+                logoutTenant();
+                navigate('/');
+              }}
               className="text-muted-foreground hover:text-foreground"
             >
               <LogOut className="h-4 w-4 mr-2" />
