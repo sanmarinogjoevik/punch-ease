@@ -82,6 +82,29 @@ function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Superadmin-only route wrapper
+function SuperadminProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading, userRole } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-lg text-foreground">Laster...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/superadmin-login" replace />;
+  }
+
+  if (userRole !== 'superadmin') {
+    return <Navigate to="/superadmin-login" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 
 function AppRoutes() {
   return (
@@ -90,6 +113,16 @@ function AppRoutes() {
       <Route path="/superadmin-login" element={<SuperadminLogin />} />
       <Route path="/auth" element={<TenantProtectedRoute><Auth /></TenantProtectedRoute>} />
       
+      {/* Superadmin route - standalone without tenant authentication */}
+      <Route 
+        path="/superadmin" 
+        element={
+          <SuperadminProtectedRoute>
+            <Superadmin />
+          </SuperadminProtectedRoute>
+        } 
+      />
+      
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/employee-schedule" element={<EmployeeSchedule />} />
@@ -97,9 +130,6 @@ function AppRoutes() {
         <Route path="/temperature-log" element={<TemperatureLog />} />
         <Route path="/timeliste" element={<Timeliste />} />
         <Route path="/beställningar" element={<Beställningar />} />
-        
-        {/* Superadmin route */}
-        <Route path="/superadmin" element={<Superadmin />} />
         
         {/* Admin-only routes */}
         <Route path="/schedule" element={<AdminProtectedRoute><Schedule /></AdminProtectedRoute>} />
