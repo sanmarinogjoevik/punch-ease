@@ -62,8 +62,8 @@ export function processTimeEntry(
   const isPastDay = dayStart < startOfDay(now);
   const isStoreClosed = isAfterClosingTime(date, businessHours);
 
-  // Determine if we should use schedule times
-  const shouldUseSchedule = (isStoreClosed || isPastDay) && !punchInEntry && shift;
+  // For closed days, always use schedule times (ignore punch data)
+  const shouldUseSchedule = (isStoreClosed || isPastDay) && shift;
 
   // If we should use schedule and have a shift
   if (shouldUseSchedule && shift) {
