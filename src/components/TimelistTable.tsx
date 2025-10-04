@@ -170,20 +170,8 @@ export default function TimelistTable({
         if (dayShift) {
           hasData = true;
           
-          if (isStoreClosed) {
-            // Store closed - always use schedule times from shift
-            punchIn = formatTimeNorway(dayShift.start_time);
-            punchOut = formatTimeNorway(dayShift.end_time);
-            
-            const totalMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
-            const pauseMinutes = totalMinutes > 330 ? 30 : 0;
-            
-            const hours = Math.floor(totalMinutes / 60);
-            const minutes = totalMinutes % 60;
-            total = `${hours}:${minutes.toString().padStart(2, '0')}`;
-            lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
-          } else if (punchInEntry && punchOutEntry) {
-            // Store open and has actual punches - use actual times
+          // ALWAYS prioritize actual time_entries if both exist
+          if (punchInEntry && punchOutEntry) {
             punchIn = formatTimeNorway(punchInEntry.timestamp);
             punchOut = formatTimeNorway(punchOutEntry.timestamp);
             
@@ -201,7 +189,7 @@ export default function TimelistTable({
             // Only punch in, no punch out - show ongoing
             punchIn = formatTimeNorway(punchInEntry.timestamp);
           } else {
-            // No punches yet, show scheduled times
+            // Fallback to schedule if no complete time_entries
             punchIn = formatTimeNorway(dayShift.start_time);
             punchOut = formatTimeNorway(dayShift.end_time);
             

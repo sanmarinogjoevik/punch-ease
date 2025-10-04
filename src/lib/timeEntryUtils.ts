@@ -57,16 +57,33 @@ export function processTimeEntry(
   businessHours: BusinessHours[] | undefined,
   isToday: boolean = false
 ): ProcessedTimeEntry {
-  const dayStart = startOfDay(date);
   const now = new Date();
-  const isPastDay = dayStart < startOfDay(now);
-  const isStoreClosed = isAfterClosingTime(date, businessHours);
 
-  // For closed days, always use schedule times (ignore punch data)
-  const shouldUseSchedule = (isStoreClosed || isPastDay) && shift;
+  // ALWAYS prioritize actual punch data first (regardless of store status)
+  if (punchInEntry && punchOutEntry) {
+    const punchIn = punchInEntry.timestamp;
+    const punchOut = punchOutEntry.timestamp;
+    const start = new Date(punchIn);
+    const end = new Date(punchOut);
+    const durationMinutes = Math.floor((end.getTime() - start.getTime()) / (1000 * 60));
+    
+    // Calculate lunch break (30 min if worked more than 5.5 hours)
+    const lunchMinutes = durationMinutes > 330 ? 30 : 0;
+    const totalMinutes = durationMinutes; // Include pause in total
 
-  // If we should use schedule and have a shift
-  if (shouldUseSchedule && shift) {
+    return {
+      punchIn,
+      punchOut,
+      totalMinutes,
+      lunchMinutes,
+      hasData: true,
+      isOngoing: false,
+      source: 'actual'
+    };
+  }
+
+  // Fallback to schedule if no complete punch data
+  if (shift) {
     const shiftStart = new Date(shift.start_time);
     const shiftEnd = new Date(shift.end_time);
     const durationMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
@@ -84,46 +101,21 @@ export function processTimeEntry(
     };
   }
 
-  // If we have actual punch data
-  if (punchInEntry) {
+  // Handle ongoing shifts (only punch_in)
+  if (punchInEntry && isToday) {
     const punchIn = punchInEntry.timestamp;
-    const punchOut = punchOutEntry?.timestamp || null;
-    
-    let totalMinutes = 0;
-    let lunchMinutes = 0;
-    let isOngoing = false;
-
-    if (punchOut) {
-      const start = new Date(punchIn);
-      const end = new Date(punchOut);
-      const durationMinutes = Math.floor((end.getTime() - start.getTime()) / (1000 * 60));
-      
-      // Calculate lunch break (30 min if worked more than 5.5 hours)
-      if (durationMinutes > 330) {
-        lunchMinutes = 30;
-      }
-      
-      totalMinutes = durationMinutes; // Include pause in total
-    } else if (isToday) {
-      // Ongoing shift
-      const start = new Date(punchIn);
-      const durationMinutes = Math.floor((now.getTime() - start.getTime()) / (1000 * 60));
-      
-      if (durationMinutes > 330) {
-        lunchMinutes = 30;
-      }
-      
-      totalMinutes = durationMinutes; // Include pause in total
-      isOngoing = true;
-    }
+    const start = new Date(punchIn);
+    const durationMinutes = Math.floor((now.getTime() - start.getTime()) / (1000 * 60));
+    const lunchMinutes = durationMinutes > 330 ? 30 : 0;
+    const totalMinutes = durationMinutes; // Include pause in total
 
     return {
       punchIn,
-      punchOut,
+      punchOut: null,
       totalMinutes,
       lunchMinutes,
       hasData: true,
-      isOngoing,
+      isOngoing: true,
       source: 'actual'
     };
   }
