@@ -178,13 +178,16 @@ export default function Reports() {
     const schedule = new Date(scheduleTime);
     const diffMinutes = (actual.getTime() - schedule.getTime()) / (1000 * 60);
     
-    // If within ±10 minutes, use schedule time
+    // If within ±10 minutes, use exact schedule time
     if (Math.abs(diffMinutes) <= 10) {
       return scheduleTime;
     }
     
-    // Otherwise, use actual time
-    return actualTime;
+    // If outside ±10 minutes, use schedule time with random variation (-10 to +10 minutes)
+    const randomMinutes = Math.floor(Math.random() * 21) - 10; // -10 to +10
+    const adjustedTime = new Date(schedule);
+    adjustedTime.setMinutes(adjustedTime.getMinutes() + randomMinutes);
+    return adjustedTime.toISOString();
   };
 
   const shouldUseScheduleTimes = (sessionDate: string): boolean => {
