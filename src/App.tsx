@@ -8,6 +8,7 @@ import { TenantProvider } from '@/hooks/useTenant';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenant } from '@/hooks/useTenant';
 import TenantLogin from './pages/TenantLogin';
+import SuperadminLogin from './pages/SuperadminLogin';
 import Auth from './pages/Auth';
 import NotFound from './pages/NotFound';
 import { AppLayout } from './components/layout/AppLayout';
@@ -86,6 +87,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<TenantLogin />} />
+      <Route path="/superadmin-login" element={<SuperadminLogin />} />
       <Route path="/auth" element={<TenantProtectedRoute><Auth /></TenantProtectedRoute>} />
       
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
