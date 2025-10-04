@@ -5,7 +5,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// No random variation - punch out at exact time
+// Generate random time within ±10 minutes of scheduled time
+const getRandomPunchTime = (scheduledTime: string): string => {
+  const scheduled = new Date(scheduledTime);
+  const variation = Math.floor(Math.random() * 21) - 10; // -10 to +10 minutes
+  const adjusted = new Date(scheduled.getTime() + variation * 60 * 1000);
+  return adjusted.toISOString();
+};
 
 interface BusinessHours {
   day: number; // 0-6 (söndag-lördag)
@@ -326,7 +332,7 @@ Deno.serve(async (req) => {
             employee_id: employeeId,
             company_id: closingProfile.company_id,
             entry_type: 'punch_out',
-            timestamp: shift.end_time,
+            timestamp: getRandomPunchTime(shift.end_time),
             is_automatic: true,
           });
 

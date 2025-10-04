@@ -139,39 +139,63 @@ export default function Timeliste() {
           const closeTime = businessDay?.closeTime || '22:00';
           const closed = isBusinessClosed(date, closeTime);
           
-          // Om butiken är stängd ELLER det inte är idag: visa ENDAST vaktlistans tider
+          // Om butiken är stängd ELLER det inte är idag: visa SPARADE time_entries tider (med ±10 min variation)
           if (closed || !isToday(date)) {
-            punchIn = formatTimeNorway(dayShift.start_time);
-            punchOut = formatTimeNorway(dayShift.end_time);
-            
-            const durationMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
-            const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
-            const workMinutes = Math.max(0, durationMinutes - lunchMinutes);
-            totalMinutes = workMinutes;
-            lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
+            if (punchInEntry) {
+              // Använd sparade tider från time_entries
+              punchIn = format(parseISO(punchInEntry.timestamp), 'HH:mm');
+              punchOut = punchOutEntry 
+                ? format(parseISO(punchOutEntry.timestamp), 'HH:mm')
+                : formatTimeNorway(dayShift.end_time); // Fallback till vaktlista om ingen punch-out
+              
+              if (punchOutEntry) {
+                const durationMinutes = calculateDurationMinutes(
+                  punchInEntry.timestamp, 
+                  punchOutEntry.timestamp
+                );
+                const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
+                totalMinutes = Math.max(0, durationMinutes - lunchMinutes);
+                lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
+              } else {
+                // Ingen punch-out: beräkna baserat på vaktlistans sluttid
+                const durationMinutes = calculateDurationMinutes(
+                  dayShift.start_time, 
+                  dayShift.end_time
+                );
+                const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
+                totalMinutes = Math.max(0, durationMinutes - lunchMinutes);
+                lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
+              }
+            } else {
+              // Ingen time_entries: fallback till vaktlistans tider
+              punchIn = formatTimeNorway(dayShift.start_time);
+              punchOut = formatTimeNorway(dayShift.end_time);
+              
+              const durationMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
+              const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
+              totalMinutes = Math.max(0, durationMinutes - lunchMinutes);
+              lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
+            }
           } 
           // Om butiken är öppen OCH det är idag: visa live punch times
           else if (isToday(date) && punchInEntry) {
             punchIn = format(parseISO(punchInEntry.timestamp), 'HH:mm');
             
             if (punchOutEntry) {
-              // Har punchat ut - visa faktiska tider
               punchOut = format(parseISO(punchOutEntry.timestamp), 'HH:mm');
               const durationMinutes = calculateDurationMinutes(
                 punchInEntry.timestamp, 
                 punchOutEntry.timestamp
               );
               const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
-              const workMinutes = Math.max(0, durationMinutes - lunchMinutes);
-              totalMinutes = workMinutes;
+              totalMinutes = Math.max(0, durationMinutes - lunchMinutes);
               lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
             } else {
-              // Pågående pass - visa ingen sluttid eller total än
               punchOut = null;
               totalMinutes = 0;
             }
           }
-          // Fallback: visa vaktlistans tider
+          // Fallback: visa vaktlistans tider om ingen data
           else {
             punchIn = formatTimeNorway(dayShift.start_time);
             punchOut = formatTimeNorway(dayShift.end_time);

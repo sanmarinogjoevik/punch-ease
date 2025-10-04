@@ -82,10 +82,9 @@ export default function TimeEntries() {
         );
       }
 
-      // Group entries into work sessions and apply hybrid logic
+      // Group entries into work sessions - show actual saved times
       const sessions = groupIntoWorkSessions(entriesData || [], profilesMap);
-      const hybridSessions = applyHybridLogic(sessions);
-      setWorkSessions(hybridSessions);
+      setWorkSessions(sessions);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -160,151 +159,6 @@ export default function TimeEntries() {
     );
   };
 
-  const shouldUseScheduleTimes = (sessionDate: string): boolean => {
-    if (!companySettings?.business_hours) return false;
-    
-    const sessionDay = startOfDay(parseISO(sessionDate));
-    const today = startOfDay(new Date());
-    
-    // Always use schedule times for past days
-    if (sessionDay < today) return true;
-    
-    // For today, check if we're past closing time
-    if (sessionDay.getTime() === today.getTime()) {
-      const currentTime = new Date();
-      const dayOfWeek = currentTime.getDay();
-      
-      const businessHours = companySettings.business_hours as any[];
-      const todayHours = businessHours.find(h => h.day === dayOfWeek);
-      
-      if (!todayHours || !todayHours.isOpen) return true;
-      
-      const [closeHour, closeMinute] = todayHours.closeTime.split(':').map(Number);
-      const closingTime = new Date();
-      closingTime.setHours(closeHour, closeMinute, 0, 0);
-      
-      return isAfter(currentTime, closingTime);
-    }
-    
-    return false;
-  };
-
-  const adjustTimeToSchedule = (actualTime: string, scheduleTime: string): string => {
-    const actual = new Date(actualTime);
-    const schedule = new Date(scheduleTime);
-    const diffMinutes = (actual.getTime() - schedule.getTime()) / (1000 * 60);
-    
-    // If within ±10 minutes, use exact schedule time
-    if (Math.abs(diffMinutes) <= 10) {
-      return scheduleTime;
-    }
-    
-    // If outside ±10 minutes, use schedule time with random variation (-10 to +10 minutes)
-    const randomMinutes = Math.floor(Math.random() * 21) - 10; // -10 to +10
-    const adjustedTime = new Date(schedule);
-    adjustedTime.setMinutes(adjustedTime.getMinutes() + randomMinutes);
-    return adjustedTime.toISOString();
-  };
-
-  const applyHybridLogic = (sessions: WorkSession[]): WorkSession[] => {
-    if (!shiftsData || !companySettings) return sessions;
-
-    const resultSessions: WorkSession[] = [];
-    
-    // Group sessions by date AND employee (for admin) or just by date (for employee)
-    const sessionsByKey = new Map<string, WorkSession[]>();
-    sessions.forEach(session => {
-      const sessionDate = format(new Date(session.punch_in.timestamp), 'yyyy-MM-dd');
-      // Create unique key: for admin include employee_id, for employee just date
-      const key = userRole === 'admin' 
-        ? `${sessionDate}_${session.punch_in.employee_id}`
-        : sessionDate;
-      
-      if (!sessionsByKey.has(key)) {
-        sessionsByKey.set(key, []);
-      }
-      sessionsByKey.get(key)!.push(session);
-    });
-
-    // Create a map of shifts by date and employee
-    const shiftKeyMap = new Map<string, any[]>();
-    shiftsData.forEach(shift => {
-      if (userRole === 'admin' || shift.employee_id === user?.id) {
-        const shiftDate = format(new Date(shift.start_time), 'yyyy-MM-dd');
-        // Create same unique key as for sessions
-        const key = userRole === 'admin' 
-          ? `${shiftDate}_${shift.employee_id}`
-          : shiftDate;
-        
-        if (!shiftKeyMap.has(key)) {
-          shiftKeyMap.set(key, []);
-        }
-        shiftKeyMap.get(key)!.push(shift);
-      }
-    });
-
-    const allProcessedKeys = new Set<string>();
-
-    // Process keys that have punch data
-    sessionsByKey.forEach((keySessions, key) => {
-      allProcessedKeys.add(key);
-      const dateStr = key.split('_')[0]; // Extract date from key
-      const useScheduleTimes = shouldUseScheduleTimes(dateStr);
-      
-      if (useScheduleTimes) {
-        // After closing: Adjust times to schedule with ±10 min tolerance
-        const keyShifts = shiftKeyMap.get(key);
-        if (keyShifts && keyShifts.length > 0) {
-          const shift = keyShifts[0];
-          const firstSession = keySessions[0];
-          
-          // Adjust actual punch times to schedule if within ±10 minutes
-          const adjustedPunchIn = firstSession.punch_in.timestamp 
-            ? adjustTimeToSchedule(firstSession.punch_in.timestamp, shift.start_time)
-            : shift.start_time;
-          
-        const adjustedPunchOut = firstSession.punch_out?.timestamp
-          ? adjustTimeToSchedule(firstSession.punch_out.timestamp, shift.end_time)
-          : undefined;
-
-        const adjustedDuration = adjustedPunchOut 
-          ? calculateDurationMinutes(adjustedPunchIn, adjustedPunchOut)
-          : undefined;
-          
-          resultSessions.push({
-            id: 'adjusted_' + key,
-            punch_in: {
-              id: 'adjusted_in_' + key,
-              entry_type: 'punch_in' as const,
-              timestamp: adjustedPunchIn,
-              employee_id: shift.employee_id,
-              employee_name: firstSession.employee_name
-            },
-          punch_out: adjustedPunchOut ? {
-            id: 'adjusted_out_' + key,
-            entry_type: 'punch_out' as const,
-            timestamp: adjustedPunchOut,
-            employee_id: shift.employee_id,
-            employee_name: firstSession.employee_name
-          } : undefined,
-            duration: adjustedDuration,
-            employee_name: firstSession.employee_name
-          });
-        } else {
-          // No schedule exists, don't show anything
-        }
-      } else {
-        // During opening hours: Show exact punch times
-        keySessions.forEach(session => {
-          resultSessions.push(session);
-        });
-      }
-    });
-
-    return resultSessions.sort((a, b) => 
-      new Date(b.punch_in.timestamp).getTime() - new Date(a.punch_in.timestamp).getTime()
-    );
-  };
 
 
   const getSessionBadge = (session: WorkSession) => {
