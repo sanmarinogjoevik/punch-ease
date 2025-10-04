@@ -21,11 +21,6 @@ export default function Auth() {
   const { tenantUsername, logoutTenant } = useTenant();
   const { toast } = useToast();
 
-  // Redirect if already authenticated
-  if (user) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
   const handleEmployeeSelect = (employeeEmail: string, employeeName: string) => {
     setSelectedEmployee({ email: employeeEmail, name: employeeName });
   };

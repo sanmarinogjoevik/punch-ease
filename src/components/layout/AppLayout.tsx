@@ -1,24 +1,15 @@
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
 import { UserProfile } from '@/components/UserProfile';
 import { Button } from '@/components/ui/button';
-import { LogOut, Building2 } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useTenant } from '@/hooks/useTenant';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 export function AppLayout() {
   const { signOut } = useAuth();
-  const { logoutTenant } = useTenant();
-  const navigate = useNavigate();
   const isMobile = useIsMobile();
-
-  const handleTenantLogout = async () => {
-    await signOut();
-    logoutTenant();
-    navigate('/');
-  };
 
   return (
     <SidebarProvider>
@@ -38,15 +29,6 @@ export function AppLayout() {
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 {!isMobile && <span>Sign Out</span>}
-              </Button>
-              <Button 
-                variant="ghost" 
-                size={isMobile ? "sm" : "sm"}
-                onClick={handleTenantLogout}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <Building2 className="h-4 w-4 mr-2" />
-                {!isMobile && <span>Byt företag</span>}
               </Button>
             </div>
           </header>
