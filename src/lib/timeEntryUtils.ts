@@ -69,10 +69,11 @@ export function processTimeEntry(
 
   // If we should use schedule and have a shift
   if (shouldUseSchedule && shift) {
-    const lunchMinutes = 30;
     const shiftStart = new Date(shift.start_time);
     const shiftEnd = new Date(shift.end_time);
-    const totalMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60)) - lunchMinutes;
+    const durationMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
+    const lunchMinutes = durationMinutes > 330 ? 30 : 0;
+    const totalMinutes = durationMinutes - lunchMinutes;
 
     return {
       punchIn: shift.start_time,
@@ -99,8 +100,8 @@ export function processTimeEntry(
       const end = new Date(punchOut);
       const durationMinutes = Math.floor((end.getTime() - start.getTime()) / (1000 * 60));
       
-      // Calculate lunch break (30 min if worked more than 6 hours)
-      if (durationMinutes > 6 * 60) {
+      // Calculate lunch break (30 min if worked more than 5.5 hours)
+      if (durationMinutes > 330) {
         lunchMinutes = 30;
       }
       
@@ -110,7 +111,7 @@ export function processTimeEntry(
       const start = new Date(punchIn);
       const durationMinutes = Math.floor((now.getTime() - start.getTime()) / (1000 * 60));
       
-      if (durationMinutes > 6 * 60) {
+      if (durationMinutes > 330) {
         lunchMinutes = 30;
       }
       

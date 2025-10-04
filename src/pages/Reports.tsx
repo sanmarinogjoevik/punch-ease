@@ -232,7 +232,7 @@ export default function Reports() {
             punchOut = formatTimeNorway(dayShift.end_time);
             
             const totalMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
-            const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
+            const pauseMinutes = totalMinutes > 330 ? 30 : 0;
             const workMinutes = totalMinutes - pauseMinutes;
             
             const hours = Math.floor(workMinutes / 60);
@@ -248,7 +248,7 @@ export default function Reports() {
               punchInEntry.timestamp, 
               punchOutEntry.timestamp
             );
-            const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
+            const pauseMinutes = totalMinutes > 330 ? 30 : 0;
             const workMinutes = totalMinutes - pauseMinutes;
             
             const hours = Math.floor(workMinutes / 60);
@@ -264,7 +264,7 @@ export default function Reports() {
             punchOut = formatTimeNorway(dayShift.end_time);
             
             const totalMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
-            const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
+            const pauseMinutes = totalMinutes > 330 ? 30 : 0;
             const workMinutes = totalMinutes - pauseMinutes;
             
             const hours = Math.floor(workMinutes / 60);
