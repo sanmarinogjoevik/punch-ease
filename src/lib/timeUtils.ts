@@ -121,3 +121,29 @@ export function formatDuration(minutes: number): string {
   }
   return `${mins}m`;
 }
+
+/**
+ * Kontrollerar om butiken är stängd baserat på business hours
+ */
+export function isAfterClosingTime(
+  date: Date,
+  businessHours?: Array<{
+    day: number;
+    isOpen: boolean;
+    openTime: string;
+    closeTime: string;
+  }>
+): boolean {
+  if (!businessHours) return false;
+  
+  const norwayDate = toNorwegianTime(date);
+  const dayOfWeek = norwayDate.getDay();
+  const currentTime = formatInTimeZone(norwayDate, TIMEZONE, 'HH:mm');
+  
+  const todayHours = businessHours.find(h => h.day === dayOfWeek);
+  if (!todayHours || !todayHours.isOpen) {
+    return true; // Stängt hela dagen
+  }
+  
+  return currentTime >= todayHours.closeTime;
+}
