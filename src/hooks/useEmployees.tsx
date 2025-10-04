@@ -9,6 +9,7 @@ export interface Employee {
   email: string;
   phone?: string | null;
   personal_number?: string | null;
+  company_id?: string;
   created_at: string;
   updated_at: string;
 }

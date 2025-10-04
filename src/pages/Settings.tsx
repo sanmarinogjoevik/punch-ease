@@ -56,7 +56,6 @@ const companySettingsSchema = z.object({
     .optional()
     .or(z.literal('')),
   tenant_password: z.string()
-    .min(8, 'Lösenord måste vara minst 8 tecken')
     .optional()
     .or(z.literal('')),
 });

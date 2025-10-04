@@ -5,9 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
+import { useTenant } from '@/hooks/useTenant';
 import { useToast } from '@/hooks/use-toast';
 import { EmployeeSelector } from '@/components/EmployeeSelector';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, LogOut } from 'lucide-react';
 
 export default function Auth() {
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -17,11 +18,12 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   
   const { signIn, user } = useAuth();
+  const { tenantUsername, logoutTenant } = useTenant();
   const { toast } = useToast();
 
   // Redirect if already authenticated
   if (user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   const handleEmployeeSelect = (employeeEmail: string, employeeName: string) => {
@@ -64,12 +66,25 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">
-            {isAdminMode ? 'Admin Inloggning' : selectedEmployee ? `Välkommen ${selectedEmployee.name}` : 'Välj Anställd'}
-          </CardTitle>
-          <CardDescription>
-            {isAdminMode ? 'Logga in med ditt admin-konto' : 'Välkommen tillbaka till PunchEase'}
-          </CardDescription>
+          <div className="flex justify-between items-start mb-2">
+            <div className="flex-1">
+              <CardTitle className="text-2xl font-bold">
+                {isAdminMode ? 'Admin Inloggning' : selectedEmployee ? `Välkommen ${selectedEmployee.name}` : 'Välj Anställd'}
+              </CardTitle>
+              <CardDescription>
+                {isAdminMode ? 'Logga in med ditt admin-konto' : `Företag: ${tenantUsername || 'Okänt'}`}
+              </CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={logoutTenant}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Byt företag
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {!isAdminMode && !selectedEmployee && (
