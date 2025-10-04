@@ -49,6 +49,12 @@ export default function TimelistTable({
   const [timelistEntries, setTimelistEntries] = useState<TimelistEntry[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
 
+  // Reset state when employee changes
+  useEffect(() => {
+    setTimelistEntries([]);
+    setTimeEntries([]);
+  }, [employeeId]);
+
   useEffect(() => {
     if (employeeId && selectedMonth) {
       fetchTimeEntries();
@@ -60,6 +66,31 @@ export default function TimelistTable({
       generateTimelist();
     }
   }, [shifts, timeEntries, employeeId, selectedMonth, companySettings]);
+
+  // Real-time subscription for time_entries
+  useEffect(() => {
+    if (!employeeId) return;
+
+    const channel = supabase
+      .channel(`time_entries_${employeeId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'time_entries',
+          filter: `employee_id=eq.${employeeId}`
+        },
+        () => {
+          fetchTimeEntries();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [employeeId, selectedMonth]);
 
   const fetchTimeEntries = async () => {
     if (!employeeId) return;
