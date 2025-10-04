@@ -61,6 +61,25 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Admin-only route wrapper that requires admin role
+function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { userRole, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-lg text-foreground">Laster...</div>
+      </div>
+    );
+  }
+
+  if (userRole !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 
 function AppRoutes() {
   return (
@@ -70,17 +89,19 @@ function AppRoutes() {
       
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/schedule" element={<Schedule />} />
         <Route path="/employee-schedule" element={<EmployeeSchedule />} />
         <Route path="/time-entries" element={<TimeEntries />} />
-        <Route path="/reports" element={<Reports />} />
-        <Route path="/employees" element={<Employees />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/settings" element={<Settings />} />
         <Route path="/temperature-log" element={<TemperatureLog />} />
         <Route path="/timeliste" element={<Timeliste />} />
-        <Route path="/bedriftskunder" element={<Bedriftskunder />} />
         <Route path="/beställningar" element={<Beställningar />} />
+        
+        {/* Admin-only routes */}
+        <Route path="/schedule" element={<AdminProtectedRoute><Schedule /></AdminProtectedRoute>} />
+        <Route path="/reports" element={<AdminProtectedRoute><Reports /></AdminProtectedRoute>} />
+        <Route path="/employees" element={<AdminProtectedRoute><Employees /></AdminProtectedRoute>} />
+        <Route path="/admin" element={<AdminProtectedRoute><Admin /></AdminProtectedRoute>} />
+        <Route path="/settings" element={<AdminProtectedRoute><Settings /></AdminProtectedRoute>} />
+        <Route path="/bedriftskunder" element={<AdminProtectedRoute><Bedriftskunder /></AdminProtectedRoute>} />
       </Route>
       
       <Route path="*" element={<NotFound />} />

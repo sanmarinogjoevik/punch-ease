@@ -91,11 +91,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await supabase.auth.signOut();
     } catch (error) {
-      // Even if logout fails on server, clear local session
       console.error('Logout error:', error);
     } finally {
-      // Force clear local storage to ensure clean logout
-      localStorage.removeItem('sb-eynulvphjcojanzryfyi-auth-token');
+      // Supabase SDK hanterar localStorage cleanup automatiskt
       setUser(null);
       setSession(null);
       setUserRole(null);

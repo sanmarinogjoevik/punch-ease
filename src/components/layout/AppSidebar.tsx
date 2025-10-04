@@ -21,18 +21,8 @@ export function AppSidebar() {
   const isMobile = useIsMobile();
   const collapsed = state === 'collapsed';
   
-  const currentPath = location.pathname;
-  const isActive = (path: string) => currentPath === path;
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' : 'hover:bg-sidebar-accent/50';
-
-  const employeeItems = [
-    { title: 'Dashboard', url: '/dashboard', icon: Home },
-    { title: 'Min Plan', url: '/employee-schedule', icon: Calendar },
-    { title: 'Tidsregistrering', url: '/time-entries', icon: Clock },
-    { title: 'Temperaturlogg', url: '/temperature-log', icon: Thermometer },
-    { title: 'Timeliste', url: '/timeliste', icon: BarChart3 },
-  ];
 
   const adminItems = [
     { title: 'Admin', url: '/admin', icon: Shield },
