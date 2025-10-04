@@ -263,11 +263,13 @@ export default function TimeEntries() {
             ? adjustTimeToSchedule(firstSession.punch_in.timestamp, shift.start_time)
             : shift.start_time;
           
-          const adjustedPunchOut = firstSession.punch_out?.timestamp
-            ? adjustTimeToSchedule(firstSession.punch_out.timestamp, shift.end_time)
-            : shift.end_time;
-          
-          const adjustedDuration = calculateDurationMinutes(adjustedPunchIn, adjustedPunchOut);
+        const adjustedPunchOut = firstSession.punch_out?.timestamp
+          ? adjustTimeToSchedule(firstSession.punch_out.timestamp, shift.end_time)
+          : undefined;
+
+        const adjustedDuration = adjustedPunchOut 
+          ? calculateDurationMinutes(adjustedPunchIn, adjustedPunchOut)
+          : undefined;
           
           resultSessions.push({
             id: 'adjusted_' + key,
@@ -278,13 +280,13 @@ export default function TimeEntries() {
               employee_id: shift.employee_id,
               employee_name: firstSession.employee_name
             },
-            punch_out: {
-              id: 'adjusted_out_' + key,
-              entry_type: 'punch_out' as const,
-              timestamp: adjustedPunchOut,
-              employee_id: shift.employee_id,
-              employee_name: firstSession.employee_name
-            },
+          punch_out: adjustedPunchOut ? {
+            id: 'adjusted_out_' + key,
+            entry_type: 'punch_out' as const,
+            timestamp: adjustedPunchOut,
+            employee_id: shift.employee_id,
+            employee_name: firstSession.employee_name
+          } : undefined,
             duration: adjustedDuration,
             employee_name: firstSession.employee_name
           });
