@@ -28,8 +28,8 @@ export function AppSidebar() {
 
   const employeeItems = [
     { title: 'Dashboard', url: '/', icon: Home },
-    { title: 'Min Plan', url: '/my-schedule', icon: Calendar },
-    { title: 'Tidsregistrering', url: '/timesheet', icon: Clock },
+    { title: 'Min Plan', url: '/employee-schedule', icon: Calendar },
+    { title: 'Tidsregistrering', url: '/time-entries', icon: Clock },
     { title: 'Temperaturlogg', url: '/temperature-log', icon: Thermometer },
     { title: 'Timeliste', url: '/timeliste', icon: BarChart3 },
   ];
@@ -37,7 +37,7 @@ export function AppSidebar() {
   const adminItems = [
     { title: 'Admin', url: '/admin', icon: Shield },
     { title: 'Vaktliste', url: '/schedule', icon: Calendar },
-    { title: 'Tidsregistrering', url: '/timesheet', icon: Clock },
+    { title: 'Tidsregistrering', url: '/time-entries', icon: Clock },
     { title: 'Temperaturlogg', url: '/temperature-log', icon: Thermometer },
     { title: 'Bedriftskunde', url: '/bedriftskunder', icon: Building2 },
     { title: 'Beställning', url: '/beställningar', icon: ShoppingCart },
@@ -48,8 +48,8 @@ export function AppSidebar() {
 
   const employeeItemsWithOrders = [
     { title: 'Dashboard', url: '/', icon: Home },
-    { title: 'Min Plan', url: '/my-schedule', icon: Calendar },
-    { title: 'Tidsregistrering', url: '/timesheet', icon: Clock },
+    { title: 'Min Plan', url: '/employee-schedule', icon: Calendar },
+    { title: 'Tidsregistrering', url: '/time-entries', icon: Clock },
     { title: 'Temperaturlogg', url: '/temperature-log', icon: Thermometer },
     { title: 'Beställning', url: '/beställningar', icon: ShoppingCart },
     { title: 'Timeliste', url: '/timeliste', icon: BarChart3 },

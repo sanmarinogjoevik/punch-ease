@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PunchClock } from '@/components/PunchClock';
 import { TodaysTemperatureLogs } from '@/components/TodaysTemperatureLogs';
+import { LivePunchStatus } from '@/components/LivePunchStatus';
 import { Calendar, Clock, Users, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -382,6 +383,13 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        {/* Live Punch Status - Admin only */}
+        {userRole === 'admin' && (
+          <div className="col-span-1 md:col-span-2 lg:col-span-1">
+            <LivePunchStatus />
+          </div>
+        )}
+
         {/* Punch Clock - Always visible */}
         <div className="col-span-1 md:col-span-2 lg:col-span-1">
           <PunchClock />
