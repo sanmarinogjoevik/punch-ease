@@ -108,54 +108,50 @@ export default function TimeEntries() {
       });
     });
 
-    // For each employee, pair punch-in and punch-out entries
-    entriesByEmployee.forEach((employeeEntries, employeeId) => {
-      // Sort by timestamp (oldest first for pairing)
+    // For each employee, create sessions by pairing punch-ins with punch-outs
+    entriesByEmployee.forEach((employeeEntries) => {
+      // Sort by timestamp (oldest first)
       const sortedEntries = [...employeeEntries].sort((a, b) => 
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
 
-      const punchIns: TimeEntry[] = [];
-      const punchOuts: TimeEntry[] = [];
-
-      // Separate punch-ins and punch-outs
-      sortedEntries.forEach(entry => {
+      let i = 0;
+      while (i < sortedEntries.length) {
+        const entry = sortedEntries[i];
+        
         if (entry.entry_type === 'punch_in') {
-          punchIns.push(entry);
-        } else {
-          punchOuts.push(entry);
-        }
-      });
-
-      // Pair punch-ins with punch-outs
-      const paired = new Set<number>();
-      punchIns.forEach((punchIn, i) => {
-        // Find the first unpaired punch-out that comes after this punch-in
-        let matchingPunchOutIndex = -1;
-        for (let j = 0; j < punchOuts.length; j++) {
-          if (!paired.has(j) && new Date(punchOuts[j].timestamp) > new Date(punchIn.timestamp)) {
-            matchingPunchOutIndex = j;
-            paired.add(j);
-            break;
+          // Find the next punch_out after this punch_in
+          let nextPunchOut: TimeEntry | undefined;
+          let nextPunchOutIndex = -1;
+          
+          for (let j = i + 1; j < sortedEntries.length; j++) {
+            if (sortedEntries[j].entry_type === 'punch_out') {
+              nextPunchOut = sortedEntries[j];
+              nextPunchOutIndex = j;
+              break;
+            }
           }
+          
+          // Create session
+          const duration = nextPunchOut 
+            ? calculateDurationMinutes(entry.timestamp, nextPunchOut.timestamp)
+            : undefined;
+          
+          sessions.push({
+            id: entry.id,
+            punch_in: entry,
+            punch_out: nextPunchOut,
+            duration,
+            employee_name: entry.employee_name
+          });
+          
+          // Skip to after the punch_out if found, otherwise just move to next entry
+          i = nextPunchOutIndex !== -1 ? nextPunchOutIndex + 1 : i + 1;
+        } else {
+          // Skip standalone punch_outs
+          i++;
         }
-
-        let punchOut: TimeEntry | undefined;
-        let duration: number | undefined;
-
-        if (matchingPunchOutIndex !== -1) {
-          punchOut = punchOuts[matchingPunchOutIndex];
-          duration = calculateDurationMinutes(punchIn.timestamp, punchOut.timestamp);
-        }
-
-        sessions.push({
-          id: punchIn.id,
-          punch_in: punchIn,
-          punch_out: punchOut,
-          duration,
-          employee_name: punchIn.employee_name
-        });
-      });
+      }
     });
 
     // Sort sessions by punch_in timestamp (newest first)
