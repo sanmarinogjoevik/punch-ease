@@ -21,7 +21,7 @@ interface TimelistEntry {
   punchIn: string | null;
   punchOut: string | null;
   lunch: string;
-  total: string;
+  totalMinutes: number;
   hasData: boolean;
 }
 
@@ -108,7 +108,7 @@ export default function Timeliste() {
         
         let punchIn = null;
         let punchOut = null;
-        let total = '';
+        let totalMinutes = 0;
         let lunch = '';
         let hasData = false;
         
@@ -128,7 +128,7 @@ export default function Timeliste() {
           if (isActiveToday) {
             // Don't show OUT time for active shift
             punchOut = null;
-            total = '';
+            totalMinutes = 0;
           } else if (punchOutEntry) {
             // Use actual punch out time
             punchOut = format(parseISO(punchOutEntry.timestamp), 'HH:mm');
@@ -140,7 +140,7 @@ export default function Timeliste() {
             );
             const lunchMinutes = durationMinutes >= 480 ? 30 : 0; // 30 min lunch if 8+ hours
             const workMinutes = Math.max(0, durationMinutes - lunchMinutes);
-            total = formatDuration(workMinutes);
+            totalMinutes = workMinutes;
             lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
           } else if (dayShift) {
             // Use scheduled times as fallback
@@ -149,7 +149,7 @@ export default function Timeliste() {
             const durationMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
             const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
             const workMinutes = Math.max(0, durationMinutes - lunchMinutes);
-            total = formatDuration(workMinutes);
+            totalMinutes = workMinutes;
             lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
           }
         }
@@ -161,7 +161,7 @@ export default function Timeliste() {
           punchIn,
           punchOut,
           lunch,
-          total,
+          totalMinutes,
           hasData
         };
       });
@@ -185,16 +185,8 @@ export default function Timeliste() {
   };
 
   const calculateTotalHours = () => {
-    let totalMinutes = 0;
-    timelistEntries.forEach(entry => {
-      if (entry.total) {
-        const [hours, minutes] = entry.total.split(':').map(Number);
-        totalMinutes += hours * 60 + minutes;
-      }
-    });
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${hours}:${minutes.toString().padStart(2, '0')}`;
+    const totalMinutes = timelistEntries.reduce((sum, entry) => sum + entry.totalMinutes, 0);
+    return formatDuration(totalMinutes);
   };
 
   if (isLoading) {
@@ -273,7 +265,7 @@ export default function Timeliste() {
                       {entry.lunch || '-'}
                     </TableCell>
                     <TableCell className="text-center font-mono font-semibold">
-                      {entry.total || '-'}
+                      {entry.totalMinutes > 0 ? formatDuration(entry.totalMinutes) : '-'}
                     </TableCell>
                   </TableRow>
                 );
