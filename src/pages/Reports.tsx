@@ -21,6 +21,7 @@ import html2pdf from 'html2pdf.js';
 import { formatDuration, formatTimeNorway, calculateDurationMinutes, isAfterClosingTime, createUTCFromNorwegianTime } from '@/lib/timeUtils';
 import { processTimeEntry, type TimeEntry as TimeEntryType } from '@/lib/timeEntryUtils';
 import { supabase } from '@/integrations/supabase/client';
+import TimelistTable from '@/components/TimelistTable';
 
 
 interface TimeEntry {
@@ -56,9 +57,7 @@ export default function Reports() {
   const { toast } = useToast();
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
-  const [timelistEntries, setTimelistEntries] = useState<TimelistEntry[]>([]);
   const [activeTab, setActiveTab] = useState<'timelista' | 'vaktlista' | 'temperatur'>('timelista');
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   
   // Use the new hooks
   const { data: employees = [], isLoading: employeesLoading } = useEmployees();
@@ -134,169 +133,6 @@ export default function Reports() {
 
   const loading = employeesLoading || shiftsLoading;
 
-  // Fetch time entries when employee or month changes
-  useEffect(() => {
-    if (selectedEmployee && selectedMonth) {
-      fetchTimeEntries();
-    }
-  }, [selectedEmployee, selectedMonth]);
-
-  // Generate timelist whenever shifts or time entries data changes
-  useEffect(() => {
-    if (selectedEmployee && shifts) {
-      generateTimelist();
-    }
-  }, [shifts, timeEntries, selectedEmployee, selectedMonth, companySettings]);
-
-  const fetchTimeEntries = async () => {
-    if (!selectedEmployee) return;
-    
-    try {
-      const monthStart = startOfMonth(new Date(selectedMonth + '-01'));
-      const monthEnd = endOfMonth(monthStart);
-      
-      const { data, error } = await supabase
-        .from('time_entries')
-        .select('*')
-        .eq('employee_id', selectedEmployee)
-        .gte('timestamp', monthStart.toISOString())
-        .lte('timestamp', monthEnd.toISOString())
-        .order('timestamp', { ascending: true });
-      
-      if (error) {
-        console.error('Error fetching time entries:', error);
-        return;
-      }
-      
-      setTimeEntries(data || []);
-    } catch (error) {
-      console.error('Error fetching time entries:', error);
-    }
-  };
-
-  const generateTimelist = () => {
-    if (!selectedEmployee || !shifts) return;
-    
-    try {
-      const monthStart = startOfMonth(new Date(selectedMonth + '-01'));
-      const monthEnd = endOfMonth(monthStart);
-      
-      // Generate all days of the month
-      const allDaysInMonth = eachDayOfInterval({
-        start: monthStart,
-        end: monthEnd
-      });
-
-      // Group time entries by date
-      const entriesByDate = new Map<string, TimeEntry[]>();
-      timeEntries.forEach(entry => {
-        const dateStr = format(parseISO(entry.timestamp), 'yyyy-MM-dd');
-        if (!entriesByDate.has(dateStr)) {
-          entriesByDate.set(dateStr, []);
-        }
-        entriesByDate.get(dateStr)!.push(entry);
-      });
-
-      const processedEntries = allDaysInMonth.map(date => {
-        const dateStr = format(date, 'yyyy-MM-dd');
-        const dayOfWeek = getDay(date);
-        
-        // Check if store is closed for this date
-        const today = startOfDay(new Date());
-        const currentDate = startOfDay(date);
-        const isPastDay = currentDate < today;
-        const isStoreClosed = isPastDay || (currentDate.getTime() === today.getTime() && isAfterClosingTime(date, companySettings?.business_hours as any[]));
-        
-        // Find shift for this day
-        const dayShift = shifts.find(shift => 
-          shift.start_time.startsWith(dateStr)
-        );
-        
-        // Get time entries for this day
-        const dayEntries = entriesByDate.get(dateStr) || [];
-        const punchInEntry = dayEntries.find(e => e.entry_type === 'punch_in');
-        const punchOutEntry = dayEntries.find(e => e.entry_type === 'punch_out');
-        
-        let punchIn = null;
-        let punchOut = null;
-        let total = '';
-        let lunch = '';
-        let hasData = false;
-        
-        if (dayShift || punchInEntry) {
-          hasData = true;
-          
-          if (isStoreClosed && dayShift) {
-            // Store closed - use schedule times from shift
-            punchIn = formatTimeNorway(dayShift.start_time);
-            punchOut = formatTimeNorway(dayShift.end_time);
-            
-            const totalMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
-            const pauseMinutes = totalMinutes > 330 ? 30 : 0;
-            const workMinutes = totalMinutes - pauseMinutes;
-            
-            const hours = Math.floor(workMinutes / 60);
-            const minutes = workMinutes % 60;
-            total = `${hours}:${minutes.toString().padStart(2, '0')}`;
-            lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
-          } else if (punchInEntry && punchOutEntry) {
-            // Store open OR has actual punches - use actual times
-            punchIn = formatTimeNorway(punchInEntry.timestamp);
-            punchOut = formatTimeNorway(punchOutEntry.timestamp);
-            
-            const totalMinutes = calculateDurationMinutes(
-              punchInEntry.timestamp, 
-              punchOutEntry.timestamp
-            );
-            const pauseMinutes = totalMinutes > 330 ? 30 : 0;
-            const workMinutes = totalMinutes - pauseMinutes;
-            
-            const hours = Math.floor(workMinutes / 60);
-            const minutes = workMinutes % 60;
-            total = `${hours}:${minutes.toString().padStart(2, '0')}`;
-            lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
-          } else if (punchInEntry) {
-            // Only punch in, no punch out
-            punchIn = formatTimeNorway(punchInEntry.timestamp);
-          } else if (dayShift) {
-            // No punches, show schedule if shift exists
-            punchIn = formatTimeNorway(dayShift.start_time);
-            punchOut = formatTimeNorway(dayShift.end_time);
-            
-            const totalMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
-            const pauseMinutes = totalMinutes > 330 ? 30 : 0;
-            const workMinutes = totalMinutes - pauseMinutes;
-            
-            const hours = Math.floor(workMinutes / 60);
-            const minutes = workMinutes % 60;
-            total = `${hours}:${minutes.toString().padStart(2, '0')}`;
-            lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
-          }
-        }
-
-        return {
-          date: dateStr,
-          day: date.getDate().toString(),
-          dayName: NORWEGIAN_DAYS[dayOfWeek],
-          punchIn,
-          punchOut,
-          lunch,
-          total,
-          hasData
-        };
-      });
-
-      setTimelistEntries(processedEntries);
-    } catch (error) {
-      console.error('Error generating timelist:', error);
-      toast({
-        title: "Fel",
-        description: "Fel vid generering av timlista",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handlePreviousMonth = () => {
     const currentDate = new Date(selectedMonth + '-01');
     const previousMonth = new Date(currentDate.setMonth(currentDate.getMonth() - 1));
@@ -362,6 +198,34 @@ export default function Reports() {
     }
   };
 
+  // For timelist table - need to update shift based on the entry date
+  const handleTimestampUpdate = async () => {
+    if (!editingDate || !selectedEmployee) return;
+    
+    setIsSubmitting(true);
+    try {
+      // Find existing shift for this day first
+      const existingShift = shifts.find(shift => 
+        shift.start_time.startsWith(editingDate)
+      );
+
+      if (existingShift) {
+        // Update existing shift
+        await updateShift.mutateAsync({
+          id: existingShift.id,
+          start_time: `${editingDate}T${editForm.punch_in}:00+00:00`,
+          end_time: `${editingDate}T${editForm.punch_out}:00+00:00`
+        });
+      }
+
+      setShowEditDialog(false);
+    } catch (error: any) {
+      console.error('Error updating shift:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleEditShift = (shift: any) => {
     setEditingShift(shift);
     // Använd formatTimeNorway för att visa norsk tid
@@ -411,24 +275,8 @@ export default function Reports() {
     }
   };
 
-  const calculateTotalHours = () => {
-    return timelistEntries.reduce((total, entry) => {
-      if (entry.total && entry.total !== '') {
-        const [hours, minutes] = entry.total.split(':').map(Number);
-        return total + (hours * 60) + minutes;
-      }
-      return total;
-    }, 0);
-  };
-
-  const formatTotalMinutes = (totalMinutes: number) => {
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${hours}:${minutes.toString().padStart(2, '0')}`;
-  };
-
   const exportTimelistToPDF = () => {
-    if (!selectedEmployeeData || timelistEntries.length === 0) {
+    if (!selectedEmployeeData) {
       toast({
         title: "Fel",
         description: "Välj en anställd och månad för att exportera",
@@ -452,7 +300,7 @@ export default function Reports() {
   };
 
   const printTimelist = () => {
-    if (!selectedEmployeeData || timelistEntries.length === 0) {
+    if (!selectedEmployeeData) {
       toast({
         title: "Fel",
         description: "Välj en anställd och månad för att skriva ut",
@@ -761,105 +609,16 @@ export default function Reports() {
 
               {/* Timelist Table */}
               {selectedEmployee && (
-                <Card>
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="text-center border-r">DATUM</TableHead>
-                          <TableHead className="text-center border-r">DAG</TableHead>
-                          <TableHead className="text-center border-r">IN</TableHead>
-                          <TableHead className="text-center border-r">UT</TableHead>
-                          <TableHead className="text-center border-r">PAUSE</TableHead>
-                          <TableHead className="text-center border-r">TOTALT</TableHead>
-                          {userRole === 'admin' && (
-                            <TableHead className="text-center">ÅTGÄRD</TableHead>
-                          )}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {timelistEntries.map((entry, index) => {
-                          // Check if this is an ongoing shift
-                          const todayStr = format(new Date(), 'yyyy-MM-dd');
-                          const isToday = entry.date === todayStr;
-                          const isOngoing = isToday && entry.punchIn && !entry.punchOut;
-                          
-                          return (
-                            <TableRow 
-                              key={entry.date} 
-                              className={`
-                                ${index % 2 === 0 ? 'bg-muted/20' : ''} 
-                                ${isOngoing ? 'bg-primary/10 border-l-4 border-l-primary' : ''}
-                              `}
-                            >
-                              <TableCell className="text-center border-r font-mono">{entry.day}</TableCell>
-                              <TableCell className="text-center border-r">
-                                {entry.dayName}
-                                {isOngoing && <span className="ml-2 text-xs text-primary font-semibold">(Pågående)</span>}
-                              </TableCell>
-                              <TableCell className="text-center border-r font-mono">
-                                {entry.punchIn || '-'}
-                              </TableCell>
-                              <TableCell className="text-center border-r font-mono">
-                                {entry.punchOut || '-'}
-                              </TableCell>
-                              <TableCell className="text-center border-r font-mono">
-                                {entry.lunch || '-'}
-                              </TableCell>
-                              <TableCell className="text-center border-r font-mono font-semibold">
-                                {entry.total || '-'}
-                              </TableCell>
-                              {userRole === 'admin' && (
-                                <TableCell className="text-center">
-                                  <div className="flex justify-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleEditEntry(entry)}
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                    {entry.hasData && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleDeleteEntry(entry)}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    )}
-                                  </div>
-                                </TableCell>
-                              )}
-                            </TableRow>
-                          );
-                        })}
-                        
-                        {/* Total Row */}
-                        <TableRow className="border-t-2 font-bold">
-                          <TableCell colSpan={5} className="text-right border-r">
-                            TOTALT:
-                          </TableCell>
-                          <TableCell className="text-center border-r font-mono">
-                            {formatTotalMinutes(calculateTotalHours())}
-                          </TableCell>
-                          {userRole === 'admin' && <TableCell></TableCell>}
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-
-                )}
-
-                {/* Total Hours Summary */}
-                {timelistEntries.some(e => e.total) && (
-                  <div className="mt-6 text-right">
-                    <div className="text-lg font-semibold">
-                      Totalt antal timmar: {formatTotalMinutes(calculateTotalHours())}
-                    </div>
-                  </div>
-                )}
+                <TimelistTable
+                  selectedMonth={selectedMonth}
+                  employeeId={selectedEmployee}
+                  companySettings={companySettings}
+                  shifts={shifts}
+                  showActions={userRole === 'admin'}
+                  onEditEntry={handleEditEntry}
+                  onDeleteEntry={handleDeleteEntry}
+                />
+              )}
 
                 {/* Signature Section */}
                 {selectedEmployee && (
