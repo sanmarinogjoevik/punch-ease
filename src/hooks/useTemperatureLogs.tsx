@@ -95,13 +95,6 @@ export const useTemperatureLogs = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Du måste vara inloggad');
 
-      // Get company_id and profile from current user
-      const { data: userProfile } = await supabase
-        .from('profiles')
-        .select('company_id, first_name, last_name')
-        .eq('user_id', user.id)
-        .single();
-
       const { data, error } = await supabase
         .from('temperature_logs')
         .insert({
@@ -109,18 +102,24 @@ export const useTemperatureLogs = () => {
           equipment_name: logData.equipment_name,
           temperature: logData.temperature,
           notes: logData.notes,
-          company_id: userProfile?.company_id || '',
         })
         .select('*')
         .single();
 
       if (error) throw error;
       
+      // Get employee name
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('user_id', user.id)
+        .single();
+      
       const logWithProfile = {
         ...data,
-        profiles: userProfile ? {
-          first_name: userProfile.first_name || '',
-          last_name: userProfile.last_name || ''
+        profiles: profile ? {
+          first_name: profile.first_name || '',
+          last_name: profile.last_name || ''
         } : undefined
       };
       

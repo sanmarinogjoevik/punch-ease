@@ -112,19 +112,11 @@ export const useBeställningar = () => {
         throw new Error('Du måste vara inloggad');
       }
 
-      // Get company_id from current user
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', user.id)
-        .single();
-
       const { error } = await supabase
         .from('beställningar')
         .insert([{
           ...data,
-          created_by: user.id,
-          company_id: profile?.company_id || '',
+          created_by: user.id
         }]);
 
       if (error) throw error;

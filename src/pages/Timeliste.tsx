@@ -7,10 +7,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, parseISO, isSameDay, isToday } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
-import { formatTimeNorway, calculateDurationMinutes, formatDuration } from '@/lib/timeUtils';
-import { supabase } from '@/integrations/supabase/client';
+import { formatTimeNorway } from '@/lib/timeUtils';
 
 const NORWEGIAN_DAYS = ['Sön', 'Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör'];
 
@@ -21,7 +20,7 @@ interface TimelistEntry {
   punchIn: string | null;
   punchOut: string | null;
   lunch: string;
-  totalMinutes: number;
+  total: string;
   hasData: boolean;
 }
 
@@ -30,7 +29,6 @@ export default function Timeliste() {
   const { data: userProfile } = useCurrentUserProfile();
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [timelistEntries, setTimelistEntries] = useState<TimelistEntry[]>([]);
-  const [timeEntries, setTimeEntries] = useState<any[]>([]);
   
   const { data: shifts, isLoading: shiftsLoading } = useEmployeeMonthShifts(
     user?.id || '',
@@ -42,46 +40,12 @@ export default function Timeliste() {
   const isLoading = shiftsLoading || settingsLoading;
 
   useEffect(() => {
-    if (!isLoading && shifts && user) {
-      fetchTimeEntriesAndGenerate();
+    if (!isLoading && shifts) {
+      generateTimelist();
     }
-  }, [shifts, companySettings, selectedMonth, isLoading, user]);
+  }, [shifts, companySettings, selectedMonth, isLoading]);
 
-  const fetchTimeEntriesAndGenerate = async () => {
-    if (!user) return;
-    
-    const monthStart = startOfMonth(new Date(selectedMonth + '-01'));
-    const monthEnd = endOfMonth(monthStart);
-    
-    const { data: entries } = await supabase
-      .from('time_entries')
-      .select('*')
-      .eq('employee_id', user.id)
-      .gte('timestamp', monthStart.toISOString())
-      .lte('timestamp', monthEnd.toISOString())
-      .order('timestamp', { ascending: true });
-    
-    setTimeEntries(entries || []);
-    generateTimelist(entries || []);
-  };
-
-  const isBusinessClosed = (date: Date, closeTime: string): boolean => {
-    if (!isToday(date)) return true; // Alla gamla dagar räknas som "stängda"
-    
-    const now = new Date();
-    const [closeHour, closeMinute] = closeTime.split(':').map(Number);
-    const closingTime = new Date(date);
-    closingTime.setHours(closeHour, closeMinute, 0, 0);
-    
-    // Om stängningstid är efter midnatt (t.ex. 03:00), lägg till en dag
-    if (closeHour < 6) {
-      closingTime.setDate(closingTime.getDate() + 1);
-    }
-    
-    return now > closingTime;
-  };
-
-  const generateTimelist = (entries: any[]) => {
+  const generateTimelist = () => {
     if (!shifts) {
       setTimelistEntries([]);
       return;
@@ -97,17 +61,8 @@ export default function Timeliste() {
         end: monthEnd
       });
 
-      // Group time entries by date
-      const entriesByDate: { [key: string]: any[] } = {};
-      entries.forEach(entry => {
-        const entryDate = format(parseISO(entry.timestamp), 'yyyy-MM-dd');
-        if (!entriesByDate[entryDate]) {
-          entriesByDate[entryDate] = [];
-        }
-        entriesByDate[entryDate].push(entry);
-      });
-
-      // Process shifts into daily data with actual time entries
+      // Process shifts into daily data with dynamic display logic
+      const now = new Date();
       const processedEntries = allDaysInMonth.map(date => {
         const dateStr = format(date, 'yyyy-MM-dd');
         const dayOfWeek = getDay(date);
@@ -117,94 +72,66 @@ export default function Timeliste() {
           shift.start_time.startsWith(dateStr)
         );
         
-        // Find actual punch in/out from time entries
-        const entriesForDay = entriesByDate[dateStr] || [];
-        const punchInEntry = entriesForDay.find(e => e.entry_type === 'punch_in');
-        const punchOutEntry = entriesForDay.find(e => e.entry_type === 'punch_out');
+        // Get business hours for this day of week
+        const businessHour = companySettings?.business_hours?.find(bh => bh.day === dayOfWeek);
         
         let punchIn = null;
         let punchOut = null;
-        let totalMinutes = 0;
+        let total = '';
         let lunch = '';
         let hasData = false;
         
         if (dayShift) {
-          hasData = true;
+          // Använd formatTimeNorway för att konvertera UTC till norsk tid
+          const startTimeStr = formatTimeNorway(dayShift.start_time);
+          const endTimeStr = formatTimeNorway(dayShift.end_time);
           
-          // Hitta stängningstid för denna dag
-          const dayOfWeek = getDay(date);
-          const businessDay = companySettings?.business_hours?.find(
-            (bh: any) => bh.day === dayOfWeek
-          );
-          const closeTime = businessDay?.closeTime || '22:00';
-          const closed = isBusinessClosed(date, closeTime);
+          // Skapa Date-objekt för jämförelser
+          const [startHour, startMinute] = startTimeStr.split(':').map(Number);
+          const [endHour, endMinute] = endTimeStr.split(':').map(Number);
           
-          // Om butiken är stängd ELLER det inte är idag: visa SPARADE time_entries tider (med ±10 min variation)
-          if (closed || !isToday(date)) {
-            if (punchInEntry) {
-              // Använd sparade tider från time_entries
-              punchIn = format(parseISO(punchInEntry.timestamp), 'HH:mm');
-              punchOut = punchOutEntry 
-                ? format(parseISO(punchOutEntry.timestamp), 'HH:mm')
-                : formatTimeNorway(dayShift.end_time); // Fallback till vaktlista om ingen punch-out
-              
-              if (punchOutEntry) {
-                const durationMinutes = calculateDurationMinutes(
-                  punchInEntry.timestamp, 
-                  punchOutEntry.timestamp
-                );
-                const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
-                totalMinutes = Math.max(0, durationMinutes - lunchMinutes);
-                lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
-              } else {
-                // Ingen punch-out: beräkna baserat på vaktlistans sluttid
-                const durationMinutes = calculateDurationMinutes(
-                  dayShift.start_time, 
-                  dayShift.end_time
-                );
-                const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
-                totalMinutes = Math.max(0, durationMinutes - lunchMinutes);
-                lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
-              }
-            } else {
-              // Ingen time_entries: fallback till vaktlistans tider
-              punchIn = formatTimeNorway(dayShift.start_time);
-              punchOut = formatTimeNorway(dayShift.end_time);
-              
-              const durationMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
-              const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
-              totalMinutes = Math.max(0, durationMinutes - lunchMinutes);
-              lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
-            }
-          } 
-          // Om butiken är öppen OCH det är idag: visa live punch times
-          else if (isToday(date) && punchInEntry) {
-            punchIn = format(parseISO(punchInEntry.timestamp), 'HH:mm');
-            
-            if (punchOutEntry) {
-              punchOut = format(parseISO(punchOutEntry.timestamp), 'HH:mm');
-              const durationMinutes = calculateDurationMinutes(
-                punchInEntry.timestamp, 
-                punchOutEntry.timestamp
-              );
-              const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
-              totalMinutes = Math.max(0, durationMinutes - lunchMinutes);
-              lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
-            } else {
-              punchOut = null;
-              totalMinutes = 0;
-            }
+          const shiftStart = new Date(date);
+          shiftStart.setHours(startHour, startMinute, 0, 0);
+          
+          const shiftEnd = new Date(date);
+          shiftEnd.setHours(endHour, endMinute, 0, 0);
+          
+          // Dynamic logic based on business hours and current time
+          const shiftHasStarted = now >= shiftStart;
+          
+          // Determine when to show OUT time - when store closes for the day
+          let storeHasClosed = false;
+          if (businessHour && businessHour.isOpen) {
+            // Create closing time for this date
+            const [closeHour, closeMinute] = businessHour.closeTime.split(':').map(Number);
+            const storeCloseTime = new Date(date);
+            storeCloseTime.setHours(closeHour, closeMinute, 0, 0);
+            storeHasClosed = now >= storeCloseTime;
+          } else {
+            // Fallback to shift end time if no business hours configured
+            storeHasClosed = now >= shiftEnd;
           }
-          // Fallback: visa vaktlistans tider om ingen data
-          else {
-            punchIn = formatTimeNorway(dayShift.start_time);
-            punchOut = formatTimeNorway(dayShift.end_time);
+          
+          if (shiftHasStarted) {
+            // Show IN time when shift has started
+            punchIn = startTimeStr;
+            hasData = true;
             
-            const durationMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
-            const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
-            const workMinutes = Math.max(0, durationMinutes - lunchMinutes);
-            totalMinutes = workMinutes;
-            lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
+            if (storeHasClosed) {
+              // Show scheduled OUT time when store closes for the day
+              punchOut = endTimeStr;
+              
+              const totalMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
+              
+              // Automatically add 30 min pause for work days 8 hours or more (480 minutes)
+              const pauseMinutes = totalMinutes >= 480 ? 30 : 0;
+              const workMinutes = totalMinutes - pauseMinutes;
+              
+              const hours = Math.floor(workMinutes / 60);
+              const minutes = workMinutes % 60;
+              total = `${hours}:${minutes.toString().padStart(2, '0')}`;
+              lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
+            }
           }
         }
 
@@ -215,7 +142,7 @@ export default function Timeliste() {
           punchIn,
           punchOut,
           lunch,
-          totalMinutes,
+          total,
           hasData
         };
       });
@@ -239,8 +166,16 @@ export default function Timeliste() {
   };
 
   const calculateTotalHours = () => {
-    const totalMinutes = timelistEntries.reduce((sum, entry) => sum + entry.totalMinutes, 0);
-    return formatDuration(totalMinutes);
+    let totalMinutes = 0;
+    timelistEntries.forEach(entry => {
+      if (entry.total) {
+        const [hours, minutes] = entry.total.split(':').map(Number);
+        totalMinutes += hours * 60 + minutes;
+      }
+    });
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours}:${minutes.toString().padStart(2, '0')}`;
   };
 
   if (isLoading) {
@@ -319,7 +254,7 @@ export default function Timeliste() {
                       {entry.lunch || '-'}
                     </TableCell>
                     <TableCell className="text-center font-mono font-semibold">
-                      {entry.totalMinutes > 0 ? formatDuration(entry.totalMinutes) : '-'}
+                      {entry.total || '-'}
                     </TableCell>
                   </TableRow>
                 );

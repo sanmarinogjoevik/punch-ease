@@ -11,7 +11,6 @@ export interface UserProfile {
   phone: string | null;
   personal_number: string | null;
   avatar_url: string | null;
-  company_id: string;
   created_at: string;
   updated_at: string;
 }

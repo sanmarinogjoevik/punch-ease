@@ -1,7 +1,6 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { useEmployees } from '@/hooks/useEmployees';
-import { useTenant } from '@/hooks/useTenant';
 import { Loader2 } from 'lucide-react';
 
 interface EmployeeSelectorProps {
@@ -10,7 +9,6 @@ interface EmployeeSelectorProps {
 
 export function EmployeeSelector({ onSelectEmployee }: EmployeeSelectorProps) {
   const { data: employees, isLoading } = useEmployees();
-  const { companyId } = useTenant();
 
   if (isLoading) {
     return (
@@ -19,9 +17,6 @@ export function EmployeeSelector({ onSelectEmployee }: EmployeeSelectorProps) {
       </div>
     );
   }
-
-  // Filter employees by company_id from tenant context
-  const filteredEmployees = employees?.filter(emp => emp.company_id === companyId) || [];
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || '';
@@ -35,7 +30,7 @@ export function EmployeeSelector({ onSelectEmployee }: EmployeeSelectorProps) {
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-      {filteredEmployees.map((employee) => (
+      {employees?.map((employee) => (
         <Card
           key={employee.id}
           className="cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all duration-300 hover:scale-102"

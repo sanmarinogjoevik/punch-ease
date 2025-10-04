@@ -55,19 +55,11 @@ export function PunchClock() {
       const entryType = isPunchedIn ? 'punch_out' : 'punch_in';
       const punchTimestamp = new Date().toISOString();
       
-      // Get company_id from user profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', user.id)
-        .single();
-
       const { error } = await supabase
         .from('time_entries')
         .insert({
           employee_id: user.id,
           entry_type: entryType,
-          company_id: profile?.company_id || '',
         });
 
       if (error) throw error;

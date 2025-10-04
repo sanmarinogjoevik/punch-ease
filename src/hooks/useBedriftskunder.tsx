@@ -49,17 +49,9 @@ export const useBedriftskunder = () => {
 
   const createBedriftskunde = async (data: CreateBedriftskunde) => {
     try {
-      // Get company_id from current user
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', user?.id)
-        .single();
-
       const { error } = await supabase
         .from('bedriftskunder')
-        .insert([{ ...data, company_id: profile?.company_id || '' }]);
+        .insert([data]);
 
       if (error) throw error;
 

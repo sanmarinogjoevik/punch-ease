@@ -253,14 +253,6 @@ const Schedule = () => {
     setIsSubmitting(true);
 
     try {
-      // Get company_id from current user
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', user?.id)
-        .single();
-
       const shiftsToCreate = employeeShifts
         .filter(shift => shift.employee_id && shift.start_time && shift.end_time)
         .map(shift => {
@@ -272,8 +264,7 @@ const Schedule = () => {
             end_time: createUTCFromNorwegianTime(dateStr, shift.end_time),
             location: null,
             notes: null,
-            auto_punch_in: shift.auto_punch_in,
-            company_id: profile?.company_id || '',
+            auto_punch_in: shift.auto_punch_in
           };
         });
 

@@ -9,7 +9,6 @@ export interface Employee {
   email: string;
   phone?: string | null;
   personal_number?: string | null;
-  company_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -20,16 +19,16 @@ export const employeesKeys = {
   byId: (id: string) => [...employeesKeys.all, id] as const,
 };
 
-// Hook to fetch all employees (excluding admins and superadmins)
+// Hook to fetch all employees (excluding admins)
 export const useEmployees = () => {
   return useQuery({
     queryKey: [...employeesKeys.all, 'no-admins'],
     queryFn: async (): Promise<Employee[]> => {
-      // Get all admin and superadmin user IDs
+      // First get all admin user IDs
       const { data: adminRoles, error: rolesError } = await supabase
         .from('user_roles')
         .select('user_id')
-        .in('role', ['admin', 'superadmin']);
+        .eq('role', 'admin');
 
       if (rolesError) {
         console.error('Error fetching admin roles:', rolesError.message);
@@ -37,7 +36,7 @@ export const useEmployees = () => {
       }
 
       const adminUserIds = adminRoles?.map(role => role.user_id) || [];
-      console.log('Admin/Superadmin user IDs to filter out:', adminUserIds);
+      console.log('Admin user IDs to filter out:', adminUserIds);
 
       // Fetch all profiles
       const { data, error } = await supabase
@@ -52,11 +51,11 @@ export const useEmployees = () => {
 
       console.log('All profiles before filtering:', data?.length);
       
-      // Filter out admins and superadmins on the client side
+      // Filter out admins on the client side
       const employees = data?.filter(profile => {
         const isAdmin = adminUserIds.includes(profile.user_id);
         if (isAdmin) {
-          console.log('Filtering out admin/superadmin:', profile.first_name, profile.last_name);
+          console.log('Filtering out admin:', profile.first_name, profile.last_name);
         }
         return !isAdmin;
       }) || [];

@@ -5,14 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Generate random time within ±10 minutes of scheduled time
-const getRandomPunchTime = (scheduledTime: string): string => {
-  const scheduled = new Date(scheduledTime);
-  const variation = Math.floor(Math.random() * 21) - 10; // -10 to +10 minutes
-  const adjusted = new Date(scheduled.getTime() + variation * 60 * 1000);
-  return adjusted.toISOString();
-};
-
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -65,27 +57,23 @@ Deno.serve(async (req) => {
     for (const shift of upcomingShifts) {
       console.log(`Processing shift ${shift.id} for employee ${shift.employee_id}`);
 
-      // Check if employee already has a punch-in today (same date as shift start)
-      const shiftDate = new Date(shift.start_time);
-      const startOfShiftDay = new Date(shiftDate.setHours(0, 0, 0, 0));
-      const endOfShiftDay = new Date(shiftDate.setHours(23, 59, 59, 999));
-
-      const { data: todayPunchIns, error: entryError } = await supabase
+      // Check if employee is already punched in
+      const { data: latestEntry, error: entryError } = await supabase
         .from('time_entries')
         .select('*')
         .eq('employee_id', shift.employee_id)
-        .eq('entry_type', 'punch_in')
-        .gte('timestamp', startOfShiftDay.toISOString())
-        .lte('timestamp', endOfShiftDay.toISOString());
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (entryError) {
         console.error(`Error checking time entries for employee ${shift.employee_id}:`, entryError);
         continue;
       }
 
-      // If employee already has a punch-in today, skip automatic punch-in
-      if (todayPunchIns && todayPunchIns.length > 0) {
-        console.log(`Employee ${shift.employee_id} already has a punch-in today, skipping automatic punch-in`);
+      // If latest entry is a punch_in, employee is already punched in
+      if (latestEntry && latestEntry.entry_type === 'punch_in') {
+        console.log(`Employee ${shift.employee_id} is already punched in, skipping`);
         alreadyPunchedInCount++;
         continue;
       }
@@ -111,26 +99,13 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Get company_id from employee profile
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', shift.employee_id)
-        .single();
-
-      if (profileError || !profileData?.company_id) {
-        console.error(`No company_id found for employee ${shift.employee_id}:`, profileError);
-        continue;
-      }
-
-      // Create automatic punch-in with ±10 minutes variation
+      // Create automatic punch-in at shift start time
       const { error: insertError } = await supabase
         .from('time_entries')
         .insert({
           employee_id: shift.employee_id,
-          company_id: profileData.company_id,
           entry_type: 'punch_in',
-          timestamp: getRandomPunchTime(shift.start_time),
+          timestamp: shift.start_time,
           is_automatic: true,
         });
 

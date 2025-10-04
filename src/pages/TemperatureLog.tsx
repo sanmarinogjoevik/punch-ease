@@ -120,16 +120,16 @@ export default function TemperatureLog() {
                 <Input
                   id="temperature"
                   type="text"
-                  inputMode="numeric"
+                  inputMode="decimal"
                   value={form.temperature === 0 ? '' : form.temperature}
                   onChange={(e) => {
                     const value = e.target.value;
-                    // Allow only whole numbers (heltal)
-                    if (value === '' || /^-?\d*$/.test(value)) {
-                      setForm(prev => ({ ...prev, temperature: value === '' ? 0 : parseInt(value) || 0 }));
+                    // Allow empty string, numbers, and decimal point
+                    if (value === '' || /^-?\d*\.?\d*$/.test(value)) {
+                      setForm(prev => ({ ...prev, temperature: value === '' ? 0 : parseFloat(value) || 0 }));
                     }
                   }}
-                  placeholder="t.ex. -18 eller 4"
+                  placeholder="t.ex. -18 eller 4.5"
                 />
               </div>
             </div>

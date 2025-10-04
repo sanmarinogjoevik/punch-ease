@@ -19,7 +19,7 @@ export function AppLayout() {
         <div className="flex-1 flex flex-col">
           <header className="h-14 border-b bg-background flex items-center justify-between px-4 md:px-6">
             <SidebarTrigger />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <UserProfile />
               <Button 
                 variant="ghost" 

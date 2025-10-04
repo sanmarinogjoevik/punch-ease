@@ -1,14 +1,13 @@
 import { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
-import { useTenant } from '@/hooks/useTenant';
 import { useToast } from '@/hooks/use-toast';
 import { EmployeeSelector } from '@/components/EmployeeSelector';
-import { ArrowLeft, LogOut } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 export default function Auth() {
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -17,10 +16,13 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { signIn, signOut, user } = useAuth();
-  const { tenantUsername, logoutTenant } = useTenant();
+  const { signIn, user } = useAuth();
   const { toast } = useToast();
-  const navigate = useNavigate();
+
+  // Redirect if already authenticated
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleEmployeeSelect = (employeeEmail: string, employeeName: string) => {
     setSelectedEmployee({ email: employeeEmail, name: employeeName });
@@ -46,9 +48,6 @@ export default function Auth() {
           description: result.error.message,
           variant: 'destructive',
         });
-      } else {
-        // Navigate to dashboard after successful login
-        navigate('/dashboard');
       }
     } catch (error) {
       toast({
@@ -65,29 +64,12 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
-          <div className="flex justify-between items-start mb-2">
-            <div className="flex-1">
-              <CardTitle className="text-2xl font-bold">
-                {isAdminMode ? 'Admin Inloggning' : selectedEmployee ? `Välkommen ${selectedEmployee.name}` : 'Välj Anställd'}
-              </CardTitle>
-              <CardDescription>
-                {isAdminMode ? 'Logga in med ditt admin-konto' : `Företag: ${tenantUsername || 'Okänt'}`}
-              </CardDescription>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={async () => {
-                await signOut();
-                logoutTenant();
-                navigate('/');
-              }}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Byt företag
-            </Button>
-          </div>
+          <CardTitle className="text-2xl font-bold">
+            {isAdminMode ? 'Admin Inloggning' : selectedEmployee ? `Välkommen ${selectedEmployee.name}` : 'Välj Anställd'}
+          </CardTitle>
+          <CardDescription>
+            {isAdminMode ? 'Logga in med ditt admin-konto' : 'Välkommen tillbaka till PunchEase'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {!isAdminMode && !selectedEmployee && (

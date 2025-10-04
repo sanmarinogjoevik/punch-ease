@@ -82,9 +82,10 @@ export default function TimeEntries() {
         );
       }
 
-      // Group entries into work sessions - show actual saved times
+      // Group entries into work sessions and apply hybrid logic
       const sessions = groupIntoWorkSessions(entriesData || [], profilesMap);
-      setWorkSessions(sessions);
+      const hybridSessions = applyHybridLogic(sessions);
+      setWorkSessions(hybridSessions);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -107,10 +108,10 @@ export default function TimeEntries() {
       });
     });
 
-    // For each employee, create sessions by pairing punch-ins with punch-outs
-    entriesByEmployee.forEach((employeeEntries) => {
-      // Sort by timestamp (oldest first)
-      const sortedEntries = [...employeeEntries].sort((a, b) => 
+    // For each employee, pair punch-in and punch-out entries
+    entriesByEmployee.forEach((employeeEntries, employeeId) => {
+      // Sort by timestamp (oldest first for pairing)
+      const sortedEntries = employeeEntries.sort((a, b) => 
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
 
@@ -119,37 +120,35 @@ export default function TimeEntries() {
         const entry = sortedEntries[i];
         
         if (entry.entry_type === 'punch_in') {
-          // Find the next punch_out after this punch_in
-          let nextPunchOut: TimeEntry | undefined;
-          let nextPunchOutIndex = -1;
+          // Look for matching punch_out
+          let punchOut: TimeEntry | undefined;
+          let j = i + 1;
           
-          for (let j = i + 1; j < sortedEntries.length; j++) {
-            if (sortedEntries[j].entry_type === 'punch_out') {
-              nextPunchOut = sortedEntries[j];
-              nextPunchOutIndex = j;
+          while (j < sortedEntries.length) {
+            if (sortedEntries[j].entry_type === 'punch_out' && 
+                sortedEntries[j].employee_id === entry.employee_id) {
+              punchOut = sortedEntries[j];
+              sortedEntries.splice(j, 1); // Remove the punch_out from array
               break;
             }
+            j++;
           }
-          
-          // Create session
-          const duration = nextPunchOut 
-            ? calculateDurationMinutes(entry.timestamp, nextPunchOut.timestamp)
-            : undefined;
-          
+
+          // Calculate duration if we have both punch in and out
+          let duration: number | undefined;
+          if (punchOut) {
+            duration = calculateDurationMinutes(entry.timestamp, punchOut.timestamp);
+          }
+
           sessions.push({
             id: entry.id,
             punch_in: entry,
-            punch_out: nextPunchOut,
+            punch_out: punchOut,
             duration,
             employee_name: entry.employee_name
           });
-          
-          // Skip to after the punch_out if found, otherwise just move to next entry
-          i = nextPunchOutIndex !== -1 ? nextPunchOutIndex + 1 : i + 1;
-        } else {
-          // Skip standalone punch_outs
-          i++;
         }
+        i++;
       }
     });
 
@@ -159,22 +158,182 @@ export default function TimeEntries() {
     );
   };
 
+  const shouldUseScheduleTimes = (sessionDate: string): boolean => {
+    if (!companySettings?.business_hours) return false;
+    
+    const sessionDay = startOfDay(parseISO(sessionDate));
+    const today = startOfDay(new Date());
+    
+    // Always use schedule times for past days
+    if (sessionDay < today) return true;
+    
+    // For today, check if we're past closing time
+    if (sessionDay.getTime() === today.getTime()) {
+      const currentTime = new Date();
+      const dayOfWeek = currentTime.getDay();
+      
+      const businessHours = companySettings.business_hours as any[];
+      const todayHours = businessHours.find(h => h.day === dayOfWeek);
+      
+      if (!todayHours || !todayHours.isOpen) return true;
+      
+      const [closeHour, closeMinute] = todayHours.closeTime.split(':').map(Number);
+      const closingTime = new Date();
+      closingTime.setHours(closeHour, closeMinute, 0, 0);
+      
+      return isAfter(currentTime, closingTime);
+    }
+    
+    return false;
+  };
+
+  const applyHybridLogic = (sessions: WorkSession[]): WorkSession[] => {
+    if (!shiftsData || !companySettings) return sessions;
+
+    const resultSessions: WorkSession[] = [];
+    
+    // Group sessions by date AND employee (for admin) or just by date (for employee)
+    const sessionsByKey = new Map<string, WorkSession[]>();
+    sessions.forEach(session => {
+      const sessionDate = format(new Date(session.punch_in.timestamp), 'yyyy-MM-dd');
+      // Create unique key: for admin include employee_id, for employee just date
+      const key = userRole === 'admin' 
+        ? `${sessionDate}_${session.punch_in.employee_id}`
+        : sessionDate;
+      
+      if (!sessionsByKey.has(key)) {
+        sessionsByKey.set(key, []);
+      }
+      sessionsByKey.get(key)!.push(session);
+    });
+
+    // Create a map of shifts by date and employee
+    const shiftKeyMap = new Map<string, any[]>();
+    shiftsData.forEach(shift => {
+      if (userRole === 'admin' || shift.employee_id === user?.id) {
+        const shiftDate = format(new Date(shift.start_time), 'yyyy-MM-dd');
+        // Create same unique key as for sessions
+        const key = userRole === 'admin' 
+          ? `${shiftDate}_${shift.employee_id}`
+          : shiftDate;
+        
+        if (!shiftKeyMap.has(key)) {
+          shiftKeyMap.set(key, []);
+        }
+        shiftKeyMap.get(key)!.push(shift);
+      }
+    });
+
+    const allProcessedKeys = new Set<string>();
+
+    // Process keys that have punch data
+    sessionsByKey.forEach((keySessions, key) => {
+      allProcessedKeys.add(key);
+      const dateStr = key.split('_')[0]; // Extract date from key
+      const useScheduleTimes = shouldUseScheduleTimes(dateStr);
+      
+      if (useScheduleTimes) {
+        // After closing: Create ONLY ONE entry per key from schedule, ignore all punch data
+        const keyShifts = shiftKeyMap.get(key);
+        if (keyShifts && keyShifts.length > 0) {
+          const shift = keyShifts[0];
+        const shiftDuration = calculateDurationMinutes(shift.start_time, shift.end_time);
+
+          // Use first session for employee name reference
+          const firstSession = keySessions[0];
+          
+          resultSessions.push({
+            id: 'schedule_key_' + key,
+            punch_in: {
+              id: 'schedule_in_' + key,
+              entry_type: 'punch_in' as const,
+              timestamp: shift.start_time,
+              employee_id: shift.employee_id,
+              employee_name: firstSession.employee_name
+            },
+            punch_out: {
+              id: 'schedule_out_' + key,
+              entry_type: 'punch_out' as const,
+              timestamp: shift.end_time,
+              employee_id: shift.employee_id,
+              employee_name: firstSession.employee_name
+            },
+            duration: shiftDuration,
+            employee_name: firstSession.employee_name
+          });
+        }
+        // If no schedule exists for this key after closing, don't show anything
+      } else {
+        // During the day: Show all punch sessions as they are
+        keySessions.forEach(session => {
+          resultSessions.push(session);
+        });
+      }
+    });
+
+    // Add schedule-only entries for keys without any punch data (after closing only)
+    shiftKeyMap.forEach((keyShifts, key) => {
+      const dateStr = key.split('_')[0]; // Extract date from key
+      const useScheduleTimes = shouldUseScheduleTimes(dateStr);
+      
+      if (useScheduleTimes && !allProcessedKeys.has(key)) {
+        const shift = keyShifts[0];
+        const shiftDuration = calculateDurationMinutes(shift.start_time, shift.end_time);
+
+        // Get employee name from shift data or use fallback
+        const employeeName = userRole === 'admin' 
+          ? (shift.profiles?.first_name && shift.profiles?.last_name 
+              ? `${shift.profiles.first_name} ${shift.profiles.last_name}` 
+              : 'Ukjent ansatt')
+          : (user?.user_metadata?.first_name + ' ' + user?.user_metadata?.last_name);
+
+        resultSessions.push({
+          id: 'schedule_only_' + key,
+          punch_in: {
+            id: 'schedule_in_' + key,
+            entry_type: 'punch_in' as const,
+            timestamp: shift.start_time,
+            employee_id: shift.employee_id,
+            employee_name: employeeName
+          },
+          punch_out: {
+            id: 'schedule_out_' + key,
+            entry_type: 'punch_out' as const,
+            timestamp: shift.end_time,
+            employee_id: shift.employee_id,
+            employee_name: employeeName
+          },
+          duration: shiftDuration,
+          employee_name: employeeName
+        });
+      }
+    });
+
+    return resultSessions.sort((a, b) => 
+      new Date(b.punch_in.timestamp).getTime() - new Date(a.punch_in.timestamp).getTime()
+    );
+  };
 
 
   const getSessionBadge = (session: WorkSession) => {
+    const badges = [];
+    
     if (!session.punch_out) {
-      return (
-        <Badge variant="outline" className="border-yellow-200 text-yellow-700 bg-yellow-50">
+      badges.push(
+        <Badge key="active" variant="outline" className="border-yellow-200 text-yellow-700 bg-yellow-50">
           Aktiv
         </Badge>
       );
+    } else {
+      badges.push(
+        <Badge key="completed" variant="outline" className="border-green-200 text-green-700 bg-green-50">
+          Fullført
+        </Badge>
+      );
     }
-    
-    return (
-      <Badge variant="outline" className="border-green-200 text-green-700 bg-green-50">
-        Fullført
-      </Badge>
-    );
+
+
+    return <div className="flex flex-wrap gap-1">{badges}</div>;
   };
 
   if (loading) {
