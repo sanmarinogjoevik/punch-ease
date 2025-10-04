@@ -385,22 +385,33 @@ export default function Dashboard() {
       <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {/* Live Punch Status - Admin only */}
         {userRole === 'admin' && (
-          <div className="col-span-1 md:col-span-2 lg:col-span-1">
-            <LivePunchStatus />
-          </div>
+          <>
+            <div className="col-span-1 md:col-span-2 lg:col-span-1">
+              <LivePunchStatus />
+            </div>
+            {/* Today's Temperature Logs - Admin */}
+            <div className="col-span-1 md:col-span-2 lg:col-span-1">
+              <TodaysTemperatureLogs />
+            </div>
+          </>
         )}
 
-        {/* Punch Clock - Always visible */}
-        <div className="col-span-1 md:col-span-2 lg:col-span-1">
-          <PunchClock />
-        </div>
-
-        {/* Today's Temperature Logs - Always visible */}
-        <div className="col-span-1 md:col-span-2 lg:col-span-1">
-          <TodaysTemperatureLogs />
-        </div>
-
         {/* Employee Dashboard */}
+        {userRole === 'employee' && (
+          <>
+            {/* Punch Clock - Employee only */}
+            <div className="col-span-1 md:col-span-2 lg:col-span-1">
+              <PunchClock />
+            </div>
+
+            {/* Today's Temperature Logs - Employee */}
+            <div className="col-span-1 md:col-span-2 lg:col-span-1">
+              <TodaysTemperatureLogs />
+            </div>
+          </>
+        )}
+
+        {/* Employee specific sections */}
         {userRole === 'employee' && (
           <>
             {/* Today's Shifts */}
