@@ -6,19 +6,21 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Building2, Users, Calendar, Clock, BarChart3 } from 'lucide-react';
+import { Plus, Building2, Users, Calendar, Clock, BarChart3, LogOut } from 'lucide-react';
 import { CreateCompanyDialog } from '@/components/CreateCompanyDialog';
 import { SuperadminLivePunchStatus } from '@/components/SuperadminLivePunchStatus';
 import { SuperadminTemperatureLogs } from '@/components/SuperadminTemperatureLogs';
 import { useAuth } from '@/hooks/useAuth';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useSuperadminStats } from '@/hooks/useSuperadminStats';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { format, startOfDay, endOfDay, addDays } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 export default function Superadmin() {
   const { userRole } = useAuth();
+  const navigate = useNavigate();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
 
@@ -29,6 +31,17 @@ export default function Superadmin() {
 
   const { data: companies, refetch: refetchCompanies } = useCompanies();
   const { data: stats } = useSuperadminStats(selectedCompanyId);
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast.success('Utloggad');
+      navigate('/tenant-login');
+    } catch (error) {
+      toast.error('Kunde inte logga ut');
+      console.error('Logout error:', error);
+    }
+  };
 
   // Fetch today's shifts
   const { data: todayShifts } = useQuery({
@@ -147,6 +160,10 @@ export default function Superadmin() {
           <Button onClick={() => setShowCreateDialog(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Nytt Företag
+          </Button>
+          <Button onClick={handleLogout} variant="outline">
+            <LogOut className="h-4 w-4 mr-2" />
+            Logga ut
           </Button>
         </div>
       </div>
