@@ -177,10 +177,9 @@ export default function TimelistTable({
             
             const totalMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
             const pauseMinutes = totalMinutes > 330 ? 30 : 0;
-            const workMinutes = totalMinutes - pauseMinutes;
             
-            const hours = Math.floor(workMinutes / 60);
-            const minutes = workMinutes % 60;
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
             total = `${hours}:${minutes.toString().padStart(2, '0')}`;
             lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
           } else if (punchInEntry && punchOutEntry) {
@@ -193,10 +192,9 @@ export default function TimelistTable({
               punchOutEntry.timestamp
             );
             const pauseMinutes = totalMinutes > 330 ? 30 : 0;
-            const workMinutes = totalMinutes - pauseMinutes;
             
-            const hours = Math.floor(workMinutes / 60);
-            const minutes = workMinutes % 60;
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
             total = `${hours}:${minutes.toString().padStart(2, '0')}`;
             lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
           } else if (punchInEntry) {
@@ -209,10 +207,9 @@ export default function TimelistTable({
             
             const totalMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
             const pauseMinutes = totalMinutes > 330 ? 30 : 0;
-            const workMinutes = totalMinutes - pauseMinutes;
             
-            const hours = Math.floor(workMinutes / 60);
-            const minutes = workMinutes % 60;
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
             total = `${hours}:${minutes.toString().padStart(2, '0')}`;
             lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
           }
