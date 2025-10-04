@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useShifts } from '@/hooks/useShifts';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, startOfDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
 import { Clock, ArrowUp, ArrowDown } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { formatDuration, calculateDurationMinutes, formatTimeNorway } from '@/lib/timeUtils';
+import { formatDuration, calculateDurationMinutes, formatTimeNorway, isAfterClosingTime } from '@/lib/timeUtils';
 
 interface TimeEntry {
   id: string;
@@ -29,13 +31,15 @@ interface WorkSession {
 
 export default function TimeEntries() {
   const { user, userRole } = useAuth();
+  const { data: shiftsData } = useShifts(userRole === 'admin' ? {} : { employeeId: user?.id });
+  const { data: companySettings } = useCompanySettings();
   const [workSessions, setWorkSessions] = useState<WorkSession[]>([]);
   const [loading, setLoading] = useState(true);
   const isMobile = useIsMobile();
 
   useEffect(() => {
     fetchTimeEntries();
-  }, [user, userRole]);
+  }, [user, userRole, shiftsData, companySettings]);
 
   const fetchTimeEntries = async () => {
     if (!user) return;
@@ -79,7 +83,10 @@ export default function TimeEntries() {
 
       // Group entries into work sessions
       const sessions = groupIntoWorkSessions(entriesData || [], profilesMap);
-      setWorkSessions(sessions);
+      
+      // Apply schedule logic when store is closed
+      const finalSessions = applyScheduleWhenClosed(sessions);
+      setWorkSessions(finalSessions);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -152,6 +159,56 @@ export default function TimeEntries() {
     return sessions.sort((a, b) => 
       new Date(b.punch_in.timestamp).getTime() - new Date(a.punch_in.timestamp).getTime()
     );
+  };
+
+  // Replace punch times with schedule times when store is closed
+  const applyScheduleWhenClosed = (sessions: WorkSession[]): WorkSession[] => {
+    if (!shiftsData || !companySettings?.business_hours) return sessions;
+
+    return sessions.map(session => {
+      const sessionDate = parseISO(session.punch_in.timestamp);
+      const today = startOfDay(new Date());
+      const sessionDay = startOfDay(sessionDate);
+      
+      // Check if this is a past day or if store is closed today
+      const isPastDay = sessionDay < today;
+      const isStoreClosed = isPastDay || isAfterClosingTime(sessionDate, companySettings.business_hours as any[]);
+      
+      if (!isStoreClosed) {
+        // Store is open - show exact punch times
+        return session;
+      }
+      
+      // Store is closed - try to find matching shift and use schedule times
+      const dateStr = format(sessionDate, 'yyyy-MM-dd');
+      const matchingShift = shiftsData.find(shift => 
+        shift.employee_id === session.punch_in.employee_id &&
+        format(parseISO(shift.start_time), 'yyyy-MM-dd') === dateStr
+      );
+      
+      if (!matchingShift) {
+        // No shift found - return original session
+        return session;
+      }
+      
+      // Replace with schedule times
+      const scheduleDuration = session.punch_out 
+        ? calculateDurationMinutes(matchingShift.start_time, matchingShift.end_time)
+        : undefined;
+      
+      return {
+        ...session,
+        punch_in: {
+          ...session.punch_in,
+          timestamp: matchingShift.start_time
+        },
+        punch_out: session.punch_out ? {
+          ...session.punch_out,
+          timestamp: matchingShift.end_time
+        } : undefined,
+        duration: scheduleDuration
+      };
+    });
   };
 
   const getSessionBadge = (session: WorkSession) => {

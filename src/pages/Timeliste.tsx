@@ -7,9 +7,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, parseISO, isSameDay, isToday } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, parseISO, isSameDay, isToday, startOfDay } from 'date-fns';
 import { nb } from 'date-fns/locale';
-import { formatTimeNorway, calculateDurationMinutes, formatDuration } from '@/lib/timeUtils';
+import { formatTimeNorway, calculateDurationMinutes, formatDuration, isAfterClosingTime } from '@/lib/timeUtils';
 import { supabase } from '@/integrations/supabase/client';
 
 const NORWEGIAN_DAYS = ['Sön', 'Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör'];
@@ -42,7 +42,7 @@ export default function Timeliste() {
   const isLoading = shiftsLoading || settingsLoading;
 
   useEffect(() => {
-    if (!isLoading && shifts && user) {
+    if (!isLoading && shifts && user && companySettings) {
       fetchTimeEntriesAndGenerate();
     }
   }, [shifts, companySettings, selectedMonth, isLoading, user]);
@@ -96,6 +96,12 @@ export default function Timeliste() {
         const dateStr = format(date, 'yyyy-MM-dd');
         const dayOfWeek = getDay(date);
         
+        // Check if store is closed for this date
+        const today = startOfDay(new Date());
+        const currentDate = startOfDay(date);
+        const isPastDay = currentDate < today;
+        const isStoreClosed = isPastDay || (isSameDay(date, new Date()) && isAfterClosingTime(date, companySettings?.business_hours as any[]));
+        
         // Find shift for this day
         const dayShift = shifts.find(shift => 
           shift.start_time.startsWith(dateStr)
@@ -115,35 +121,17 @@ export default function Timeliste() {
         if (punchInEntry || dayShift) {
           hasData = true;
           
-          // Use actual punch time if available, otherwise use scheduled time
-          if (punchInEntry) {
-            punchIn = format(parseISO(punchInEntry.timestamp), 'HH:mm');
-          } else if (dayShift) {
-            punchIn = formatTimeNorway(dayShift.start_time);
-          }
-          
           // Check if this is an active session (punch in without punch out on today)
           const isActiveToday = isToday(date) && punchInEntry && !punchOutEntry;
           
           if (isActiveToday) {
-            // Don't show OUT time for active shift
+            // Active shift - show exact punch in time, no out time
+            punchIn = format(parseISO(punchInEntry.timestamp), 'HH:mm');
             punchOut = null;
             totalMinutes = 0;
-          } else if (punchOutEntry) {
-            // Use actual punch out time
-            punchOut = format(parseISO(punchOutEntry.timestamp), 'HH:mm');
-            
-            // Calculate total hours from actual times
-            const durationMinutes = calculateDurationMinutes(
-              punchInEntry.timestamp, 
-              punchOutEntry.timestamp
-            );
-            const lunchMinutes = durationMinutes >= 480 ? 30 : 0; // 30 min lunch if 8+ hours
-            const workMinutes = Math.max(0, durationMinutes - lunchMinutes);
-            totalMinutes = workMinutes;
-            lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
-          } else if (dayShift) {
-            // Use scheduled times as fallback
+          } else if (isStoreClosed && dayShift) {
+            // Store closed - use schedule times from shift
+            punchIn = formatTimeNorway(dayShift.start_time);
             punchOut = formatTimeNorway(dayShift.end_time);
             
             const durationMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
@@ -151,6 +139,22 @@ export default function Timeliste() {
             const workMinutes = Math.max(0, durationMinutes - lunchMinutes);
             totalMinutes = workMinutes;
             lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
+          } else if (punchInEntry && punchOutEntry) {
+            // Store open OR has actual punches - use actual times
+            punchIn = format(parseISO(punchInEntry.timestamp), 'HH:mm');
+            punchOut = format(parseISO(punchOutEntry.timestamp), 'HH:mm');
+            
+            const durationMinutes = calculateDurationMinutes(
+              punchInEntry.timestamp, 
+              punchOutEntry.timestamp
+            );
+            const lunchMinutes = durationMinutes >= 480 ? 30 : 0;
+            const workMinutes = Math.max(0, durationMinutes - lunchMinutes);
+            totalMinutes = workMinutes;
+            lunch = lunchMinutes > 0 ? `0:${lunchMinutes}` : '';
+          } else if (punchInEntry) {
+            // Only punch in, no punch out (shouldn't happen except for active today)
+            punchIn = format(parseISO(punchInEntry.timestamp), 'HH:mm');
           }
         }
 
