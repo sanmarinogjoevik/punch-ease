@@ -68,6 +68,20 @@ serve(async (req) => {
       )
     }
 
+    // Get the admin's company_id
+    const { data: adminProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('user_id', user.id)
+      .single()
+
+    if (profileError || !adminProfile?.company_id) {
+      return new Response(
+        JSON.stringify({ error: 'Could not determine admin company' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Parse the request body
     const { email, password, first_name, last_name, phone, personal_number } = await req.json()
 
@@ -96,17 +110,18 @@ serve(async (req) => {
       )
     }
 
-    // Update the profile with additional information
-    const { error: profileError } = await supabaseAdmin
+    // Update the profile with additional information and correct company_id
+    const { error: profileUpdateError } = await supabaseAdmin
       .from('profiles')
       .update({
         phone,
-        personal_number
+        personal_number,
+        company_id: adminProfile.company_id
       })
       .eq('user_id', authData.user.id)
 
-    if (profileError) {
-      console.error('Profile update error:', profileError)
+    if (profileUpdateError) {
+      console.error('Profile update error:', profileUpdateError)
       // Don't fail the whole operation for profile update errors
     }
 
