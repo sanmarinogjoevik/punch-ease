@@ -5,14 +5,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// No random variation - punch out at exact time
-
 interface BusinessHours {
   day: number; // 0-6 (söndag-lördag)
   dayName: string;
   isOpen: boolean;
   openTime: string;
   closeTime: string;
+}
+
+interface CompanySettings {
+  id: string;
+  company_id: string;
+  company_name: string;
+  business_hours: BusinessHours[] | string;
 }
 
 Deno.serve(async (req) => {
@@ -90,13 +95,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Get business hours from company settings
-    const { data: companySettings, error: settingsError } = await supabase
+    // Get ALL company settings (multi-tenant support)
+    const { data: allCompanySettings, error: settingsError } = await supabase
       .from('company_settings')
-      .select('business_hours')
-      .single();
+      .select('id, company_id, company_name, business_hours');
 
-    if (settingsError || !companySettings) {
+    if (settingsError || !allCompanySettings || allCompanySettings.length === 0) {
       console.error('Error fetching company settings:', settingsError);
       return new Response(
         JSON.stringify({ error: 'Failed to fetch company settings' }),
@@ -104,43 +108,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Parse business hours
-    let businessHours: BusinessHours[] = [];
-    try {
-      if (typeof companySettings.business_hours === 'string') {
-        businessHours = JSON.parse(companySettings.business_hours);
-      } else {
-        businessHours = companySettings.business_hours as BusinessHours[];
-      }
-    } catch (error) {
-      console.error('Error parsing business hours:', error);
-      return new Response(
-        JSON.stringify({ error: 'Failed to parse business hours' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    console.log(`Processing ${allCompanySettings.length} companies for auto punch-out`);
 
-    // Get current day (0 = Sunday, 6 = Saturday)
-    const currentDay = now.getDay();
-    const currentTime = now.toTimeString().substring(0, 5); // HH:MM format
-
-    console.log('Current day:', currentDay, 'Current time:', currentTime);
-
-    // Find today's business hours
-    const todayHours = businessHours.find(bh => bh.day === currentDay);
-    
-    if (!todayHours) {
-      console.log('No business hours found for today');
-      return new Response(
-        JSON.stringify({ message: 'No business hours configured for today' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('Today\'s hours:', todayHours);
-
-    // Helper function to compare times with tolerance (within 2 minutes)
-    const isWithinTimeWindow = (currentTime: string, targetTime: string, windowMinutes: number = 2): boolean => {
+    // Helper function to compare times with tolerance (extended to 5 minutes)
+    const isWithinTimeWindow = (currentTime: string, targetTime: string, windowMinutes: number = 5): boolean => {
       const [currentHour, currentMin] = currentTime.split(':').map(Number);
       const [targetHour, targetMin] = targetTime.split(':').map(Number);
       
@@ -151,199 +122,248 @@ Deno.serve(async (req) => {
       return currentMinutes >= targetMinutes && currentMinutes <= targetMinutes + windowMinutes;
     };
 
-    // Check if we need to handle closing time that goes into next day
-    // For example, Saturday closes at 03:00 (which is Sunday morning)
-    let shouldPunchOut = false;
-    
-    if (todayHours.closeTime < todayHours.openTime) {
-      // Closing time is on the next day (e.g., opens 12:00, closes 03:00)
-      // We should punch out if current time is >= closeTime and we're early in the day
+    // Helper function to check if time is significantly past closing (10+ minutes)
+    const isLatePunchOut = (currentTime: string, targetTime: string): boolean => {
+      const [currentHour, currentMin] = currentTime.split(':').map(Number);
+      const [targetHour, targetMin] = targetTime.split(':').map(Number);
       
-      // Check if it's past midnight and before closing time
-      if (currentTime <= todayHours.closeTime) {
-        // We're in the early morning of today, but this is actually yesterday's closing
-        const yesterdayDay = (currentDay - 1 + 7) % 7;
-        const yesterdayHours = businessHours.find(bh => bh.day === yesterdayDay);
-        
-        if (yesterdayHours && yesterdayHours.closeTime < yesterdayHours.openTime) {
-          // Yesterday's closing time extends into today
-          if (isWithinTimeWindow(currentTime, yesterdayHours.closeTime)) {
-            shouldPunchOut = true;
-            console.log('Punch out time: Yesterday\'s shift ending at', yesterdayHours.closeTime);
+      const currentMinutes = currentHour * 60 + currentMin;
+      const targetMinutes = targetHour * 60 + targetMin;
+      
+      // Check if current time is 10+ minutes past closing
+      return currentMinutes >= targetMinutes + 10;
+    };
+
+    const currentDay = now.getDay();
+    const currentTime = now.toTimeString().substring(0, 5); // HH:MM format
+    console.log('Current day:', currentDay, 'Current time:', currentTime);
+
+    let totalPunchedOut = 0;
+    let totalPunchedOutNoShift = 0;
+    let totalLatePunchOuts = 0;
+    const processedCompanies: string[] = [];
+
+    // Process each company
+    for (const companySetting of allCompanySettings as CompanySettings[]) {
+      console.log(`\n--- Processing company: ${companySetting.company_name} (${companySetting.company_id}) ---`);
+
+      // Parse business hours
+      let businessHours: BusinessHours[] = [];
+      try {
+        if (typeof companySetting.business_hours === 'string') {
+          businessHours = JSON.parse(companySetting.business_hours);
+        } else {
+          businessHours = companySetting.business_hours as BusinessHours[];
+        }
+      } catch (error) {
+        console.error(`Error parsing business hours for ${companySetting.company_name}:`, error);
+        continue;
+      }
+
+      // Find today's business hours
+      const todayHours = businessHours.find(bh => bh.day === currentDay);
+      
+      if (!todayHours) {
+        console.log(`No business hours found for today for ${companySetting.company_name}`);
+        continue;
+      }
+
+      console.log(`${companySetting.company_name} hours:`, todayHours);
+
+      // Check if we need to handle closing time that goes into next day
+      let shouldPunchOut = false;
+      let isLatePunchOutTime = false;
+      
+      if (todayHours.closeTime < todayHours.openTime) {
+        // Closing time is on the next day (e.g., opens 12:00, closes 03:00)
+        if (currentTime <= todayHours.closeTime) {
+          const yesterdayDay = (currentDay - 1 + 7) % 7;
+          const yesterdayHours = businessHours.find(bh => bh.day === yesterdayDay);
+          
+          if (yesterdayHours && yesterdayHours.closeTime < yesterdayHours.openTime) {
+            if (isWithinTimeWindow(currentTime, yesterdayHours.closeTime)) {
+              shouldPunchOut = true;
+              console.log('Punch out time: Yesterday\'s shift ending at', yesterdayHours.closeTime);
+            }
+            if (isLatePunchOut(currentTime, yesterdayHours.closeTime)) {
+              isLatePunchOutTime = true;
+              console.log('LATE punch out: More than 10 minutes past closing');
+            }
           }
         }
+      } else {
+        // Normal case: closing time is on the same day
+        if (isWithinTimeWindow(currentTime, todayHours.closeTime)) {
+          shouldPunchOut = true;
+          console.log('Punch out time: Store closing at', todayHours.closeTime);
+        }
+        if (isLatePunchOut(currentTime, todayHours.closeTime)) {
+          isLatePunchOutTime = true;
+          console.log('LATE punch out: More than 10 minutes past closing');
+        }
       }
-    } else {
-      // Normal case: closing time is on the same day
-      if (isWithinTimeWindow(currentTime, todayHours.closeTime)) {
-        shouldPunchOut = true;
-        console.log('Punch out time: Store closing at', todayHours.closeTime);
+
+      if (!shouldPunchOut && !isLatePunchOutTime) {
+        console.log(`Not punch-out time yet for ${companySetting.company_name}. Store closes at: ${todayHours.closeTime}`);
+        continue;
       }
-    }
 
-    if (!shouldPunchOut) {
-      console.log('Not punch-out time yet. Store closes at:', todayHours.closeTime);
-      return new Response(
-        JSON.stringify({ 
-          message: 'Not punch-out time yet',
-          currentTime,
-          closingTime: todayHours.closeTime
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+      // Get employees for this company who are currently punched in
+      const { data: companyProfiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .eq('company_id', companySetting.company_id);
 
-    // It's closing time! Find all employees who are currently punched in
-    console.log('It\'s closing time! Finding all punched-in employees...');
-
-    // Get all employees who are currently punched in
-    const { data: allTimeEntries, error: entriesError } = await supabase
-      .from('time_entries')
-      .select('employee_id, entry_type, timestamp')
-      .order('timestamp', { ascending: false });
-
-    if (entriesError) {
-      console.error('Error fetching time entries:', entriesError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch time entries' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Group by employee and find latest entry for each
-    const employeeLatestEntries = new Map();
-    allTimeEntries?.forEach(entry => {
-      if (!employeeLatestEntries.has(entry.employee_id)) {
-        employeeLatestEntries.set(entry.employee_id, entry);
+      if (profilesError || !companyProfiles || companyProfiles.length === 0) {
+        console.log(`No employees found for ${companySetting.company_name}`);
+        continue;
       }
-    });
 
-    // Find employees who are currently punched in
-    const punchedInEmployeeIds: string[] = [];
-    employeeLatestEntries.forEach(entry => {
-      if (entry.entry_type === 'punch_in') {
-        punchedInEmployeeIds.push(entry.employee_id);
+      const companyEmployeeIds = companyProfiles.map(p => p.user_id);
+      console.log(`${companySetting.company_name} has ${companyEmployeeIds.length} employees`);
+
+      // Get all time entries for this company's employees
+      const { data: companyTimeEntries, error: entriesError } = await supabase
+        .from('time_entries')
+        .select('employee_id, entry_type, timestamp')
+        .in('employee_id', companyEmployeeIds)
+        .order('timestamp', { ascending: false });
+
+      if (entriesError) {
+        console.error(`Error fetching time entries for ${companySetting.company_name}:`, entriesError);
+        continue;
       }
-    });
 
-    console.log('Found', punchedInEmployeeIds.length, 'punched-in employees');
+      // Group by employee and find latest entry for each
+      const employeeLatestEntries = new Map();
+      companyTimeEntries?.forEach(entry => {
+        if (!employeeLatestEntries.has(entry.employee_id)) {
+          employeeLatestEntries.set(entry.employee_id, entry);
+        }
+      });
 
-    if (punchedInEmployeeIds.length === 0) {
-      return new Response(
-        JSON.stringify({ 
-          message: 'No employees currently punched in',
-          currentTime,
-          closingTime: todayHours.closeTime
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+      // Find employees who are currently punched in
+      const punchedInEmployeeIds: string[] = [];
+      employeeLatestEntries.forEach(entry => {
+        if (entry.entry_type === 'punch_in') {
+          punchedInEmployeeIds.push(entry.employee_id);
+        }
+      });
 
-    // Get today's date range for shift check
-    const todayStartShift = new Date(now);
-    todayStartShift.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(now);
-    todayEnd.setHours(23, 59, 59, 999);
+      console.log(`${companySetting.company_name}: Found ${punchedInEmployeeIds.length} punched-in employees`);
 
-    // Get all active shifts for today
-    const { data: todayShifts, error: shiftsError } = await supabase
-      .from('shifts')
-      .select('employee_id, start_time, end_time')
-      .gte('start_time', todayStartShift.toISOString())
-      .lte('start_time', todayEnd.toISOString());
+      if (punchedInEmployeeIds.length === 0) {
+        console.log(`No employees currently punched in for ${companySetting.company_name}`);
+        continue;
+      }
 
-    if (shiftsError) {
-      console.error('Error fetching shifts:', shiftsError);
-    }
+      // Get today's shifts for this company
+      const todayStartShift = new Date(now);
+      todayStartShift.setHours(0, 0, 0, 0);
+      const todayEnd = new Date(now);
+      todayEnd.setHours(23, 59, 59, 999);
 
-    // Create a map of employee IDs to their shifts for today
-    const employeeShifts = new Map(todayShifts?.map(shift => [shift.employee_id, shift]) || []);
-    console.log('Employees with shifts today:', employeeShifts.size);
+      const { data: todayShifts, error: shiftsError } = await supabase
+        .from('shifts')
+        .select('employee_id, start_time, end_time')
+        .eq('company_id', companySetting.company_id)
+        .gte('start_time', todayStartShift.toISOString())
+        .lte('start_time', todayEnd.toISOString());
 
-    let punchedOutCount = 0;
-    let alreadyPunchedOutCount = 0;
-    let noShiftPunchedOut = 0;
+      if (shiftsError) {
+        console.error(`Error fetching shifts for ${companySetting.company_name}:`, shiftsError);
+      }
 
-    for (const employeeId of punchedInEmployeeIds) {
-      // Check if employee has a shift today
-      const shift = employeeShifts.get(employeeId);
-      const hasShift = !!shift;
+      const employeeShifts = new Map(todayShifts?.map(shift => [shift.employee_id, shift]) || []);
+      console.log(`${companySetting.company_name}: ${employeeShifts.size} employees with shifts today`);
 
-      // Punch out if: 
-      // 1. It's closing time (shouldPunchOut = true), OR
-      // 2. Employee doesn't have a shift today
-      if (!hasShift) {
-        console.log('Employee', employeeId, 'has NO shift today - auto punching out');
-        
-        // Get company_id from employee profile
-        const { data: noShiftProfile } = await supabase
-          .from('profiles')
-          .select('company_id')
-          .eq('user_id', employeeId)
-          .single();
+      let companyPunchedOut = 0;
+      let companyNoShiftPunchedOut = 0;
+      let companyLatePunchedOut = 0;
 
-        if (!noShiftProfile?.company_id) {
-          console.error(`No company_id found for employee ${employeeId}`);
+      // Process each punched-in employee
+      for (const employeeId of punchedInEmployeeIds) {
+        const shift = employeeShifts.get(employeeId);
+        const hasShift = !!shift;
+
+        // Fallback: Force punch-out if more than 10 minutes past closing
+        if (isLatePunchOutTime) {
+          console.log(`Employee ${employeeId}: LATE punch-out (10+ min past closing) - forcing punch-out`);
+          
+          const { error: insertError } = await supabase
+            .from('time_entries')
+            .insert({
+              employee_id: employeeId,
+              company_id: companySetting.company_id,
+              entry_type: 'punch_out',
+              timestamp: now.toISOString(),
+              is_automatic: true,
+            });
+
+          if (insertError) {
+            console.error('Error creating late punch-out for employee:', employeeId, insertError);
+            continue;
+          }
+
+          companyLatePunchedOut++;
+          totalLatePunchOuts++;
+          console.log(`Successfully punched out employee (LATE): ${employeeId}`);
           continue;
         }
 
-        const { error: insertError } = await supabase
-          .from('time_entries')
-          .insert({
-            employee_id: employeeId,
-            company_id: noShiftProfile.company_id,
-            entry_type: 'punch_out',
-            timestamp: now.toISOString(),
-            is_automatic: true,
-          });
+        // Normal processing
+        if (!hasShift) {
+          console.log(`Employee ${employeeId}: NO shift today - auto punching out`);
+          
+          const { error: insertError } = await supabase
+            .from('time_entries')
+            .insert({
+              employee_id: employeeId,
+              company_id: companySetting.company_id,
+              entry_type: 'punch_out',
+              timestamp: now.toISOString(),
+              is_automatic: true,
+            });
 
-        if (insertError) {
-          console.error('Error creating punch-out for employee:', employeeId, insertError);
-          continue;
+          if (insertError) {
+            console.error('Error creating punch-out for employee:', employeeId, insertError);
+            continue;
+          }
+
+          companyNoShiftPunchedOut++;
+          totalPunchedOutNoShift++;
+          console.log(`Successfully punched out employee (no shift): ${employeeId}`);
+        } else if (shouldPunchOut) {
+          console.log(`Employee ${employeeId}: Closing time - using shift end time`);
+
+          const { error: insertError } = await supabase
+            .from('time_entries')
+            .insert({
+              employee_id: employeeId,
+              company_id: companySetting.company_id,
+              entry_type: 'punch_out',
+              timestamp: shift.end_time,
+              is_automatic: true,
+            });
+
+          if (insertError) {
+            console.error('Error creating punch-out for employee:', employeeId, insertError);
+            continue;
+          }
+
+          companyPunchedOut++;
+          totalPunchedOut++;
+          console.log(`Successfully punched out employee (closing time): ${employeeId}`);
         }
-
-        noShiftPunchedOut++;
-        console.log('Successfully punched out employee (no shift):', employeeId);
-      } else if (shouldPunchOut) {
-        // Employee has a shift but it's closing time - use shift end_time with variation
-        console.log('Creating automatic punch-out for employee:', employeeId, 'using shift end time');
-
-        // Get company_id from employee profile
-        const { data: closingProfile } = await supabase
-          .from('profiles')
-          .select('company_id')
-          .eq('user_id', employeeId)
-          .single();
-
-        if (!closingProfile?.company_id) {
-          console.error(`No company_id found for employee ${employeeId}`);
-          continue;
-        }
-
-        const { error: insertError } = await supabase
-          .from('time_entries')
-          .insert({
-            employee_id: employeeId,
-            company_id: closingProfile.company_id,
-            entry_type: 'punch_out',
-            timestamp: shift.end_time,
-            is_automatic: true,
-          });
-
-        if (insertError) {
-          console.error('Error creating punch-out for employee:', employeeId, insertError);
-          continue;
-        }
-
-        punchedOutCount++;
-        console.log('Successfully punched out employee (closing time):', employeeId);
       }
+
+      console.log(`${companySetting.company_name} summary: ${companyPunchedOut} closing-time punch-outs, ${companyNoShiftPunchedOut} no-shift punch-outs, ${companyLatePunchedOut} late punch-outs`);
+      processedCompanies.push(companySetting.company_name);
     }
 
-    // After all punch-outs are created, normalize time entries for today
-    console.log('Normalizing time entries for today...');
-    
-    const todayDateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+    // Normalize time entries for today
+    console.log('\n--- Normalizing time entries for today ---');
+    const todayDateStr = now.toISOString().split('T')[0];
     
     try {
       const { error: normalizeError } = await supabase.functions.invoke('normalize-time-entries', {
@@ -360,17 +380,19 @@ Deno.serve(async (req) => {
     }
 
     const result = {
-      message: 'Auto punch-out processing complete',
+      message: 'Multi-tenant auto punch-out processing complete',
       currentTime,
-      closingTime: todayHours.closeTime,
-      totalPunchedIn: punchedInEmployeeIds.length,
-      punchedOutAtClosing: punchedOutCount,
-      punchedOutNoShift: noShiftPunchedOut,
-      totalPunchedOut: punchedOutCount + noShiftPunchedOut,
+      companiesProcessed: processedCompanies.length,
+      companyNames: processedCompanies,
+      totalPunchedOutAtClosing: totalPunchedOut,
+      totalPunchedOutNoShift: totalPunchedOutNoShift,
+      totalLatePunchOuts: totalLatePunchOuts,
+      totalPunchedOut: totalPunchedOut + totalPunchedOutNoShift + totalLatePunchOuts,
       timestamp: now.toISOString(),
     };
 
-    console.log('Auto punch-out result:', result);
+    console.log('\n=== AUTO PUNCH-OUT RESULT ===');
+    console.log(result);
 
     return new Response(
       JSON.stringify(result),
