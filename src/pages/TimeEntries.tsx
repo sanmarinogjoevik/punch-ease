@@ -136,8 +136,9 @@ export default function TimeEntries() {
                  shiftDate.getTime() === date.getTime();
         });
 
-        // Only show days with scheduled shifts (same logic as TimelistTable)
-        if (!dayShift) {
+        // Show if there's punch data OR scheduled shift
+        // Don't skip entries just because there's no shift
+        if (!dayShift && !punchInEntry) {
           return;
         }
 
