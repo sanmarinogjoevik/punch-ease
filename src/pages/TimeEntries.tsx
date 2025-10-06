@@ -11,7 +11,7 @@ import { nb } from 'date-fns/locale';
 import { Clock, ArrowUp, ArrowDown } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { formatTimeNorway } from '@/lib/timeUtils';
+import { formatTimeNorway, isAfterClosingTime } from '@/lib/timeUtils';
 import { processTimeEntry, type TimeEntry as TimeEntryType } from '@/lib/timeEntryUtils';
 
 interface WorkSession {
@@ -136,10 +136,17 @@ export default function TimeEntries() {
                  shiftDate.getTime() === date.getTime();
         });
 
-        // Show if there's punch data OR scheduled shift
-        // Don't skip entries just because there's no shift
-        if (!dayShift && !punchInEntry) {
-          return;
+        // Visa alltid entries med schema
+        if (!dayShift) {
+          // Ingen schema - kolla om butiken är stängd
+          if (!punchInEntry) {
+            return; // Ingen punch-data alls
+          }
+          
+          // Kolla om det är efter stängning
+          if (isAfterClosingTime(date, businessHours)) {
+            return; // Dölj entries utan schema efter stängning
+          }
         }
 
         // Use shared processing logic
