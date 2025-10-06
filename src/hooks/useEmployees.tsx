@@ -20,29 +20,21 @@ export const employeesKeys = {
   byId: (id: string) => [...employeesKeys.all, id] as const,
 };
 
-// Hook to fetch all employees (excluding admins and superadmins)
+// Hook to fetch all employees (excluding admins and superadmins) with JOIN
 export const useEmployees = () => {
   return useQuery({
     queryKey: [...employeesKeys.all, 'no-admins'],
     queryFn: async (): Promise<Employee[]> => {
-      // Get all admin and superadmin user IDs
-      const { data: adminRoles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .in('role', ['admin', 'superadmin']);
-
-      if (rolesError) {
-        console.error('Error fetching admin roles:', rolesError.message);
-        throw rolesError;
-      }
-
-      const adminUserIds = adminRoles?.map(role => role.user_id) || [];
-      console.log('Admin/Superadmin user IDs to filter out:', adminUserIds);
-
-      // Fetch all profiles
+      // Fetch profiles with user_roles using JOIN and filter in SQL
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select(`
+          *,
+          user_roles!user_roles_user_id_fkey!inner (
+            role
+          )
+        `)
+        .not('user_roles.role', 'in', '(admin,superadmin)')
         .order('first_name', { ascending: true });
 
       if (error) {
@@ -50,20 +42,9 @@ export const useEmployees = () => {
         throw error;
       }
 
-      console.log('All profiles before filtering:', data?.length);
-      
-      // Filter out admins and superadmins on the client side
-      const employees = data?.filter(profile => {
-        const isAdmin = adminUserIds.includes(profile.user_id);
-        if (isAdmin) {
-          console.log('Filtering out admin/superadmin:', profile.first_name, profile.last_name);
-        }
-        return !isAdmin;
-      }) || [];
+      console.log('Employees fetched (server-side filtered):', data?.length);
 
-      console.log('Employees after filtering:', employees.length);
-
-      return employees;
+      return data || [];
     },
   });
 };

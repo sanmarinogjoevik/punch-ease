@@ -74,7 +74,7 @@ const Admin = () => {
   const [deletingShiftId, setDeletingShiftId] = useState<string | null>(null);
   
 
-  // Fetch all profiles/employees
+  // Fetch all profiles/employees with JOIN
   const { data: employees } = useQuery({
     queryKey: ['admin-employees', userProfile?.company_id],
     queryFn: async () => {
@@ -82,33 +82,23 @@ const Admin = () => {
       
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('*')
+        .select(`
+          *,
+          user_roles!user_roles_user_id_fkey (
+            role
+          )
+        `)
         .eq('company_id', userProfile.company_id)
         .order('created_at', { ascending: false });
       
       if (profilesError) throw profilesError;
-
-      const profilesWithRoles = await Promise.all(
-        profiles.map(async (profile) => {
-          const { data: role } = await supabase
-            .from('user_roles')
-            .select('role')
-            .eq('user_id', profile.user_id)
-            .single();
-          
-          return {
-            ...profile,
-            user_roles: role ? [role] : [{ role: 'employee' }]
-          };
-        })
-      );
       
-      return profilesWithRoles as Profile[];
+      return profiles as Profile[];
     },
     enabled: userRole === 'admin' && !!userProfile?.company_id
   });
 
-  // Fetch today's shifts
+  // Fetch today's shifts with JOIN
   const { data: todaysShifts } = useQuery({
     queryKey: ['admin-todays-shifts'],
     queryFn: async () => {
@@ -118,35 +108,26 @@ const Admin = () => {
 
       const { data: shifts, error } = await supabase
         .from('shifts')
-        .select('*')
+        .select(`
+          *,
+          profiles!shifts_employee_id_fkey (
+            first_name,
+            last_name,
+            email
+          )
+        `)
         .gte('start_time', startOfToday)
         .lte('start_time', endOfToday)
         .order('start_time', { ascending: true });
       
       if (error) throw error;
-
-      // Get profile data for each shift
-      const shiftsWithProfiles = await Promise.all(
-        shifts.map(async (shift) => {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('first_name, last_name, email')
-            .eq('user_id', shift.employee_id)
-            .single();
-          
-          return {
-            ...shift,
-            profiles: profile
-          };
-        })
-      );
       
-      return shiftsWithProfiles as Shift[];
+      return shifts as Shift[];
     },
     enabled: userRole === 'admin'
   });
 
-  // Fetch this week's shifts
+  // Fetch this week's shifts with JOIN
   const { data: weeklyShifts } = useQuery({
     queryKey: ['admin-weekly-shifts'],
     queryFn: async () => {
@@ -156,29 +137,21 @@ const Admin = () => {
 
       const { data: shifts, error } = await supabase
         .from('shifts')
-        .select('*')
+        .select(`
+          *,
+          profiles!shifts_employee_id_fkey (
+            first_name,
+            last_name,
+            email
+          )
+        `)
         .gte('start_time', weekStart.toISOString())
         .lte('end_time', weekEnd.toISOString())
         .order('start_time', { ascending: true });
       
       if (error) throw error;
-
-      const shiftsWithProfiles = await Promise.all(
-        shifts.map(async (shift) => {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('first_name, last_name, email')
-            .eq('user_id', shift.employee_id)
-            .single();
-          
-          return {
-            ...shift,
-            profiles: profile
-          };
-        })
-      );
       
-      return shiftsWithProfiles as Shift[];
+      return shifts as Shift[];
     },
     enabled: userRole === 'admin'
   });
