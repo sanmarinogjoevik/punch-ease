@@ -27,7 +27,6 @@ interface Shift {
 export default function EmployeeSchedule() {
   const { user } = useAuth();
   const [upcomingShifts, setUpcomingShifts] = useState<Shift[]>([]);
-  const [pastShifts, setPastShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -56,30 +55,6 @@ export default function EmployeeSchedule() {
           })
         );
         setUpcomingShifts(shiftsWithCoworkers);
-      }
-
-      // Fetch past shifts (last 30 days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const { data: pastData, error: pastError } = await supabase
-        .from('shifts')
-        .select('*')
-        .eq('employee_id', user.id)
-        .lt('end_time', new Date().toISOString())
-        .gte('start_time', thirtyDaysAgo.toISOString())
-        .order('start_time', { ascending: false });
-
-      if (pastError) {
-        console.error('Error fetching past shifts:', pastError);
-      } else {
-        const shiftsWithCoworkers = await Promise.all(
-          (pastData || []).map(async (shift) => {
-            const coworkers = await fetchCoworkersForShift(shift);
-            return { ...shift, coworkers };
-          })
-        );
-        setPastShifts(shiftsWithCoworkers);
       }
     } catch (error) {
       console.error('Error:', error);
@@ -251,24 +226,6 @@ export default function EmployeeSchedule() {
         )}
       </div>
 
-      {/* Work History */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Arbeidshistorikk (Siste 30 dager)</h2>
-        {pastShifts.length === 0 ? (
-          <Card>
-            <CardContent className="py-8">
-              <div className="text-center text-muted-foreground">
-                <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>Ingen arbeidshistorikk funnet for de siste 30 dagene.</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4">
-            {pastShifts.map((shift) => renderShiftCard(shift, true))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
