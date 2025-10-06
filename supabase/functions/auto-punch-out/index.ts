@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
       // Get employees for this company who are currently punched in
       const { data: companyProfiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('user_id')
+        .select('user_id, first_name, last_name, email')
         .eq('company_id', companySetting.company_id);
 
       if (profilesError || !companyProfiles || companyProfiles.length === 0) {
@@ -222,12 +222,19 @@ Deno.serve(async (req) => {
       const companyEmployeeIds = companyProfiles.map(p => p.user_id);
       console.log(`${companySetting.company_name} has ${companyEmployeeIds.length} employees`);
 
-      // Get all time entries for this company's employees
+      // TODAY START for filtering entries (KRITISK FIX: datumfiltrering)
+      const todayStart = new Date(now);
+      todayStart.setHours(0, 0, 0, 0);
+
+      // Get TODAY'S time entries for this company's employees (FÖRBÄTTRAD QUERY)
       const { data: companyTimeEntries, error: entriesError } = await supabase
         .from('time_entries')
         .select('employee_id, entry_type, timestamp')
         .in('employee_id', companyEmployeeIds)
+        .gte('timestamp', todayStart.toISOString()) // LÄGG TILL: Endast dagens entries
         .order('timestamp', { ascending: false });
+
+      console.log(`Fetched ${companyTimeEntries?.length || 0} time entries for today for ${companySetting.company_name}`);
 
       if (entriesError) {
         console.error(`Error fetching time entries for ${companySetting.company_name}:`, entriesError);
@@ -250,12 +257,18 @@ Deno.serve(async (req) => {
         }
       });
 
-      console.log(`${companySetting.company_name}: Found ${punchedInEmployeeIds.length} punched-in employees`);
+    // FÖRBÄTTRAD LOGGNING: Visa vilka anställda som är inpunchade
+    const punchedInEmployeeNames = punchedInEmployeeIds.map(id => {
+      const profile = companyProfiles.find(p => p.user_id === id);
+      return profile ? `${profile.first_name} ${profile.last_name}`.trim() : id;
+    });
+    
+    console.log(`${companySetting.company_name}: Found ${punchedInEmployeeIds.length} punched-in employees:`, punchedInEmployeeNames);
 
-      if (punchedInEmployeeIds.length === 0) {
-        console.log(`No employees currently punched in for ${companySetting.company_name}`);
-        continue;
-      }
+    if (punchedInEmployeeIds.length === 0) {
+      console.log(`No employees currently punched in for ${companySetting.company_name}`);
+      continue;
+    }
 
       // Get today's shifts for this company
       const todayStartShift = new Date(now);
@@ -283,12 +296,26 @@ Deno.serve(async (req) => {
 
       // Process each punched-in employee
       for (const employeeId of punchedInEmployeeIds) {
+        const employeeProfile = companyProfiles.find(p => p.user_id === employeeId);
+        const employeeFullName = employeeProfile 
+          ? `${employeeProfile.first_name} ${employeeProfile.last_name}`.trim() 
+          : employeeId;
+        
+        console.log(`\n--- Processing employee: ${employeeFullName} (${employeeId}) ---`);
+        
         const shift = employeeShifts.get(employeeId);
         const hasShift = !!shift;
 
+        if (shift) {
+          const formatTime = (isoTime: string) => new Date(isoTime).toTimeString().substring(0, 5);
+          console.log(`  Has shift: ${formatTime(shift.start_time)} - ${formatTime(shift.end_time)}`);
+        } else {
+          console.log(`  No shift scheduled for today`);
+        }
+
         // Fallback: Force punch-out if more than 10 minutes past closing
         if (isLatePunchOutTime) {
-          console.log(`Employee ${employeeId}: LATE punch-out (10+ min past closing) - forcing punch-out`);
+          console.log(`  ✓ LATE punch-out: More than 10 minutes past closing ${todayHours.closeTime}`);
           
           const { error: insertError } = await supabase
             .from('time_entries')
@@ -307,13 +334,13 @@ Deno.serve(async (req) => {
 
           companyLatePunchedOut++;
           totalLatePunchOuts++;
-          console.log(`Successfully punched out employee (LATE): ${employeeId}`);
+          console.log(`  Successfully punched out employee (LATE): ${employeeFullName}`);
           continue;
         }
 
         // Normal processing
         if (!hasShift) {
-          console.log(`Employee ${employeeId}: NO shift today - auto punching out`);
+          console.log(`  ✓ Should punch out: No shift, at closing time ${todayHours.closeTime}`);
           
           const { error: insertError } = await supabase
             .from('time_entries')
@@ -332,9 +359,10 @@ Deno.serve(async (req) => {
 
           companyNoShiftPunchedOut++;
           totalPunchedOutNoShift++;
-          console.log(`Successfully punched out employee (no shift): ${employeeId}`);
+          console.log(`  Successfully punched out employee (no shift): ${employeeFullName}`);
         } else if (shouldPunchOut) {
-          console.log(`Employee ${employeeId}: Closing time - using shift end time`);
+          const shiftEndTime = new Date(shift.end_time).toTimeString().substring(0, 5);
+          console.log(`  ✓ Should punch out: Within 5 min of shift end ${shiftEndTime}`);
 
           const { error: insertError } = await supabase
             .from('time_entries')
@@ -353,7 +381,9 @@ Deno.serve(async (req) => {
 
           companyPunchedOut++;
           totalPunchedOut++;
-          console.log(`Successfully punched out employee (closing time): ${employeeId}`);
+          console.log(`  Successfully punched out employee (closing time): ${employeeFullName}`);
+        } else {
+          console.log(`  ✗ No punch-out conditions met (current time: ${currentTime})`);
         }
       }
 

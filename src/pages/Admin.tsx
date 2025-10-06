@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { LivePunchStatus } from "@/components/LivePunchStatus";
 import { TodaysTemperatureLogs } from "@/components/TodaysTemperatureLogs";
+import { ForceAllPunchOutButton } from "@/components/ForceAllPunchOutButton";
 import { EditShiftDialog } from "@/components/EditShiftDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useShiftMutations } from "@/hooks/useShifts";
@@ -306,10 +307,13 @@ const Admin = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-        <Badge variant="secondary" className="text-sm">
-          <Users className="w-4 h-4 mr-1" />
-          Admin
-        </Badge>
+        <div className="flex items-center gap-3">
+          <ForceAllPunchOutButton />
+          <Badge variant="secondary" className="text-sm">
+            <Users className="w-4 h-4 mr-1" />
+            Admin
+          </Badge>
+        </div>
       </div>
 
 
