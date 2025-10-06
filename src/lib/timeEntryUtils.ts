@@ -59,7 +59,7 @@ export function processTimeEntry(
 ): ProcessedTimeEntry {
   const now = new Date();
 
-  // ALWAYS prioritize actual punch data first (regardless of store status)
+  // Priority 1: Complete punch-in/out pair (actual data)
   if (punchInEntry && punchOutEntry) {
     const punchIn = punchInEntry.timestamp;
     const punchOut = punchOutEntry.timestamp;
@@ -82,26 +82,7 @@ export function processTimeEntry(
     };
   }
 
-  // Fallback to schedule if no complete punch data
-  if (shift) {
-    const shiftStart = new Date(shift.start_time);
-    const shiftEnd = new Date(shift.end_time);
-    const durationMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
-    const lunchMinutes = durationMinutes > 330 ? 30 : 0;
-    const totalMinutes = durationMinutes; // Include pause in total
-
-    return {
-      punchIn: shift.start_time,
-      punchOut: shift.end_time,
-      totalMinutes,
-      lunchMinutes,
-      hasData: true,
-      isOngoing: false,
-      source: 'schedule'
-    };
-  }
-
-  // Handle ongoing shifts (only punch_in)
+  // Priority 2: Ongoing shift (only punch-in, today)
   if (punchInEntry && isToday) {
     const punchIn = punchInEntry.timestamp;
     const start = new Date(punchIn);
@@ -117,6 +98,25 @@ export function processTimeEntry(
       hasData: true,
       isOngoing: true,
       source: 'actual'
+    };
+  }
+
+  // Priority 3: Fallback to schedule (when store is closed or no punch data)
+  if (shift) {
+    const shiftStart = new Date(shift.start_time);
+    const shiftEnd = new Date(shift.end_time);
+    const durationMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
+    const lunchMinutes = durationMinutes > 330 ? 30 : 0;
+    const totalMinutes = durationMinutes; // Include pause in total
+
+    return {
+      punchIn: shift.start_time,
+      punchOut: shift.end_time,
+      totalMinutes,
+      lunchMinutes,
+      hasData: true,
+      isOngoing: false,
+      source: 'schedule'
     };
   }
 
