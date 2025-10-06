@@ -189,17 +189,20 @@ export default function TimelistTable({
             // Only punch in, no punch out - show ongoing
             punchIn = formatTimeNorway(punchInEntry.timestamp);
           } else {
-            // Fallback to schedule if no complete time_entries
-            punchIn = formatTimeNorway(dayShift.start_time);
-            punchOut = formatTimeNorway(dayShift.end_time);
-            
-            const totalMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
-            const pauseMinutes = totalMinutes > 330 ? 30 : 0;
-            
-            const hours = Math.floor(totalMinutes / 60);
-            const minutes = totalMinutes % 60;
-            total = `${hours}:${minutes.toString().padStart(2, '0')}`;
-            lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
+            // Only show scheduled times as fallback for PAST days without punch-ins
+            if (isPastDay) {
+              punchIn = formatTimeNorway(dayShift.start_time);
+              punchOut = formatTimeNorway(dayShift.end_time);
+              
+              const totalMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
+              const pauseMinutes = totalMinutes > 330 ? 30 : 0;
+              
+              const hours = Math.floor(totalMinutes / 60);
+              const minutes = totalMinutes % 60;
+              total = `${hours}:${minutes.toString().padStart(2, '0')}`;
+              lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
+            }
+            // For today and future days without punch-ins: leave empty (punchIn/punchOut are null)
           }
         }
 
