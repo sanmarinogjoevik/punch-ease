@@ -6,8 +6,19 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Building2, Users, Calendar, Clock, BarChart3, LogOut } from 'lucide-react';
+import { Plus, Building2, Users, Calendar, Clock, BarChart3, LogOut, Edit, Trash2 } from 'lucide-react';
 import { CreateCompanyDialog } from '@/components/CreateCompanyDialog';
+import { EditCompanyDialog } from '@/components/EditCompanyDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { SuperadminLivePunchStatus } from '@/components/SuperadminLivePunchStatus';
 import { SuperadminTemperatureLogs } from '@/components/SuperadminTemperatureLogs';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,7 +33,11 @@ export default function Superadmin() {
   const { userRole } = useAuth();
   const navigate = useNavigate();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [editingCompany, setEditingCompany] = useState<any>(null);
+  const [deletingCompany, setDeletingCompany] = useState<any>(null);
 
   // Protect route
   if (userRole !== 'superadmin') {
@@ -41,6 +56,41 @@ export default function Superadmin() {
       toast.error('Kunde inte logga ut');
       console.error('Logout error:', error);
     }
+  };
+
+  const handleEditCompany = (company: any) => {
+    setEditingCompany(company);
+    setShowEditDialog(true);
+  };
+
+  const handleDeleteCompany = async () => {
+    if (!deletingCompany) return;
+
+    try {
+      // Delete company from database
+      const { error } = await supabase
+        .from('companies')
+        .delete()
+        .eq('id', deletingCompany.id);
+
+      if (error) throw error;
+
+      toast.success('Företaget har tagits bort');
+      setShowDeleteDialog(false);
+      setDeletingCompany(null);
+      if (selectedCompanyId === deletingCompany.id) {
+        setSelectedCompanyId(null);
+      }
+      refetchCompanies();
+    } catch (error: any) {
+      console.error('Error deleting company:', error);
+      toast.error(error.message || 'Kunde inte ta bort företaget');
+    }
+  };
+
+  const openDeleteDialog = (company: any) => {
+    setDeletingCompany(company);
+    setShowDeleteDialog(true);
   };
 
   // Fetch today's shifts
@@ -366,9 +416,35 @@ export default function Superadmin() {
           {companies && companies.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {companies.map((company) => (
-                <Card key={company.id} className="cursor-pointer hover:border-primary transition-colors" onClick={() => setSelectedCompanyId(company.id)}>
+                <Card key={company.id} className="hover:border-primary transition-colors">
                   <CardHeader>
-                    <CardTitle className="text-lg">{company.name}</CardTitle>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg cursor-pointer" onClick={() => setSelectedCompanyId(company.id)}>
+                        {company.name}
+                      </CardTitle>
+                      <div className="flex gap-2">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditCompany(company);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDeleteDialog(company);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
                   </CardHeader>
                 </Card>
               ))}
@@ -386,6 +462,32 @@ export default function Superadmin() {
         onOpenChange={setShowCreateDialog}
         onSuccess={refetchCompanies}
       />
+
+      <EditCompanyDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        company={editingCompany}
+        onSuccess={refetchCompanies}
+      />
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ta bort företag</AlertDialogTitle>
+            <AlertDialogDescription>
+              Är du säker på att du vill ta bort företaget "{deletingCompany?.name}"? 
+              Detta kommer även ta bort all data kopplad till företaget (anställda, vakter, inställningar, etc.) 
+              och kan inte ångras.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCompany} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Ta bort
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

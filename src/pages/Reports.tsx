@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { useEmployeeMonthShifts, useShiftMutations, useShifts, useShiftsSubscription } from '@/hooks/useShifts';
 import { useEmployees } from '@/hooks/useEmployees';
+import { useCurrentUserProfile } from '@/hooks/useCurrentUserProfile';
 import { useEquipment } from '@/hooks/useEquipment';
 import { useTemperatureLogs } from '@/hooks/useTemperatureLogs';
 import { useToast } from '@/hooks/use-toast';
@@ -59,8 +60,15 @@ export default function Reports() {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'timelista' | 'vaktlista' | 'temperatur'>('timelista');
   
-  // Use the new hooks
-  const { data: employees = [], isLoading: employeesLoading } = useEmployees();
+  // Use the new hooks - filter employees by company
+  const { data: allEmployees = [], isLoading: employeesLoading } = useEmployees();
+  const { data: currentUserProfile } = useCurrentUserProfile();
+  
+  // Filter employees to only show those from the current user's company
+  const employees = allEmployees.filter(emp => 
+    currentUserProfile?.company_id && emp.company_id === currentUserProfile.company_id
+  );
+  
   const { data: shifts = [], isLoading: shiftsLoading, refetch: refetchShifts } = useEmployeeMonthShifts(
     selectedEmployee, 
     selectedMonth + '-01'
