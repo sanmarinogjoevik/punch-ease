@@ -487,67 +487,6 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
-
-            {/* Recent Work Sessions */}
-            <Card className="col-span-1 md:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5" />
-                  Siste Arbeidsvakter
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {recentWorkSessions.length > 0 ? (
-                  <TooltipProvider>
-                    <div className="space-y-3">
-                      {recentWorkSessions.map((session) => (
-                        <div key={session.id} className="p-3 rounded-lg border">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-green-500" />
-                              <span className="font-medium">
-                                {new Date(session.punch_in.timestamp).toLocaleDateString('nb-NO')}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {session.punch_out ? (
-                                <div className="flex items-center gap-1 text-green-600">
-                                  <span className="text-sm">Avsluttet</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1 text-yellow-600">
-                                  <span className="text-sm">Pågående</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="mt-2 flex items-center justify-between text-sm text-muted-foreground">
-                            <div>
-                              {formatTime(session.punch_in.timestamp)}
-                              {session.punch_out && (
-                                <span> - {formatTime(session.punch_out.timestamp)}</span>
-                              )}
-                            </div>
-                            <div className="font-medium">
-                              {session.duration !== undefined ? (
-                                formatDuration(session.duration)
-                              ) : (
-                                <span className="text-yellow-600">Pågående</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </TooltipProvider>
-                ) : (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <AlertCircle className="h-4 w-4" />
-                    Ingen arbeidsvakter ennå
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </>
         )}
 
