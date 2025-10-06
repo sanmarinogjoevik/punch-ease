@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { LogIn, LogOut, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { ForceAllPunchOutButton } from './ForceAllPunchOutButton';
 
 interface AdminPunchDialogProps {
   open: boolean;
@@ -180,6 +181,10 @@ export const AdminPunchDialog = ({ open, onOpenChange }: AdminPunchDialogProps) 
             Välj en anställd och stämpla in eller ut manuellt
           </DialogDescription>
         </DialogHeader>
+
+        <div className="flex justify-end mb-4">
+          <ForceAllPunchOutButton />
+        </div>
 
         <ScrollArea className="h-[400px] pr-4">
           {loadingEmployees ? (
