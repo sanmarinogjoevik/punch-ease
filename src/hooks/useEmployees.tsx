@@ -30,7 +30,7 @@ export const useEmployees = () => {
         .from('profiles')
         .select(`
           *,
-          user_roles!user_roles_user_id_fkey!inner (
+          user_roles!inner (
             role
           )
         `)

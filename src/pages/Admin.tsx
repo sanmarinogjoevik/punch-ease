@@ -84,7 +84,7 @@ const Admin = () => {
         .from('profiles')
         .select(`
           *,
-          user_roles!user_roles_user_id_fkey (
+          user_roles (
             role
           )
         `)
@@ -93,7 +93,13 @@ const Admin = () => {
       
       if (profilesError) throw profilesError;
       
-      return profiles as Profile[];
+      // Handle missing user_roles (default to employee)
+      const profilesWithRoles = profiles?.map(profile => ({
+        ...profile,
+        user_roles: profile.user_roles || [{ role: 'employee' }]
+      })) || [];
+      
+      return profilesWithRoles as Profile[];
     },
     enabled: userRole === 'admin' && !!userProfile?.company_id
   });
@@ -110,7 +116,7 @@ const Admin = () => {
         .from('shifts')
         .select(`
           *,
-          profiles!shifts_employee_id_fkey (
+          profiles (
             first_name,
             last_name,
             email
@@ -139,7 +145,7 @@ const Admin = () => {
         .from('shifts')
         .select(`
           *,
-          profiles!shifts_employee_id_fkey (
+          profiles (
             first_name,
             last_name,
             email
