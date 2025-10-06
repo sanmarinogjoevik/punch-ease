@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Users, Phone, Mail, IdCard, UserCheck, UserX, Edit, Trash2, Plus } from "lucide-react";
 import { useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useCurrentUserProfile } from "@/hooks/useCurrentUserProfile";
 
 interface Profile {
   id: string;
@@ -31,6 +32,7 @@ const Employees = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
+  const { data: currentUserProfile } = useCurrentUserProfile();
   
   // Edit Employee Dialog State
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -57,13 +59,16 @@ const Employees = () => {
   });
   const [isAddSubmitting, setIsAddSubmitting] = useState(false);
 
-  // Fetch all profiles/employees
+  // Fetch employees only from current user's company
   const { data: employees, isLoading } = useQuery({
-    queryKey: ['employees'],
+    queryKey: ['employees', currentUserProfile?.company_id],
     queryFn: async () => {
+      if (!currentUserProfile?.company_id) return [];
+
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
+        .eq('company_id', currentUserProfile.company_id)
         .order('created_at', { ascending: false });
       
       if (profilesError) throw profilesError;
@@ -85,6 +90,7 @@ const Employees = () => {
       
       return profilesWithRoles as Profile[];
     },
+    enabled: !!currentUserProfile?.company_id,
   });
 
   const makeAdmin = async (userId: string) => {
