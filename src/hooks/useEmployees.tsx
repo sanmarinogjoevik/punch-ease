@@ -25,41 +25,43 @@ export const useEmployees = () => {
   return useQuery({
     queryKey: [...employeesKeys.all, 'no-admins'],
     queryFn: async (): Promise<Employee[]> => {
+      // Get all admin and superadmin user IDs
+      const { data: adminRoles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .in('role', ['admin', 'superadmin']);
+
+      if (rolesError) {
+        console.error('Error fetching admin roles:', rolesError.message);
+        throw rolesError;
+      }
+
+      const adminUserIds = adminRoles?.map(role => role.user_id) || [];
+      console.log('Admin/Superadmin user IDs to filter out:', adminUserIds);
+
       // Fetch all profiles
-      const { data: profiles, error: profilesError } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .order('first_name', { ascending: true });
 
-      if (profilesError) {
-        console.error('Error fetching profiles:', profilesError.message);
-        throw profilesError;
+      if (error) {
+        console.error('Error fetching employees:', error.message);
+        throw error;
       }
 
-      if (!profiles || profiles.length === 0) {
-        return [];
-      }
+      console.log('All profiles before filtering:', data?.length);
+      
+      // Filter out admins and superadmins on the client side
+      const employees = data?.filter(profile => {
+        const isAdmin = adminUserIds.includes(profile.user_id);
+        if (isAdmin) {
+          console.log('Filtering out admin/superadmin:', profile.first_name, profile.last_name);
+        }
+        return !isAdmin;
+      }) || [];
 
-      // Fetch all user roles for these profiles
-      const userIds = profiles.map(p => p.user_id);
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id, role')
-        .in('user_id', userIds);
-
-      if (rolesError) {
-        console.error('Error fetching roles:', rolesError.message);
-        throw rolesError;
-      }
-
-      // Filter out admins and superadmins on client side
-      const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
-      const employees = profiles.filter(profile => {
-        const role = roleMap.get(profile.user_id);
-        return role && role !== 'admin' && role !== 'superadmin';
-      });
-
-      console.log('Employees fetched:', employees.length);
+      console.log('Employees after filtering:', employees.length);
 
       return employees;
     },

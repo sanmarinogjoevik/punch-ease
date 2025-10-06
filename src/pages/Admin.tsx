@@ -80,7 +80,6 @@ const Admin = () => {
     queryFn: async () => {
       if (!userProfile?.company_id) return [];
       
-      // Fetch profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
@@ -88,30 +87,28 @@ const Admin = () => {
         .order('created_at', { ascending: false });
       
       if (profilesError) throw profilesError;
-      if (!profiles || profiles.length === 0) return [];
 
-      // Fetch roles for these profiles
-      const userIds = profiles.map(p => p.user_id);
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id, role')
-        .in('user_id', userIds);
-      
-      if (rolesError) throw rolesError;
-
-      // Combine profiles with roles on client side
-      const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
-      const profilesWithRoles = profiles.map(profile => ({
-        ...profile,
-        user_roles: [{ role: roleMap.get(profile.user_id) || 'employee' }]
-      }));
+      const profilesWithRoles = await Promise.all(
+        profiles.map(async (profile) => {
+          const { data: role } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', profile.user_id)
+            .single();
+          
+          return {
+            ...profile,
+            user_roles: role ? [role] : [{ role: 'employee' }]
+          };
+        })
+      );
       
       return profilesWithRoles as Profile[];
     },
     enabled: userRole === 'admin' && !!userProfile?.company_id
   });
 
-  // Fetch today's shifts with JOIN
+  // Fetch today's shifts
   const { data: todaysShifts } = useQuery({
     queryKey: ['admin-todays-shifts'],
     queryFn: async () => {
@@ -121,26 +118,35 @@ const Admin = () => {
 
       const { data: shifts, error } = await supabase
         .from('shifts')
-        .select(`
-          *,
-          profiles (
-            first_name,
-            last_name,
-            email
-          )
-        `)
+        .select('*')
         .gte('start_time', startOfToday)
         .lte('start_time', endOfToday)
         .order('start_time', { ascending: true });
       
       if (error) throw error;
+
+      // Get profile data for each shift
+      const shiftsWithProfiles = await Promise.all(
+        shifts.map(async (shift) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('first_name, last_name, email')
+            .eq('user_id', shift.employee_id)
+            .single();
+          
+          return {
+            ...shift,
+            profiles: profile
+          };
+        })
+      );
       
-      return shifts as Shift[];
+      return shiftsWithProfiles as Shift[];
     },
     enabled: userRole === 'admin'
   });
 
-  // Fetch this week's shifts with JOIN
+  // Fetch this week's shifts
   const { data: weeklyShifts } = useQuery({
     queryKey: ['admin-weekly-shifts'],
     queryFn: async () => {
@@ -150,21 +156,29 @@ const Admin = () => {
 
       const { data: shifts, error } = await supabase
         .from('shifts')
-        .select(`
-          *,
-          profiles (
-            first_name,
-            last_name,
-            email
-          )
-        `)
+        .select('*')
         .gte('start_time', weekStart.toISOString())
         .lte('end_time', weekEnd.toISOString())
         .order('start_time', { ascending: true });
       
       if (error) throw error;
+
+      const shiftsWithProfiles = await Promise.all(
+        shifts.map(async (shift) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('first_name, last_name, email')
+            .eq('user_id', shift.employee_id)
+            .single();
+          
+          return {
+            ...shift,
+            profiles: profile
+          };
+        })
+      );
       
-      return shifts as Shift[];
+      return shiftsWithProfiles as Shift[];
     },
     enabled: userRole === 'admin'
   });
