@@ -74,30 +74,37 @@ const Admin = () => {
   const [deletingShiftId, setDeletingShiftId] = useState<string | null>(null);
   
 
-  // Fetch all profiles/employees with JOIN
+  // Fetch all profiles/employees
   const { data: employees } = useQuery({
     queryKey: ['admin-employees', userProfile?.company_id],
     queryFn: async () => {
       if (!userProfile?.company_id) return [];
       
+      // Fetch profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select(`
-          *,
-          user_roles (
-            role
-          )
-        `)
+        .select('*')
         .eq('company_id', userProfile.company_id)
         .order('created_at', { ascending: false });
       
       if (profilesError) throw profilesError;
+      if (!profiles || profiles.length === 0) return [];
+
+      // Fetch roles for these profiles
+      const userIds = profiles.map(p => p.user_id);
+      const { data: roles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id, role')
+        .in('user_id', userIds);
       
-      // Handle missing user_roles (default to employee)
-      const profilesWithRoles = profiles?.map(profile => ({
+      if (rolesError) throw rolesError;
+
+      // Combine profiles with roles on client side
+      const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
+      const profilesWithRoles = profiles.map(profile => ({
         ...profile,
-        user_roles: profile.user_roles || [{ role: 'employee' }]
-      })) || [];
+        user_roles: [{ role: roleMap.get(profile.user_id) || 'employee' }]
+      }));
       
       return profilesWithRoles as Profile[];
     },

@@ -20,31 +20,48 @@ export const employeesKeys = {
   byId: (id: string) => [...employeesKeys.all, id] as const,
 };
 
-// Hook to fetch all employees (excluding admins and superadmins) with JOIN
+// Hook to fetch all employees (excluding admins and superadmins)
 export const useEmployees = () => {
   return useQuery({
     queryKey: [...employeesKeys.all, 'no-admins'],
     queryFn: async (): Promise<Employee[]> => {
-      // Fetch profiles with user_roles using JOIN and filter in SQL
-      const { data, error } = await supabase
+      // Fetch all profiles
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select(`
-          *,
-          user_roles!inner (
-            role
-          )
-        `)
-        .not('user_roles.role', 'in', '(admin,superadmin)')
+        .select('*')
         .order('first_name', { ascending: true });
 
-      if (error) {
-        console.error('Error fetching employees:', error.message);
-        throw error;
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError.message);
+        throw profilesError;
       }
 
-      console.log('Employees fetched (server-side filtered):', data?.length);
+      if (!profiles || profiles.length === 0) {
+        return [];
+      }
 
-      return data || [];
+      // Fetch all user roles for these profiles
+      const userIds = profiles.map(p => p.user_id);
+      const { data: roles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id, role')
+        .in('user_id', userIds);
+
+      if (rolesError) {
+        console.error('Error fetching roles:', rolesError.message);
+        throw rolesError;
+      }
+
+      // Filter out admins and superadmins on client side
+      const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
+      const employees = profiles.filter(profile => {
+        const role = roleMap.get(profile.user_id);
+        return role && role !== 'admin' && role !== 'superadmin';
+      });
+
+      console.log('Employees fetched:', employees.length);
+
+      return employees;
     },
   });
 };
