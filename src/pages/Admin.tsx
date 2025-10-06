@@ -1,4 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
+import { useCurrentUserProfile } from "@/hooks/useCurrentUserProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,6 +65,7 @@ interface Shift {
 
 const Admin = () => {
   const { user, userRole } = useAuth();
+  const { data: userProfile } = useCurrentUserProfile();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { updateShift, deleteShift } = useShiftMutations();
@@ -74,11 +76,14 @@ const Admin = () => {
 
   // Fetch all profiles/employees
   const { data: employees } = useQuery({
-    queryKey: ['admin-employees'],
+    queryKey: ['admin-employees', userProfile?.company_id],
     queryFn: async () => {
+      if (!userProfile?.company_id) return [];
+      
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
+        .eq('company_id', userProfile.company_id)
         .order('created_at', { ascending: false });
       
       if (profilesError) throw profilesError;
@@ -100,7 +105,7 @@ const Admin = () => {
       
       return profilesWithRoles as Profile[];
     },
-    enabled: userRole === 'admin'
+    enabled: userRole === 'admin' && !!userProfile?.company_id
   });
 
   // Fetch today's shifts
