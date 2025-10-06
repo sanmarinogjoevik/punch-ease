@@ -143,8 +143,13 @@ export default function TimeEntries() {
             return; // Ingen punch-data alls
           }
           
-          // Kolla om det är efter stängning
-          if (isAfterClosingTime(date, businessHours)) {
+          // Visa endast entries utan schema för IDAG och bara under öppettider
+          if (!isToday) {
+            return; // Dölj alla gamla dagar utan schema
+          }
+          
+          // Om det är idag, kolla om butiken är stängd
+          if (isAfterClosingTime(new Date(), businessHours)) {
             return; // Dölj entries utan schema efter stängning
           }
         }
