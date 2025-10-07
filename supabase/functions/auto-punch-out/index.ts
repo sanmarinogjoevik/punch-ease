@@ -1,4 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
+import { formatInTimeZone } from 'https://esm.sh/date-fns-tz@3.2.0';
+
+const TIMEZONE = 'Europe/Oslo';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -110,9 +113,10 @@ Deno.serve(async (req) => {
 
     console.log(`Processing ${allCompanySettings.length} companies for auto punch-out`);
 
-    const currentDay = now.getDay();
-    const currentTime = now.toTimeString().substring(0, 5); // HH:MM format
-    console.log('Current day:', currentDay, 'Current time:', currentTime);
+    // Get Norwegian time for correct comparison
+    const currentTime = formatInTimeZone(now, TIMEZONE, 'HH:mm');
+    const currentDay = parseInt(formatInTimeZone(now, TIMEZONE, 'i')) % 7; // 0-6 (søndag-lørdag)
+    console.log(`Current Norwegian time: ${currentTime}, day: ${currentDay}`);
 
     let totalPunchedOut = 0;
     const processedCompanies: string[] = [];
