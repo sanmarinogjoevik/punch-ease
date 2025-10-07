@@ -169,13 +169,13 @@ export const LivePunchStatus = () => {
 
   // Kontrollera om någon anställd är "stuck" (mer än 2 timmar efter stängning)
   const getStuckEmployees = () => {
-    if (!companySettings?.business_hours || !punchedInEmployees.length) return [];
+    if (!companySettings?.business_hours || !Array.isArray(companySettings.business_hours) || !punchedInEmployees.length) return [];
 
     const now = new Date();
     const currentDay = now.getDay();
-    const businessHours = (companySettings.business_hours as any[]).find(
+    const businessHours = companySettings.business_hours.find(
       (bh: any) => bh.day === currentDay
-    );
+    ) as any;
 
     if (!businessHours || !businessHours.isOpen) return [];
 
