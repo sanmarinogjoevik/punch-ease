@@ -10,7 +10,6 @@ interface EmployeeSelectorProps {
 
 export function EmployeeSelector({ onSelectEmployee }: EmployeeSelectorProps) {
   const { data: employees, isLoading } = useEmployees();
-  const { companyId } = useTenant();
 
   if (isLoading) {
     return (
@@ -20,8 +19,8 @@ export function EmployeeSelector({ onSelectEmployee }: EmployeeSelectorProps) {
     );
   }
 
-  // Filter employees by company_id from tenant context
-  const filteredEmployees = employees?.filter(emp => emp.company_id === companyId) || [];
+  // Employees are already filtered by company in useEmployees hook
+  const filteredEmployees = employees || [];
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
     const first = firstName?.charAt(0) || '';

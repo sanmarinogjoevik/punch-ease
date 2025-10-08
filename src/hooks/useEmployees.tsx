@@ -25,6 +25,23 @@ export const useEmployees = () => {
   return useQuery({
     queryKey: [...employeesKeys.all, 'no-admins'],
     queryFn: async (): Promise<Employee[]> => {
+      // Get current user's company_id
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const { data: currentUserProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError || !currentUserProfile?.company_id) {
+        console.error('Error fetching user profile:', profileError);
+        throw new Error('Could not fetch user company');
+      }
+
       // Get all admin and superadmin user IDs
       const { data: adminRoles, error: rolesError } = await supabase
         .from('user_roles')
@@ -39,10 +56,11 @@ export const useEmployees = () => {
       const adminUserIds = adminRoles?.map(role => role.user_id) || [];
       console.log('Admin/Superadmin user IDs to filter out:', adminUserIds);
 
-      // Fetch all profiles
+      // Fetch profiles filtered by company_id on server-side
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
+        .eq('company_id', currentUserProfile.company_id)
         .order('first_name', { ascending: true });
 
       if (error) {
@@ -50,7 +68,7 @@ export const useEmployees = () => {
         throw error;
       }
 
-      console.log('All profiles before filtering:', data?.length);
+      console.log('Profiles from company before admin filtering:', data?.length);
       
       // Filter out admins and superadmins on the client side
       const employees = data?.filter(profile => {
