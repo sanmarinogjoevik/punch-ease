@@ -60,26 +60,7 @@ export function processTimeEntry(
   const now = new Date();
   const isClosed = isAfterClosingTime(now, businessHours);
 
-  // Priority 1: After closing - use schedule if available
-  if (isClosed && shift) {
-    const shiftStart = new Date(shift.start_time);
-    const shiftEnd = new Date(shift.end_time);
-    const durationMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
-    const lunchMinutes = durationMinutes > 330 ? 30 : 0;
-    const totalMinutes = durationMinutes;
-
-    return {
-      punchIn: shift.start_time,
-      punchOut: shift.end_time,
-      totalMinutes,
-      lunchMinutes,
-      hasData: true,
-      isOngoing: false,
-      source: 'schedule'
-    };
-  }
-
-  // Priority 2: During opening hours - use actual times if complete
+  // Priority 1: Use actual times if complete (ALWAYS prioritize real punch data)
   if (punchInEntry && punchOutEntry) {
     const punchIn = punchInEntry.timestamp;
     const punchOut = punchOutEntry.timestamp;
@@ -101,7 +82,7 @@ export function processTimeEntry(
     };
   }
 
-  // Priority 3: Ongoing shift (only punch-in, today, during opening hours)
+  // Priority 2: Ongoing shift (only punch-in, today, during opening hours)
   if (punchInEntry && isToday && !isClosed) {
     const punchIn = punchInEntry.timestamp;
     const start = new Date(punchIn);
@@ -120,7 +101,7 @@ export function processTimeEntry(
     };
   }
 
-  // Priority 4: Fallback to schedule
+  // Priority 3: Fallback to schedule (only if no time_entries exist)
   if (shift) {
     const shiftStart = new Date(shift.start_time);
     const shiftEnd = new Date(shift.end_time);
