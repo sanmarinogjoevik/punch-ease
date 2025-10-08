@@ -101,8 +101,31 @@ Deno.serve(async (req) => {
     let skippedCount = 0;
 
     for (const shift of shifts) {
-      // Delete existing time entries for this employee and date (if any)
-      // This allows us to create fresh normalized entries based on the shift
+      // Check if employee has both punch_in and punch_out for this day
+      const { data: existingEntries, error: entriesError } = await supabase
+        .from('time_entries')
+        .select('id, entry_type, timestamp')
+        .eq('employee_id', shift.employee_id)
+        .gte('timestamp', dayStart.toISOString())
+        .lte('timestamp', dayEnd.toISOString())
+        .order('timestamp', { ascending: true });
+
+      if (entriesError) {
+        console.error(`Error fetching entries for employee ${shift.employee_id}:`, entriesError);
+        continue;
+      }
+
+      // Check if we have both punch_in and punch_out
+      const hasPunchIn = existingEntries?.some(e => e.entry_type === 'punch_in');
+      const hasPunchOut = existingEntries?.some(e => e.entry_type === 'punch_out');
+
+      if (!hasPunchIn || !hasPunchOut) {
+        console.log(`Employee ${shift.employee_id} missing complete punch data, skipping`);
+        skippedCount++;
+        continue;
+      }
+
+      // Delete existing entries for this employee and date
       const { error: deleteError } = await supabase
         .from('time_entries')
         .delete()

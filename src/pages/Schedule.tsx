@@ -16,8 +16,6 @@ import { nb } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { createUTCFromNorwegianTime, extractTime, formatTimeNorway } from "@/lib/timeUtils";
-import { useCurrentUserProfile } from "@/hooks/useCurrentUserProfile";
-import { useEmployees } from "@/hooks/useEmployees";
 
 interface Profile {
   id: string;
@@ -76,16 +74,20 @@ const Schedule = () => {
     end: calendarEnd
   });
 
-  // Get current user profile to filter employees by company
-  const { data: currentProfile } = useCurrentUserProfile();
-  
-  // Fetch employees (already filtered to exclude admins/superadmins)
-  const { data: allEmployees } = useEmployees();
-  
-  // Filter employees by company_id
-  const employees = allEmployees?.filter(emp => 
-    emp.company_id === currentProfile?.company_id
-  );
+  // Fetch all employees
+  const { data: employees } = useQuery({
+    queryKey: ['schedule-employees'],
+    queryFn: async () => {
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('id, user_id, first_name, last_name, email')
+        .order('first_name', { ascending: true });
+      
+      if (error) throw error;
+      return profiles as Profile[];
+    },
+    enabled: userRole === 'admin'
+  });
 
   // Fetch shifts for the current month
   const { data: shifts } = useQuery({
