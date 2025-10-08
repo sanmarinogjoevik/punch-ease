@@ -391,24 +391,6 @@ Deno.serve(async (req) => {
       processedCompanies.push(companySetting.company_name);
     }
 
-    // Normalize time entries for today
-    console.log('\n--- Normalizing time entries for today ---');
-    const todayDateStr = now.toISOString().split('T')[0];
-    
-    try {
-      const { error: normalizeError } = await supabase.functions.invoke('normalize-time-entries', {
-        body: { date: todayDateStr }
-      });
-
-      if (normalizeError) {
-        console.error('Error normalizing time entries:', normalizeError);
-      } else {
-        console.log('Time entries normalized successfully');
-      }
-    } catch (normalizeErr) {
-      console.error('Failed to invoke normalize-time-entries:', normalizeErr);
-    }
-
     const result = {
       message: 'Multi-tenant auto punch-out processing complete',
       currentTime,
