@@ -16,6 +16,14 @@ interface PunchedInEmployee {
   punchInTime?: string;
 }
 
+interface BusinessHours {
+  day: number;
+  dayName: string;
+  isOpen: boolean;
+  openTime: string;
+  closeTime: string;
+}
+
 export const LivePunchStatus = () => {
   const { isAdmin } = useAuth();
   const [punchedInEmployees, setPunchedInEmployees] = useState<PunchedInEmployee[]>([]);
@@ -35,6 +43,18 @@ export const LivePunchStatus = () => {
         .single();
       
       if (error) throw error;
+      
+      // Parse business_hours if it's a string
+      if (data?.business_hours) {
+        if (typeof data.business_hours === 'string') {
+          try {
+            data.business_hours = JSON.parse(data.business_hours);
+          } catch (e) {
+            console.error('Failed to parse business_hours:', e);
+          }
+        }
+      }
+      
       return data;
     },
     enabled: !!currentUserProfile?.company_id,
@@ -169,11 +189,18 @@ export const LivePunchStatus = () => {
   // Kontrollera om någon anställd är "stuck" (mer än 2 timmar efter stängning)
   const getStuckEmployees = () => {
     if (!companySettings?.business_hours || !punchedInEmployees.length) return [];
+    
+    // Ensure business_hours is an array
+    const businessHoursArray = Array.isArray(companySettings.business_hours) 
+      ? companySettings.business_hours as unknown as BusinessHours[]
+      : [];
+    
+    if (businessHoursArray.length === 0) return [];
 
     const now = new Date();
     const currentDay = now.getDay();
-    const businessHours = (companySettings.business_hours as any[]).find(
-      (bh: any) => bh.day === currentDay
+    const businessHours = businessHoursArray.find(
+      (bh) => bh.day === currentDay
     );
 
     if (!businessHours || !businessHours.isOpen) return [];
