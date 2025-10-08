@@ -290,25 +290,31 @@ Deno.serve(async (req) => {
       }
 
       console.log(`${companySetting.company_name} summary: ${companyPunchedOut} employees punched out`);
-      processedCompanies.push(companySetting.company_name);
-    }
+      
+      // Normalize time entries for this company after punch-out
+      if (companyPunchedOut > 0) {
+        console.log(`\n--- Normalizing time entries for ${companySetting.company_name} ---`);
+        const todayDateStr = now.toISOString().split('T')[0];
+        
+        try {
+          const { error: normalizeError } = await supabase.functions.invoke('normalize-time-entries', {
+            body: { 
+              date: todayDateStr,
+              companyId: companySetting.company_id
+            }
+          });
 
-    // Normalize time entries for today
-    console.log('\n--- Normalizing time entries for today ---');
-    const todayDateStr = now.toISOString().split('T')[0];
-    
-    try {
-      const { error: normalizeError } = await supabase.functions.invoke('normalize-time-entries', {
-        body: { date: todayDateStr }
-      });
-
-      if (normalizeError) {
-        console.error('Error normalizing time entries:', normalizeError);
-      } else {
-        console.log('Time entries normalized successfully');
+          if (normalizeError) {
+            console.error(`Error normalizing for ${companySetting.company_name}:`, normalizeError);
+          } else {
+            console.log(`✓ Time entries normalized for ${companySetting.company_name}`);
+          }
+        } catch (normalizeErr) {
+          console.error(`Failed to normalize for ${companySetting.company_name}:`, normalizeErr);
+        }
       }
-    } catch (normalizeErr) {
-      console.error('Failed to invoke normalize-time-entries:', normalizeErr);
+      
+      processedCompanies.push(companySetting.company_name);
     }
 
     const result = {
