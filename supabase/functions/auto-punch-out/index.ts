@@ -389,26 +389,30 @@ Deno.serve(async (req) => {
 
       console.log(`${companySetting.company_name} summary: ${companyPunchedOut} closing-time punch-outs, ${companyNoShiftPunchedOut} no-shift punch-outs, ${companyLatePunchedOut} late punch-outs`);
       processedCompanies.push(companySetting.company_name);
-    }
-
-    // After all punch-outs, normalize time entries for today
-    if (totalPunchedOut + totalPunchedOutNoShift + totalLatePunchOuts > 0) {
-      console.log('\n=== STARTING NORMALIZATION ===');
-      const todayDate = now.toISOString().split('T')[0]; // YYYY-MM-DD format
-      console.log('Normalizing time entries for date:', todayDate);
       
-      try {
-        const { data: normalizeData, error: normalizeError } = await supabase.functions.invoke('normalize-time-entries', {
-          body: { date: todayDate, force: false }
-        });
+      // Normalize time entries ONLY when we actually punched someone out at closing
+      if (companyPunchedOut > 0) {
+        console.log(`\n=== NORMALIZING for ${companySetting.company_name} ===`);
+        const todayDate = now.toISOString().split('T')[0];
+        console.log('Normalizing time entries for date:', todayDate);
+        
+        try {
+          const { data: normalizeData, error: normalizeError } = await supabase.functions.invoke('normalize-time-entries', {
+            body: { 
+              date: todayDate, 
+              force: false,
+              companyId: companySetting.company_id 
+            }
+          });
 
-        if (normalizeError) {
-          console.error('Error normalizing time entries:', normalizeError);
-        } else {
-          console.log('Normalization result:', normalizeData);
+          if (normalizeError) {
+            console.error('Error normalizing time entries:', normalizeError);
+          } else {
+            console.log('Normalization result:', normalizeData);
+          }
+        } catch (normalizeErr) {
+          console.error('Exception during normalization:', normalizeErr);
         }
-      } catch (normalizeErr) {
-        console.error('Exception during normalization:', normalizeErr);
       }
     }
 
