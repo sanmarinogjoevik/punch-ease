@@ -58,8 +58,28 @@ export function processTimeEntry(
   isToday: boolean = false
 ): ProcessedTimeEntry {
   const now = new Date();
+  const isClosed = isAfterClosingTime(now, businessHours);
 
-  // Priority 1: Complete punch-in/out pair (actual data)
+  // Priority 1: After closing - use schedule if available
+  if (isClosed && shift) {
+    const shiftStart = new Date(shift.start_time);
+    const shiftEnd = new Date(shift.end_time);
+    const durationMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
+    const lunchMinutes = durationMinutes > 330 ? 30 : 0;
+    const totalMinutes = durationMinutes;
+
+    return {
+      punchIn: shift.start_time,
+      punchOut: shift.end_time,
+      totalMinutes,
+      lunchMinutes,
+      hasData: true,
+      isOngoing: false,
+      source: 'schedule'
+    };
+  }
+
+  // Priority 2: During opening hours - use actual times if complete
   if (punchInEntry && punchOutEntry) {
     const punchIn = punchInEntry.timestamp;
     const punchOut = punchOutEntry.timestamp;
@@ -67,9 +87,8 @@ export function processTimeEntry(
     const end = new Date(punchOut);
     const durationMinutes = Math.floor((end.getTime() - start.getTime()) / (1000 * 60));
     
-    // Calculate lunch break (30 min if worked more than 5.5 hours)
     const lunchMinutes = durationMinutes > 330 ? 30 : 0;
-    const totalMinutes = durationMinutes; // Include pause in total
+    const totalMinutes = durationMinutes;
 
     return {
       punchIn,
@@ -82,13 +101,13 @@ export function processTimeEntry(
     };
   }
 
-  // Priority 2: Ongoing shift (only punch-in, today)
-  if (punchInEntry && isToday) {
+  // Priority 3: Ongoing shift (only punch-in, today, during opening hours)
+  if (punchInEntry && isToday && !isClosed) {
     const punchIn = punchInEntry.timestamp;
     const start = new Date(punchIn);
     const durationMinutes = Math.floor((now.getTime() - start.getTime()) / (1000 * 60));
     const lunchMinutes = durationMinutes > 330 ? 30 : 0;
-    const totalMinutes = durationMinutes; // Include pause in total
+    const totalMinutes = durationMinutes;
 
     return {
       punchIn,
@@ -101,13 +120,13 @@ export function processTimeEntry(
     };
   }
 
-  // Priority 3: Fallback to schedule (when store is closed or no punch data)
+  // Priority 4: Fallback to schedule
   if (shift) {
     const shiftStart = new Date(shift.start_time);
     const shiftEnd = new Date(shift.end_time);
     const durationMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
     const lunchMinutes = durationMinutes > 330 ? 30 : 0;
-    const totalMinutes = durationMinutes; // Include pause in total
+    const totalMinutes = durationMinutes;
 
     return {
       punchIn: shift.start_time,
