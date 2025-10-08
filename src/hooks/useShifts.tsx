@@ -148,26 +148,6 @@ export const useShiftMutations = () => {
         .single();
 
       if (error) throw error;
-      
-      // Normalize time entries for the created shift's date
-      const shiftDate = format(new Date(data.start_time), 'yyyy-MM-dd');
-      console.log('Shift created, normalizing time entries for', shiftDate);
-      
-      try {
-        const { error: normalizeError } = await supabase.functions.invoke('normalize-time-entries', {
-          body: { 
-            date: shiftDate,
-            force: true 
-          }
-        });
-
-        if (normalizeError) {
-          console.error('Error normalizing time entries:', normalizeError);
-        }
-      } catch (err) {
-        console.error('Failed to invoke normalize-time-entries:', err);
-      }
-      
       return data;
     },
     onSuccess: () => {
@@ -273,30 +253,6 @@ export const useShiftMutations = () => {
         .select();
 
       if (error) throw error;
-      
-      // Normalize time entries for all created shifts' dates
-      if (data && data.length > 0) {
-        const uniqueDates = [...new Set(data.map(shift => format(new Date(shift.start_time), 'yyyy-MM-dd')))];
-        console.log('Multiple shifts created, normalizing time entries for dates:', uniqueDates);
-        
-        for (const date of uniqueDates) {
-          try {
-            const { error: normalizeError } = await supabase.functions.invoke('normalize-time-entries', {
-              body: { 
-                date,
-                force: true 
-              }
-            });
-
-            if (normalizeError) {
-              console.error('Error normalizing time entries for', date, ':', normalizeError);
-            }
-          } catch (err) {
-            console.error('Failed to invoke normalize-time-entries for', date, ':', err);
-          }
-        }
-      }
-      
       return data;
     },
     onSuccess: (data) => {

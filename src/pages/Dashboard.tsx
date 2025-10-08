@@ -249,7 +249,7 @@ export default function Dashboard() {
   };
 
   const shouldUseScheduleTimes = (date: Date): boolean => {
-    if (!companySettings?.business_hours || !Array.isArray(companySettings.business_hours)) return false;
+    if (!companySettings?.business_hours) return false;
     
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());

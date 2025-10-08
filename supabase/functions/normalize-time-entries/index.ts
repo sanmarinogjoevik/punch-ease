@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { date: targetDate, force, companyId } = await req.json().catch(() => ({}));
+    const { date: targetDate, force } = await req.json().catch(() => ({}));
     
     // Default to today if no date provided
     const now = new Date();
@@ -69,19 +69,11 @@ Deno.serve(async (req) => {
     const dayEnd = endOfDay(processDate);
 
     // Get all shifts for this date
-    let shiftsQuery = supabase
+    const { data: shifts, error: shiftsError } = await supabase
       .from('shifts')
       .select('id, employee_id, start_time, end_time, company_id')
       .gte('start_time', dayStart.toISOString())
       .lte('start_time', dayEnd.toISOString());
-
-    // Filter by company if companyId is provided
-    if (companyId) {
-      shiftsQuery = shiftsQuery.eq('company_id', companyId);
-      console.log('Filtering shifts for company:', companyId);
-    }
-
-    const { data: shifts, error: shiftsError } = await shiftsQuery;
 
     if (shiftsError) {
       console.error('Error fetching shifts:', shiftsError);
