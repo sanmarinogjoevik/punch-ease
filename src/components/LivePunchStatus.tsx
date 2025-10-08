@@ -7,7 +7,6 @@ import { Clock, Users, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { AdminPunchDialog } from './AdminPunchDialog';
 import { useCurrentUserProfile } from '@/hooks/useCurrentUserProfile';
-import { useQuery as useCompanySettingsQuery } from '@tanstack/react-query';
 
 interface PunchedInEmployee {
   id: string;
@@ -24,7 +23,7 @@ export const LivePunchStatus = () => {
   const { data: currentUserProfile } = useCurrentUserProfile();
 
   // Hämta företagets stängningstid
-  const { data: companySettings } = useCompanySettingsQuery({
+  const { data: companySettings } = useQuery({
     queryKey: ['company-settings', currentUserProfile?.company_id],
     queryFn: async () => {
       if (!currentUserProfile?.company_id) return null;
