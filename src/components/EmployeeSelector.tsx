@@ -9,7 +9,8 @@ interface EmployeeSelectorProps {
 }
 
 export function EmployeeSelector({ onSelectEmployee }: EmployeeSelectorProps) {
-  const { data: employees, isLoading } = useEmployees();
+  const { companyId } = useTenant();
+  const { data: employees, isLoading } = useEmployees(companyId || undefined);
 
   if (isLoading) {
     return (

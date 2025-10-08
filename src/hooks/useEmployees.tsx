@@ -21,25 +21,34 @@ export const employeesKeys = {
 };
 
 // Hook to fetch all employees (excluding admins and superadmins)
-export const useEmployees = () => {
+export const useEmployees = (overrideCompanyId?: string) => {
   return useQuery({
-    queryKey: [...employeesKeys.all, 'no-admins'],
+    queryKey: [...employeesKeys.all, 'no-admins', overrideCompanyId],
     queryFn: async (): Promise<Employee[]> => {
-      // Get current user's company_id
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
+      let targetCompanyId: string;
+      
+      if (overrideCompanyId) {
+        // Use provided company_id (from tenant context)
+        targetCompanyId = overrideCompanyId;
+      } else {
+        // Get current user's company_id
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          throw new Error('User not authenticated');
+        }
 
-      const { data: currentUserProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('company_id')
-        .eq('user_id', user.id)
-        .single();
+        const { data: currentUserProfile, error: profileError } = await supabase
+          .from('profiles')
+          .select('company_id')
+          .eq('user_id', user.id)
+          .single();
 
-      if (profileError || !currentUserProfile?.company_id) {
-        console.error('Error fetching user profile:', profileError);
-        throw new Error('Could not fetch user company');
+        if (profileError || !currentUserProfile?.company_id) {
+          console.error('Error fetching user profile:', profileError);
+          throw new Error('Could not fetch user company');
+        }
+        
+        targetCompanyId = currentUserProfile.company_id;
       }
 
       // Get all admin and superadmin user IDs
@@ -60,7 +69,7 @@ export const useEmployees = () => {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('company_id', currentUserProfile.company_id)
+        .eq('company_id', targetCompanyId)
         .order('first_name', { ascending: true });
 
       if (error) {
