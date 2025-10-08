@@ -74,17 +74,45 @@ const Schedule = () => {
     end: calendarEnd
   });
 
-  // Fetch all employees
+  // Fetch all employees from the same company
   const { data: employees } = useQuery({
     queryKey: ['schedule-employees'],
     queryFn: async () => {
+      // Get current user's company_id
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: currentUserProfile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (!currentUserProfile?.company_id) {
+        throw new Error('No company_id found for current user');
+      }
+
+      // Get all admin and superadmin user IDs to exclude them
+      const { data: adminRoles } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .in('role', ['admin', 'superadmin']);
+
+      const adminUserIds = adminRoles?.map(role => role.user_id) || [];
+
+      // Fetch profiles from the same company
       const { data: profiles, error } = await supabase
         .from('profiles')
         .select('id, user_id, first_name, last_name, email')
+        .eq('company_id', currentUserProfile.company_id)
         .order('first_name', { ascending: true });
       
       if (error) throw error;
-      return profiles as Profile[];
+
+      // Filter out admins and superadmins
+      const filteredProfiles = profiles?.filter(profile => 
+        !adminUserIds.includes(profile.user_id)
+      ) || [];
+
+      return filteredProfiles as Profile[];
     },
     enabled: userRole === 'admin'
   });
