@@ -39,26 +39,44 @@ export const AdminPunchDialog = ({ open, onOpenChange }: AdminPunchDialogProps) 
   const queryClient = useQueryClient();
   const [processingEmployeeId, setProcessingEmployeeId] = useState<string | null>(null);
 
-  // Hämta alla anställda
+  // Hämta alla anställda från samma företag
   const { data: employees = [], isLoading: loadingEmployees } = useQuery({
     queryKey: ['all-employees-for-punch'],
     queryFn: async (): Promise<Employee[]> => {
-      // Hämta admin user_ids
+      // Get current user's company_id
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: currentUserProfile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (!currentUserProfile?.company_id) {
+        throw new Error('No company_id found for current user');
+      }
+
+      // Hämta admin och superadmin user_ids
       const { data: adminRoles } = await supabase
         .from('user_roles')
         .select('user_id')
-        .eq('role', 'admin');
+        .in('role', ['admin', 'superadmin']);
 
       const adminUserIds = adminRoles?.map(r => r.user_id) || [];
 
-      // Hämta alla profiler utom admins
+      // Hämta profiler från samma företag
       const { data, error } = await supabase
         .from('profiles')
         .select('user_id, first_name, last_name, email, avatar_url')
-        .not('user_id', 'in', `(${adminUserIds.join(',')})`);
+        .eq('company_id', currentUserProfile.company_id);
 
       if (error) throw error;
-      return data || [];
+
+      // Filtrera bort admins och superadmins
+      const filteredProfiles = data?.filter(profile => 
+        !adminUserIds.includes(profile.user_id)
+      ) || [];
+
+      return filteredProfiles;
     },
     enabled: open,
   });
