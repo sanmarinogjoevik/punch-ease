@@ -60,8 +60,20 @@ export function processTimeEntry(
   const now = new Date();
   const isClosed = isAfterClosingTime(now, businessHours);
 
+  console.log('🔍 processTimeEntry:', {
+    date: date.toISOString(),
+    isToday,
+    isClosed,
+    hasPunchIn: !!punchInEntry,
+    hasPunchOut: !!punchOutEntry,
+    hasShift: !!shift,
+    punchInTimestamp: punchInEntry?.timestamp,
+    shiftTimes: shift ? `${shift.start_time} → ${shift.end_time}` : 'none'
+  });
+
   // Priority 1: Use actual times if complete (ALWAYS prioritize real punch data)
   if (punchInEntry && punchOutEntry) {
+    console.log('✅ Priority 1: Complete session');
     const punchIn = punchInEntry.timestamp;
     const punchOut = punchOutEntry.timestamp;
     const start = new Date(punchIn);
@@ -84,6 +96,7 @@ export function processTimeEntry(
 
   // Priority 2: Ongoing shift (only punch-in, today, during opening hours)
   if (punchInEntry && isToday && !isClosed) {
+    console.log('✅ Priority 2: Ongoing shift');
     const punchIn = punchInEntry.timestamp;
     const start = new Date(punchIn);
     const durationMinutes = Math.floor((now.getTime() - start.getTime()) / (1000 * 60));
@@ -101,8 +114,17 @@ export function processTimeEntry(
     };
   }
 
+  if (punchInEntry) {
+    console.log('⚠️ Priority 2 SKIPPED:', {
+      reason: !isToday ? 'NOT_TODAY' : 'STORE_CLOSED',
+      isToday,
+      isClosed
+    });
+  }
+
   // Priority 3: Fallback to schedule (only if no time_entries exist)
   if (shift) {
+    console.log('✅ Priority 3: Using schedule (fallback)');
     const shiftStart = new Date(shift.start_time);
     const shiftEnd = new Date(shift.end_time);
     const durationMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
