@@ -136,9 +136,10 @@ export function isAfterClosingTime(
 ): boolean {
   if (!businessHours) return false;
   
-  const norwayDate = toNorwegianTime(date);
-  const dayOfWeek = norwayDate.getDay();
-  const currentTime = formatInTimeZone(norwayDate, TIMEZONE, 'HH:mm');
+  // Convert UTC date to Norwegian time FIRST before any comparisons
+  const norwegianDate = toNorwegianTime(date);
+  const dayOfWeek = norwegianDate.getDay();
+  const currentTime = formatInTimeZone(norwegianDate, TIMEZONE, 'HH:mm');
   
   const todayHours = businessHours.find(h => h.day === dayOfWeek);
   if (!todayHours || !todayHours.isOpen) {
