@@ -11,7 +11,7 @@ import { nb } from 'date-fns/locale';
 import { Clock, ArrowUp, ArrowDown } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { formatTimeNorway, isAfterClosingTime } from '@/lib/timeUtils';
+import { formatTimeNorway, isAfterClosingTime, extractTime } from '@/lib/timeUtils';
 import { processTimeEntry, type TimeEntry as TimeEntryType } from '@/lib/timeEntryUtils';
 
 interface WorkSession {
@@ -261,7 +261,10 @@ export default function TimeEntries() {
                             <div className="flex items-center gap-1">
                               <ArrowUp className="h-3 w-3 text-green-600" />
                               <span className="text-xs">
-                                {formatTimeNorway(session.punchIn)}
+                                {session.source === 'schedule' 
+                                  ? extractTime(session.punchIn)
+                                  : formatTimeNorway(session.punchIn)
+                                }
                               </span>
                             </div>
                             {session.punchOut && (
@@ -269,7 +272,10 @@ export default function TimeEntries() {
                                 {!isMobile && <span className="text-muted-foreground">→</span>}
                                 <ArrowDown className="h-3 w-3 text-red-600" />
                                 <span className="text-xs">
-                                  {formatTimeNorway(session.punchOut)}
+                                  {session.source === 'schedule'
+                                    ? extractTime(session.punchOut)
+                                    : formatTimeNorway(session.punchOut)
+                                  }
                                 </span>
                               </div>
                             )}
