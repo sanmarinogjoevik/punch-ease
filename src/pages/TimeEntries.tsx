@@ -139,20 +139,16 @@ export default function TimeEntries() {
 
         // Visa alltid entries med schema
         if (!dayShift) {
-          // Ingen schema - kolla om butiken är stängd
+          // Ingen schema - visa endast om det finns punch-data och det är IDAG
           if (!punchInEntry) {
             return; // Ingen punch-data alls
           }
           
-          // Visa endast entries utan schema för IDAG och bara under öppettider
           if (!isToday) {
             return; // Dölj alla gamla dagar utan schema
           }
           
-          // Om det är idag, kolla om butiken är stängd
-          if (isAfterClosingTime(new Date(), businessHours)) {
-            return; // Dölj entries utan schema efter stängning
-          }
+          // Om det är idag OCH vi har punch-data, visa ALLTID
         }
 
         // Use shared processing logic
