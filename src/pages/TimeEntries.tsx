@@ -22,6 +22,7 @@ interface WorkSession {
   duration: string | null;
   employeeName?: string;
   source?: 'schedule' | 'actual' | 'none';
+  isOngoing?: boolean;
 }
 
 export default function TimeEntries() {
@@ -182,7 +183,8 @@ export default function TimeEntries() {
             punchOut: processed.punchOut,
             duration,
             employeeName: profilesMap.get(employeeId),
-            source: processed.source
+            source: processed.source,
+            isOngoing: processed.isOngoing
           });
         }
       });
@@ -194,7 +196,7 @@ export default function TimeEntries() {
   };
 
   const getSessionBadge = (session: WorkSession) => {
-    if (!session.punchOut) {
+    if (session.isOngoing) {
       return (
         <Badge variant="outline" className="border-yellow-200 text-yellow-700 bg-yellow-50">
           Aktiv
