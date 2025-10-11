@@ -94,8 +94,8 @@ export function processTimeEntry(
     };
   }
 
-  // Priority 2: Ongoing shift (only punch-in, today, during opening hours)
-  if (punchInEntry && isToday && !isClosed) {
+  // Priority 2: Ongoing shift (only punch-in, today, NO punch-out)
+  if (punchInEntry && !punchOutEntry && isToday) {
     console.log('✅ Priority 2: Ongoing shift');
     const punchIn = punchInEntry.timestamp;
     const start = new Date(punchIn);
@@ -114,11 +114,10 @@ export function processTimeEntry(
     };
   }
 
-  if (punchInEntry) {
+  if (punchInEntry && !punchOutEntry) {
     console.log('⚠️ Priority 2 SKIPPED:', {
-      reason: !isToday ? 'NOT_TODAY' : 'STORE_CLOSED',
-      isToday,
-      isClosed
+      reason: 'NOT_TODAY',
+      isToday
     });
   }
 
