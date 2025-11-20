@@ -3,18 +3,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Edit, Trash2 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, parseISO, startOfDay } from 'date-fns';
-import { formatTimeNorway, calculateDurationMinutes, isAfterClosingTime } from '@/lib/timeUtils';
+import { format, startOfMonth, endOfMonth, startOfDay } from 'date-fns';
+import { toNorwegianTime, getNorwegianNow, formatTimeNorway, extractTime } from '@/lib/timeUtils';
+import { processTimeEntry, type TimeEntry as PunchEntryType, type Shift, type BusinessHours } from '@/lib/timeEntryUtils';
 import { supabase } from '@/integrations/supabase/client';
 
 const NORWEGIAN_DAYS = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
-
-interface TimeEntry {
-  id: string;
-  entry_type: 'punch_in' | 'punch_out';
-  timestamp: string;
-  employee_id: string;
-}
 
 interface TimelistEntry {
   date: string;
@@ -47,7 +41,7 @@ export default function TimelistTable({
   onDeleteEntry
 }: TimelistTableProps) {
   const [timelistEntries, setTimelistEntries] = useState<TimelistEntry[]>([]);
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [timeEntries, setTimeEntries] = useState<PunchEntryType[]>([]);
 
   // Reset state when employee changes
   useEffect(() => {
@@ -122,103 +116,112 @@ export default function TimelistTable({
     if (!employeeId || !shifts) return;
     
     try {
-      const monthStart = startOfMonth(new Date(selectedMonth + '-01'));
-      const monthEnd = endOfMonth(monthStart);
+      // Gruppera punch-entries per dag i norsk tid
+      const entriesByDate = new Map<string, PunchEntryType[]>();
       
-      const allDaysInMonth = eachDayOfInterval({
-        start: monthStart,
-        end: monthEnd
-      });
-
-      // Group time entries by date
-      const entriesByDate = new Map<string, TimeEntry[]>();
-      timeEntries.forEach(entry => {
-        const dateStr = format(parseISO(entry.timestamp), 'yyyy-MM-dd');
-        if (!entriesByDate.has(dateStr)) {
-          entriesByDate.set(dateStr, []);
+      timeEntries.forEach((entry) => {
+        const norwegianDate = toNorwegianTime(entry.timestamp);
+        const entryDate = startOfDay(norwegianDate);
+        const dateKey = entryDate.toISOString();
+        
+        if (!entriesByDate.has(dateKey)) {
+          entriesByDate.set(dateKey, []);
         }
-        entriesByDate.get(dateStr)!.push(entry);
+        entriesByDate.get(dateKey)!.push(entry);
       });
 
-      const processedEntries = allDaysInMonth.map(date => {
-        const dateStr = format(date, 'yyyy-MM-dd');
-        const dayOfWeek = getDay(date);
+      // Gruppera skift per dag i norsk tid (vaktlista styr VILKA dagar som visas)
+      const shiftsByDate = new Map<string, Shift>();
+      
+      shifts.forEach((shift: Shift) => {
+        const norwegianShiftDate = toNorwegianTime(shift.start_time);
+        const shiftDate = startOfDay(norwegianShiftDate);
+        const dateKey = shiftDate.toISOString();
         
-        // Check if store is closed for this date
-        const today = startOfDay(new Date());
-        const currentDate = startOfDay(date);
-        const isPastDay = currentDate < today;
-        const isStoreClosed = isPastDay || (currentDate.getTime() === today.getTime() && isAfterClosingTime(date, companySettings?.business_hours as any[]));
-        
-        // Find shift for this day
-        const dayShift = shifts.find(shift => 
-          shift.start_time.startsWith(dateStr)
+        // Om flera skift samma dag: ta första
+        if (!shiftsByDate.has(dateKey)) {
+          shiftsByDate.set(dateKey, shift);
+        }
+      });
+
+      const businessHours = companySettings?.business_hours as BusinessHours[] | undefined;
+      const todayNorway = startOfDay(getNorwegianNow());
+      const newTimelist: TimelistEntry[] = [];
+
+      // Iterera ENBART över schema-dagar (samma logik som TimeEntries)
+      shiftsByDate.forEach((dayShift, dateKey) => {
+        const date = new Date(dateKey);
+        const dayNorway = startOfDay(toNorwegianTime(date));
+        const isToday = dayNorway.getTime() === todayNorway.getTime();
+        const isFuture = dayNorway.getTime() > todayNorway.getTime();
+
+        // Visa bara dagar som redan varit (inkl idag)
+        if (isFuture) return;
+
+        const dayEntries = entriesByDate.get(dateKey) ?? [];
+        const sortedEntries = [...dayEntries].sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
         );
-        
-        // Get time entries for this day
-        const dayEntries = entriesByDate.get(dateStr) || [];
-        const punchInEntry = dayEntries.find(e => e.entry_type === 'punch_in');
-        const punchOutEntry = dayEntries.find(e => e.entry_type === 'punch_out');
-        
-        let punchIn = null;
-        let punchOut = null;
-        let total = '';
-        let lunch = '';
-        let hasData = false;
-        
-        // Only show entries for days with a scheduled shift
-        if (dayShift) {
-          hasData = true;
-          
-          // ALWAYS prioritize actual time_entries if both exist
-          if (punchInEntry && punchOutEntry) {
-            punchIn = formatTimeNorway(punchInEntry.timestamp);
-            punchOut = formatTimeNorway(punchOutEntry.timestamp);
-            
-            const totalMinutes = calculateDurationMinutes(
-              punchInEntry.timestamp, 
-              punchOutEntry.timestamp
-            );
-            const pauseMinutes = totalMinutes > 330 ? 30 : 0;
-            
-            const hours = Math.floor(totalMinutes / 60);
-            const minutes = totalMinutes % 60;
-            total = `${hours}:${minutes.toString().padStart(2, '0')}`;
-            lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
-          } else if (punchInEntry) {
-            // Only punch in, no punch out - show ongoing
-            punchIn = formatTimeNorway(punchInEntry.timestamp);
-          } else {
-            // Only show scheduled times as fallback for PAST days without punch-ins
-            if (isPastDay) {
-              punchIn = formatTimeNorway(dayShift.start_time);
-              punchOut = formatTimeNorway(dayShift.end_time);
-              
-              const totalMinutes = calculateDurationMinutes(dayShift.start_time, dayShift.end_time);
-              const pauseMinutes = totalMinutes > 330 ? 30 : 0;
-              
-              const hours = Math.floor(totalMinutes / 60);
-              const minutes = totalMinutes % 60;
-              total = `${hours}:${minutes.toString().padStart(2, '0')}`;
-              lunch = pauseMinutes > 0 ? `0:${pauseMinutes}` : '';
-            }
-            // For today and future days without punch-ins: leave empty (punchIn/punchOut are null)
-          }
+
+        const punchInEntry = sortedEntries.find(e => e.entry_type === 'punch_in');
+        const punchOutEntry = sortedEntries.find(e => e.entry_type === 'punch_out');
+
+        const processed = processTimeEntry(
+          date,
+          dayShift,
+          punchInEntry,
+          punchOutEntry,
+          businessHours,
+          isToday
+        );
+
+        if (!processed.hasData) {
+          return; // ingen rad om varken schema eller punch ger data
         }
 
-        return {
-          date: dateStr,
-          day: date.getDate().toString(),
-          dayName: NORWEGIAN_DAYS[dayOfWeek],
-          punchIn,
-          punchOut,
-          lunch,
-          total,
-          hasData
+        // Format för visning (samma idé som i TimeEntries)
+        const formatForDisplay = (time: string | null): string | null => {
+          if (!time) return null;
+          return processed.source === 'schedule'
+            ? extractTime(time)          // schema-tider är redan norsk tid
+            : formatTimeNorway(time);    // punch-tider är UTC => konverteras
         };
+
+        const punchInDisplay = formatForDisplay(processed.punchIn);
+        const punchOutDisplay = formatForDisplay(processed.punchOut);
+
+        const lunchDisplay =
+          processed.lunchMinutes > 0
+            ? `${Math.floor(processed.lunchMinutes / 60)}:${(processed.lunchMinutes % 60)
+                .toString()
+                .padStart(2, '0')}`
+            : '';
+
+        const totalMinutes = processed.totalMinutes;
+        const totalDisplay = `${Math.floor(totalMinutes / 60)}:${(totalMinutes % 60)
+          .toString()
+          .padStart(2, '0')}`;
+
+        // Dag & veckodag baserat på norsk tid
+        const dayNumber = dayNorway.getDate().toString();
+        const dayName = NORWEGIAN_DAYS[dayNorway.getDay()];
+        const dateStr = format(dayNorway, 'yyyy-MM-dd');
+
+        newTimelist.push({
+          date: dateStr,
+          day: dayNumber,
+          dayName,
+          punchIn: punchInDisplay,
+          punchOut: punchOutDisplay,
+          lunch: lunchDisplay,
+          total: totalDisplay,
+          hasData: processed.hasData,
+        });
       });
 
-      setTimelistEntries(processedEntries);
+      // Sortera listan stigande på datum
+      newTimelist.sort((a, b) => a.date.localeCompare(b.date));
+      setTimelistEntries(newTimelist);
     } catch (error) {
       console.error('Error generating timelist:', error);
     }
