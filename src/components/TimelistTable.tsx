@@ -148,18 +148,18 @@ export default function TimelistTable({
       const todayNorway = startOfDay(getNorwegianNow());
       const newTimelist: TimelistEntry[] = [];
 
-      // Bygg lista över ALLA dagar i månaden
-      const monthStart = startOfMonth(new Date(selectedMonth + '-01'));
-      const monthEnd = endOfMonth(monthStart);
+      // Bygg lista över ALLA dagar i månaden (direkt i norsk tid)
+      const monthStartNorway = startOfDay(toNorwegianTime(new Date(selectedMonth + '-01T12:00:00Z')));
+      const monthEndNorway = endOfMonth(monthStartNorway);
       const allDaysInMonth: Date[] = [];
       
-      for (let d = new Date(monthStart); d <= monthEnd; d.setDate(d.getDate() + 1)) {
+      for (let d = new Date(monthStartNorway); d <= monthEndNorway; d.setDate(d.getDate() + 1)) {
         allDaysInMonth.push(new Date(d));
       }
 
       // Iterera över ALLA dagar i månaden (inte bara schema-dagar)
       allDaysInMonth.forEach((date) => {
-        const dayNorway = startOfDay(toNorwegianTime(date));
+        const dayNorway = startOfDay(date); // Redan i norsk tid
         const dateKey = dayNorway.toISOString();
         const isToday = dayNorway.getTime() === todayNorway.getTime();
         const isFuture = dayNorway.getTime() > todayNorway.getTime();
