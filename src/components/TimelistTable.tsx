@@ -19,6 +19,7 @@ interface TimelistEntry {
   lunch: string;
   total: string;
   hasData: boolean;
+  source?: 'actual' | 'schedule' | 'none';
 }
 
 interface TimelistTableProps {
@@ -61,7 +62,7 @@ export default function TimelistTable({
     if (employeeId && shifts) {
       generateTimelist();
     }
-  }, [shifts, timeEntries, employeeId, selectedMonth, companySettings]);
+  }, [shifts, timeEntries, employeeId, selectedMonth, companySettings, displayMode]);
 
   // Real-time subscription for time_entries
   useEffect(() => {
@@ -235,20 +236,10 @@ export default function TimelistTable({
             lunch: '',
             total: '',
             hasData: false,
+            source: 'none'
           });
           return;
         }
-
-        // Format för visning (samma idé som i TimeEntries)
-        const formatForDisplay = (time: string | null): string | null => {
-          if (!time) return null;
-          return processed.source === 'schedule'
-            ? extractTime(time)          // schema-tider är redan norsk tid
-            : formatTimeNorway(time);    // punch-tider är UTC => konverteras
-        };
-
-        const punchInDisplay = formatForDisplay(processed.punchIn);
-        const punchOutDisplay = formatForDisplay(processed.punchOut);
 
         const lunchDisplay =
           processed.lunchMinutes > 0
@@ -266,11 +257,12 @@ export default function TimelistTable({
           date: dateStr,
           day: dayNumber,
           dayName,
-          punchIn: punchInDisplay,
-          punchOut: punchOutDisplay,
+          punchIn: processed.punchIn,
+          punchOut: processed.punchOut,
           lunch: lunchDisplay,
           total: totalDisplay,
           hasData: processed.hasData,
+          source: processed.source
         });
       });
 
@@ -335,10 +327,18 @@ export default function TimelistTable({
                     {isOngoing && <span className="ml-2 text-xs text-primary font-semibold">(Pågående)</span>}
                   </TableCell>
                   <TableCell className="text-center border-r font-mono">
-                    {entry.punchIn || '-'}
+                    {entry.punchIn 
+                      ? entry.source === 'schedule' 
+                        ? extractTime(entry.punchIn)
+                        : formatTimeNorway(entry.punchIn)
+                      : '-'}
                   </TableCell>
                   <TableCell className="text-center border-r font-mono">
-                    {entry.punchOut || '-'}
+                    {entry.punchOut 
+                      ? entry.source === 'schedule' 
+                        ? extractTime(entry.punchOut)
+                        : formatTimeNorway(entry.punchOut)
+                      : '-'}
                   </TableCell>
                   <TableCell className="text-center border-r font-mono">
                     {entry.lunch || '-'}
