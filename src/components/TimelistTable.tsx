@@ -181,6 +181,11 @@ export default function TimelistTable({
         const punchInEntry = sortedEntries.find(e => e.entry_type === 'punch_in');
         const punchOutEntry = sortedEntries.find(e => e.entry_type === 'punch_out');
 
+        // Helpers för att avgöra vilken typ av data vi har
+        const hasPunches = punchInEntry || punchOutEntry;
+        const hasAutomaticPunches = punchInEntry?.is_automatic || punchOutEntry?.is_automatic;
+        const isPureScheduleDay = !hasPunches && dayShift;
+
         // Kör processTimeEntry som vanligt
         let processed = processTimeEntry(
           date,
@@ -191,10 +196,15 @@ export default function TimelistTable({
           isToday
         );
 
-        // Om displayMode är 'schedule': visa ENDAST entries som kommer från schema-normalisering
+        // Om displayMode är 'schedule': visa ENDAST automatiska/normaliserade tider eller rena schema-dagar
         if (displayMode === 'schedule') {
-          // Om source INTE är 'schedule', behandla som om ingen data finns
-          if (processed.source !== 'schedule') {
+          // Visa dagen OM det är:
+          // - Automatiska punchar (normaliserade från edge function normalize-time-entries)
+          // - ELLER ren schema-dag utan punchar alls
+          const shouldShow = hasAutomaticPunches || isPureScheduleDay;
+          
+          if (!shouldShow) {
+            // Dölj manuella punchar
             processed = {
               punchIn: null,
               punchOut: null,
@@ -205,7 +215,7 @@ export default function TimelistTable({
               source: 'none'
             };
           }
-          // Om source === 'schedule', använd processed som den är (normaliserade tider från time_entries)
+          // Om shouldShow === true, använd processed som den är
         }
 
         // Dag & veckodag baserat på norsk tid
