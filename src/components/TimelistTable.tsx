@@ -29,6 +29,7 @@ interface TimelistTableProps {
   showActions?: boolean;
   onEditEntry?: (entry: TimelistEntry) => void;
   onDeleteEntry?: (entry: TimelistEntry) => void;
+  displayMode?: 'actual' | 'schedule';
 }
 
 export default function TimelistTable({
@@ -38,7 +39,8 @@ export default function TimelistTable({
   shifts,
   showActions = false,
   onEditEntry,
-  onDeleteEntry
+  onDeleteEntry,
+  displayMode = 'actual'
 }: TimelistTableProps) {
   const [timelistEntries, setTimelistEntries] = useState<TimelistEntry[]>([]);
   const [timeEntries, setTimeEntries] = useState<PunchEntryType[]>([]);
@@ -178,11 +180,15 @@ export default function TimelistTable({
         const punchInEntry = sortedEntries.find(e => e.entry_type === 'punch_in');
         const punchOutEntry = sortedEntries.find(e => e.entry_type === 'punch_out');
 
+        // Om displayMode är 'schedule', ignorera punchar helt och använd endast schema
+        const punchInToUse = displayMode === 'schedule' ? undefined : punchInEntry;
+        const punchOutToUse = displayMode === 'schedule' ? undefined : punchOutEntry;
+
         const processed = processTimeEntry(
           date,
           dayShift,
-          punchInEntry,
-          punchOutEntry,
+          punchInToUse,
+          punchOutToUse,
           businessHours,
           isToday
         );

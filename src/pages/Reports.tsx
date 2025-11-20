@@ -108,6 +108,9 @@ export default function Reports() {
     notes: ''
   });
 
+  // Display mode for timelist
+  const [displayMode, setDisplayMode] = useState<'actual' | 'schedule'>('actual');
+
   // Calendar view logic - Monthly
   const today = new Date();
   const currentMonth = new Date(selectedMonth + '-01');
@@ -585,6 +588,28 @@ export default function Reports() {
                 </div>
               </div>
 
+              {/* Display Mode Selector */}
+              <div className="flex justify-center gap-2 mb-4">
+                <Button
+                  variant={displayMode === 'actual' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setDisplayMode('actual')}
+                  className="gap-2"
+                >
+                  <Clock className="h-4 w-4" />
+                  Verkliga tider
+                </Button>
+                <Button
+                  variant={displayMode === 'schedule' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setDisplayMode('schedule')}
+                  className="gap-2"
+                >
+                  <Calendar className="h-4 w-4" />
+                  Endast schema
+                </Button>
+              </div>
+
               {/* Employee Info and Timelist - This is what gets exported/printed */}
               <div id="timelist-content">
                 {/* Header for export */}
@@ -625,6 +650,7 @@ export default function Reports() {
                   showActions={userRole === 'admin'}
                   onEditEntry={handleEditEntry}
                   onDeleteEntry={handleDeleteEntry}
+                  displayMode={displayMode}
                 />
               )}
 
