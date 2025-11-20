@@ -11,8 +11,9 @@ import { nb } from 'date-fns/locale';
 import { Clock, ArrowUp, ArrowDown } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { formatTimeNorway, toNorwegianTime, getNorwegianNow } from '@/lib/timeUtils';
+import { formatTimeNorway, toNorwegianTime, getNorwegianNow, extractTime } from '@/lib/timeUtils';
 import { processTimeEntry, type TimeEntry as TimeEntryType } from '@/lib/timeEntryUtils';
+import { LivePunchStatus } from '@/components/LivePunchStatus';
 
 interface WorkSession {
   id: string;
@@ -198,6 +199,15 @@ export default function TimeEntries() {
     );
   };
 
+  const formatSessionTime = (time: string, source: 'schedule' | 'actual' | 'none') => {
+    if (source === 'schedule') {
+      // Schema-tider är redan i norsk tid, använd extractTime
+      return extractTime(time);
+    }
+    // Actual punch-tider är UTC, konvertera till norsk tid
+    return formatTimeNorway(time);
+  };
+
   const getSessionBadge = (session: WorkSession) => {
     if (session.isOngoing) {
       return (
@@ -230,6 +240,9 @@ export default function TimeEntries() {
           {userRole === 'admin' ? 'Alle Arbeidsvakter' : 'Mine Arbeidsvakter'}
         </h1>
       </div>
+
+      {/* Live Status för vem som är inne just nu */}
+      <LivePunchStatus />
 
       <Card>
         <CardHeader>
@@ -266,7 +279,7 @@ export default function TimeEntries() {
                             <div className="flex items-center gap-1">
                               <ArrowUp className="h-3 w-3 text-green-600" />
                               <span className="text-xs">
-                                {formatTimeNorway(session.punchIn)}
+                                {formatSessionTime(session.punchIn, session.source!)}
                               </span>
                             </div>
                             {session.punchOut && (
@@ -274,7 +287,7 @@ export default function TimeEntries() {
                                 {!isMobile && <span className="text-muted-foreground">→</span>}
                                 <ArrowDown className="h-3 w-3 text-red-600" />
                                 <span className="text-xs">
-                                  {formatTimeNorway(session.punchOut)}
+                                  {formatSessionTime(session.punchOut, session.source!)}
                                 </span>
                               </div>
                             )}
