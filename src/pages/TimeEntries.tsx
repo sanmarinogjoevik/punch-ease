@@ -11,7 +11,7 @@ import { nb } from 'date-fns/locale';
 import { Clock, ArrowUp, ArrowDown } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { formatTimeNorway, isAfterClosingTime } from '@/lib/timeUtils';
+import { formatTimeNorway, toNorwegianTime, getNorwegianNow } from '@/lib/timeUtils';
 import { processTimeEntry, type TimeEntry as TimeEntryType } from '@/lib/timeEntryUtils';
 
 interface WorkSession {
@@ -99,7 +99,9 @@ export default function TimeEntries() {
     const entriesByEmployeeAndDate = new Map<string, Map<string, any[]>>();
     
     entries.forEach(entry => {
-      const entryDate = startOfDay(new Date(entry.timestamp));
+      // Konvertera först till norsk tid, sen ta startOfDay
+      const norwegianDate = toNorwegianTime(entry.timestamp);
+      const entryDate = startOfDay(norwegianDate);
       const dateKey = entryDate.toISOString();
       
       if (!entriesByEmployeeAndDate.has(entry.employee_id)) {
@@ -120,8 +122,10 @@ export default function TimeEntries() {
     entriesByEmployeeAndDate.forEach((dateMap, employeeId) => {
       dateMap.forEach((dayEntries, dateKey) => {
         const date = new Date(dateKey);
-        const now = new Date();
-        const isToday = startOfDay(date).getTime() === startOfDay(now).getTime();
+        
+        // Jämför datum i norsk tidszon
+        const todayNorway = startOfDay(getNorwegianNow());
+        const isToday = startOfDay(toNorwegianTime(date)).getTime() === todayNorway.getTime();
 
         // Sort entries by timestamp
         const sortedEntries = [...dayEntries].sort((a, b) => 
@@ -133,9 +137,11 @@ export default function TimeEntries() {
 
         // Find matching shift
         const dayShift = shiftsData?.find(shift => {
-          const shiftDate = startOfDay(new Date(shift.start_time));
-          return shift.employee_id === employeeId && 
-                 shiftDate.getTime() === date.getTime();
+          const shiftDate = startOfDay(toNorwegianTime(shift.start_time));
+          return (
+            shift.employee_id === employeeId &&
+            shiftDate.getTime() === startOfDay(toNorwegianTime(date)).getTime()
+          );
         });
 
         // Visa alltid entries med schema
