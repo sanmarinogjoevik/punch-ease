@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useShifts } from '@/hooks/useShifts';
+import { useShifts, useShiftsSubscription } from '@/hooks/useShifts';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,6 +28,7 @@ interface WorkSession {
 export default function TimeEntries() {
   const { user, userRole } = useAuth();
   const { data: shiftsData } = useShifts(userRole === 'admin' ? {} : { employeeId: user?.id });
+  useShiftsSubscription(); // Real-time updates for shifts
   const { data: companySettings } = useCompanySettings();
   const [workSessions, setWorkSessions] = useState<WorkSession[]>([]);
   const [loading, setLoading] = useState(true);
