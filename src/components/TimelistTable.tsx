@@ -180,18 +180,44 @@ export default function TimelistTable({
         const punchInEntry = sortedEntries.find(e => e.entry_type === 'punch_in');
         const punchOutEntry = sortedEntries.find(e => e.entry_type === 'punch_out');
 
-        // Om displayMode är 'schedule', ignorera punchar helt och använd endast schema
-        const punchInToUse = displayMode === 'schedule' ? undefined : punchInEntry;
-        const punchOutToUse = displayMode === 'schedule' ? undefined : punchOutEntry;
-
-        const processed = processTimeEntry(
+        // Kör processTimeEntry som vanligt
+        let processed = processTimeEntry(
           date,
           dayShift,
-          punchInToUse,
-          punchOutToUse,
+          punchInEntry,
+          punchOutEntry,
           businessHours,
           isToday
         );
+
+        // Om displayMode är 'schedule', tvinga användning av endast schema-data
+        if (displayMode === 'schedule' && dayShift) {
+          const shiftStart = new Date(dayShift.start_time);
+          const shiftEnd = new Date(dayShift.end_time);
+          const durationMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
+          const lunchMinutes = durationMinutes > 330 ? 30 : 0;
+          
+          processed = {
+            punchIn: dayShift.start_time,
+            punchOut: dayShift.end_time,
+            totalMinutes: durationMinutes,
+            lunchMinutes,
+            hasData: true,
+            isOngoing: false,
+            source: 'schedule'
+          };
+        } else if (displayMode === 'schedule' && !dayShift) {
+          // Inget schema finns, visa tom rad
+          processed = {
+            punchIn: null,
+            punchOut: null,
+            totalMinutes: 0,
+            lunchMinutes: 0,
+            hasData: false,
+            isOngoing: false,
+            source: 'none'
+          };
+        }
 
         // Dag & veckodag baserat på norsk tid
         const dayNumber = dayNorway.getDate().toString();
