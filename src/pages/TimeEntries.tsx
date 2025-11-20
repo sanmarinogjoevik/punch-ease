@@ -13,7 +13,6 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatTimeNorway, toNorwegianTime, getNorwegianNow, extractTime } from '@/lib/timeUtils';
 import { processTimeEntry, type TimeEntry as TimeEntryType } from '@/lib/timeEntryUtils';
-import { LivePunchStatus } from '@/components/LivePunchStatus';
 
 interface WorkSession {
   id: string;
@@ -145,18 +144,9 @@ export default function TimeEntries() {
           );
         });
 
-        // Visa alltid entries med schema
+        // Visa ENDAST dagar med schema - ingen schema = visa ingenting
         if (!dayShift) {
-          // Ingen schema - visa endast om det finns punch-data och det är IDAG
-          if (!punchInEntry) {
-            return; // Ingen punch-data alls
-          }
-          
-          if (!isToday) {
-            return; // Dölj alla gamla dagar utan schema
-          }
-          
-          // Om det är idag OCH vi har punch-data, visa ALLTID
+          return; // Hoppa över alla dagar utan schema, oavsett punch-data
         }
 
         // Use shared processing logic
@@ -240,9 +230,6 @@ export default function TimeEntries() {
           {userRole === 'admin' ? 'Alle Arbeidsvakter' : 'Mine Arbeidsvakter'}
         </h1>
       </div>
-
-      {/* Live Status för vem som är inne just nu */}
-      <LivePunchStatus />
 
       <Card>
         <CardHeader>
