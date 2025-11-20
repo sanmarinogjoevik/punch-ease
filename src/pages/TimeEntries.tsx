@@ -95,61 +95,72 @@ export default function TimeEntries() {
       closeTime: string;
     }> | undefined;
 
-    // Group entries by employee and date
+    // Grupp: punch-entries per ansatt + dato (i norsk tid)
     const entriesByEmployeeAndDate = new Map<string, Map<string, any[]>>();
-    
-    entries.forEach(entry => {
-      // Konvertera först till norsk tid, sen ta startOfDay
+
+    entries.forEach((entry) => {
       const norwegianDate = toNorwegianTime(entry.timestamp);
       const entryDate = startOfDay(norwegianDate);
       const dateKey = entryDate.toISOString();
-      
+
       if (!entriesByEmployeeAndDate.has(entry.employee_id)) {
         entriesByEmployeeAndDate.set(entry.employee_id, new Map());
       }
-      
+
       const employeeMap = entriesByEmployeeAndDate.get(entry.employee_id)!;
       if (!employeeMap.has(dateKey)) {
         employeeMap.set(dateKey, []);
       }
-      
+
       employeeMap.get(dateKey)!.push(entry);
     });
 
+    // Grupp: skift per ansatt + dato (vaktlista). Detta är det som styr VILKA dagar som visas.
+    const shiftsByEmployeeAndDate = new Map<string, Map<string, any>>();
+
+    shiftsData?.forEach((shift: any) => {
+      const norwegianShiftDate = toNorwegianTime(shift.start_time);
+      const shiftDate = startOfDay(norwegianShiftDate);
+      const dateKey = shiftDate.toISOString();
+
+      if (!shiftsByEmployeeAndDate.has(shift.employee_id)) {
+        shiftsByEmployeeAndDate.set(shift.employee_id, new Map());
+      }
+
+      const employeeMap = shiftsByEmployeeAndDate.get(shift.employee_id)!;
+      // Om det finns flera skift samma dag väljer vi första
+      if (!employeeMap.has(dateKey)) {
+        employeeMap.set(dateKey, shift);
+      }
+    });
+
     const sessions: WorkSession[] = [];
+    const todayNorway = startOfDay(getNorwegianNow());
 
-    // Process each employee's dates
-    entriesByEmployeeAndDate.forEach((dateMap, employeeId) => {
-      dateMap.forEach((dayEntries, dateKey) => {
+    // Processera ENBART dagar som har schema i vaktlistan
+    shiftsByEmployeeAndDate.forEach((dateMap, employeeId) => {
+      dateMap.forEach((dayShift, dateKey) => {
         const date = new Date(dateKey);
-        
-        // Jämför datum i norsk tidszon
-        const todayNorway = startOfDay(getNorwegianNow());
-        const isToday = startOfDay(toNorwegianTime(date)).getTime() === todayNorway.getTime();
+        const dayNorway = startOfDay(toNorwegianTime(date));
+        const isToday = dayNorway.getTime() === todayNorway.getTime();
+        const isFuture = dayNorway.getTime() > todayNorway.getTime();
 
-        // Sort entries by timestamp
-        const sortedEntries = [...dayEntries].sort((a, b) => 
-          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-        );
-
-        const punchInEntry = sortedEntries.find(e => e.entry_type === 'punch_in');
-        const punchOutEntry = sortedEntries.find(e => e.entry_type === 'punch_out');
-
-        // Find matching shift
-        const dayShift = shiftsData?.find(shift => {
-          const shiftDate = startOfDay(toNorwegianTime(shift.start_time));
-          return (
-            shift.employee_id === employeeId &&
-            shiftDate.getTime() === startOfDay(toNorwegianTime(date)).getTime()
-          );
-        });
-
-        // Visa ENDAST dagar med schema - ingen schema = visa ingenting
-        if (!dayShift) {
-          return; // Hoppa över alla dagar utan schema, oavsett punch-data
+        // Visa bara dagar som redan varit (inkl idag)
+        if (isFuture) {
+          return;
         }
 
-        // Use shared processing logic
+        const employeeEntriesMap = entriesByEmployeeAndDate.get(employeeId);
+        const dayEntries = employeeEntriesMap?.get(dateKey) ?? [];
+
+        // Sortera punch-entries kronologiskt
+        const sortedEntries = [...dayEntries].sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+
+        const punchInEntry = sortedEntries.find((e) => e.entry_type === 'punch_in');
+        const punchOutEntry = sortedEntries.find((e) => e.entry_type === 'punch_out');
+
         const processed = processTimeEntry(
           date,
           dayShift,
@@ -160,10 +171,9 @@ export default function TimeEntries() {
         );
 
         if (processed.hasData) {
-          // Format duration
           const hours = Math.floor(processed.totalMinutes / 60);
           const minutes = processed.totalMinutes % 60;
-          
+
           const duration = processed.punchOut && !processed.isOngoing
             ? `${hours}h ${minutes}m`
             : processed.isOngoing
@@ -171,21 +181,21 @@ export default function TimeEntries() {
             : null;
 
           sessions.push({
-            id: punchInEntry?.id || `schedule-${dayShift?.id}`,
+            id: punchInEntry?.id || `schedule-${dayShift.id}`,
             date: format(new Date(processed.punchIn!), 'dd MMM yyyy', { locale: nb }),
             punchIn: processed.punchIn!,
             punchOut: processed.punchOut,
             duration,
             employeeName: profilesMap.get(employeeId),
             source: processed.source,
-            isOngoing: processed.isOngoing
+            isOngoing: processed.isOngoing,
           });
         }
       });
     });
 
-    return sessions.sort((a, b) => 
-      new Date(b.punchIn).getTime() - new Date(a.punchIn).getTime()
+    return sessions.sort(
+      (a, b) => new Date(b.punchIn).getTime() - new Date(a.punchIn).getTime()
     );
   };
 
