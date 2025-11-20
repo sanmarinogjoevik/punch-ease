@@ -4,7 +4,7 @@ import { useEmployeeMonthShifts } from '@/hooks/useShifts';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { useCurrentUserProfile } from '@/hooks/useCurrentUserProfile';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { nb } from 'date-fns/locale';
 import TimelistTable from '@/components/TimelistTable';
@@ -13,6 +13,7 @@ export default function Timeliste() {
   const { user } = useAuth();
   const { data: userProfile } = useCurrentUserProfile();
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [displayMode, setDisplayMode] = useState<'actual' | 'schedule'>('actual');
   
   const { data: shifts = [], isLoading: shiftsLoading } = useEmployeeMonthShifts(
     user?.id || '',
@@ -67,6 +68,28 @@ export default function Timeliste() {
         </Button>
       </div>
 
+      {/* Display Mode Selector */}
+      <div className="flex justify-center gap-2 mb-4">
+        <Button
+          variant={displayMode === 'actual' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setDisplayMode('actual')}
+          className="gap-2"
+        >
+          <Clock className="h-4 w-4" />
+          Verkliga tider
+        </Button>
+        <Button
+          variant={displayMode === 'schedule' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setDisplayMode('schedule')}
+          className="gap-2"
+        >
+          <Calendar className="h-4 w-4" />
+          Endast schema
+        </Button>
+      </div>
+
       {/* Timelist Table */}
       {user && (
         <TimelistTable
@@ -75,6 +98,7 @@ export default function Timeliste() {
           companySettings={companySettings}
           shifts={shifts}
           showActions={false}
+          displayMode={displayMode}
         />
       )}
     </div>
