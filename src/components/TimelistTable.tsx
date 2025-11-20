@@ -148,15 +148,27 @@ export default function TimelistTable({
       const todayNorway = startOfDay(getNorwegianNow());
       const newTimelist: TimelistEntry[] = [];
 
-      // Iterera ENBART över schema-dagar (samma logik som TimeEntries)
-      shiftsByDate.forEach((dayShift, dateKey) => {
-        const date = new Date(dateKey);
+      // Bygg lista över ALLA dagar i månaden
+      const monthStart = startOfMonth(new Date(selectedMonth + '-01'));
+      const monthEnd = endOfMonth(monthStart);
+      const allDaysInMonth: Date[] = [];
+      
+      for (let d = new Date(monthStart); d <= monthEnd; d.setDate(d.getDate() + 1)) {
+        allDaysInMonth.push(new Date(d));
+      }
+
+      // Iterera över ALLA dagar i månaden (inte bara schema-dagar)
+      allDaysInMonth.forEach((date) => {
         const dayNorway = startOfDay(toNorwegianTime(date));
+        const dateKey = dayNorway.toISOString();
         const isToday = dayNorway.getTime() === todayNorway.getTime();
         const isFuture = dayNorway.getTime() > todayNorway.getTime();
 
         // Visa bara dagar som redan varit (inkl idag)
         if (isFuture) return;
+
+        // Hämta eventuellt skift för denna dag
+        const dayShift = shiftsByDate.get(dateKey) ?? undefined;
 
         const dayEntries = entriesByDate.get(dateKey) ?? [];
         const sortedEntries = [...dayEntries].sort(
@@ -175,8 +187,24 @@ export default function TimelistTable({
           isToday
         );
 
+        // Dag & veckodag baserat på norsk tid
+        const dayNumber = dayNorway.getDate().toString();
+        const dayName = NORWEGIAN_DAYS[dayNorway.getDay()];
+        const dateStr = format(dayNorway, 'yyyy-MM-dd');
+
+        // Om ingen data finns, visa ändå en tom rad
         if (!processed.hasData) {
-          return; // ingen rad om varken schema eller punch ger data
+          newTimelist.push({
+            date: dateStr,
+            day: dayNumber,
+            dayName,
+            punchIn: null,
+            punchOut: null,
+            lunch: '',
+            total: '',
+            hasData: false,
+          });
+          return;
         }
 
         // Format för visning (samma idé som i TimeEntries)
@@ -201,11 +229,6 @@ export default function TimelistTable({
         const totalDisplay = `${Math.floor(totalMinutes / 60)}:${(totalMinutes % 60)
           .toString()
           .padStart(2, '0')}`;
-
-        // Dag & veckodag baserat på norsk tid
-        const dayNumber = dayNorway.getDate().toString();
-        const dayName = NORWEGIAN_DAYS[dayNorway.getDay()];
-        const dateStr = format(dayNorway, 'yyyy-MM-dd');
 
         newTimelist.push({
           date: dateStr,
