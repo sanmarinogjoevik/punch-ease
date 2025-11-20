@@ -191,33 +191,21 @@ export default function TimelistTable({
           isToday
         );
 
-        // Om displayMode är 'schedule', tvinga användning av endast schema-data
-        if (displayMode === 'schedule' && dayShift) {
-          const shiftStart = new Date(dayShift.start_time);
-          const shiftEnd = new Date(dayShift.end_time);
-          const durationMinutes = Math.floor((shiftEnd.getTime() - shiftStart.getTime()) / (1000 * 60));
-          const lunchMinutes = durationMinutes > 330 ? 30 : 0;
-          
-          processed = {
-            punchIn: dayShift.start_time,
-            punchOut: dayShift.end_time,
-            totalMinutes: durationMinutes,
-            lunchMinutes,
-            hasData: true,
-            isOngoing: false,
-            source: 'schedule'
-          };
-        } else if (displayMode === 'schedule' && !dayShift) {
-          // Inget schema finns, visa tom rad
-          processed = {
-            punchIn: null,
-            punchOut: null,
-            totalMinutes: 0,
-            lunchMinutes: 0,
-            hasData: false,
-            isOngoing: false,
-            source: 'none'
-          };
+        // Om displayMode är 'schedule': visa ENDAST entries som kommer från schema-normalisering
+        if (displayMode === 'schedule') {
+          // Om source INTE är 'schedule', behandla som om ingen data finns
+          if (processed.source !== 'schedule') {
+            processed = {
+              punchIn: null,
+              punchOut: null,
+              totalMinutes: 0,
+              lunchMinutes: 0,
+              hasData: false,
+              isOngoing: false,
+              source: 'none'
+            };
+          }
+          // Om source === 'schedule', använd processed som den är (normaliserade tider från time_entries)
         }
 
         // Dag & veckodag baserat på norsk tid
