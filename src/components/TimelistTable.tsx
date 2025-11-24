@@ -184,6 +184,7 @@ export default function TimelistTable({
         // Helpers för att avgöra vilken typ av data vi har
         const hasPunches = punchInEntry || punchOutEntry;
         const hasAutomaticPunches = punchInEntry?.is_automatic || punchOutEntry?.is_automatic;
+        const hasManualPunches = hasPunches && !hasAutomaticPunches;
         const isPureScheduleDay = !hasPunches && dayShift;
 
         // Kör processTimeEntry som vanligt
@@ -196,15 +197,26 @@ export default function TimelistTable({
           isToday
         );
 
-        // Om displayMode är 'schedule': visa ENDAST automatiska/normaliserade tider eller rena schema-dagar
+        // Om displayMode är 'schedule': visa schema-tider (ignorera manuella punchar)
         if (displayMode === 'schedule') {
-          // Visa dagen OM det är:
-          // - Automatiska punchar (normaliserade från edge function normalize-time-entries)
-          // - ELLER ren schema-dag utan punchar alls
-          const shouldShow = hasAutomaticPunches || isPureScheduleDay;
-          
-          if (!shouldShow) {
-            // Dölj manuella punchar
+          if (dayShift) {
+            // Om det finns ett schema, visa det
+            
+            if (hasManualPunches) {
+              // Om det finns manuella punchar, ignorera dem och visa schema-tiderna istället
+              // Kör processTimeEntry igen men UTAN punch-entries för att få raw schema-tider
+              processed = processTimeEntry(
+                date,
+                dayShift,
+                undefined, // ignorera manuella punch_in
+                undefined, // ignorera manuella punch_out
+                businessHours,
+                isToday
+              );
+            }
+            // Om automatiska punchar eller inga punchar: använd processed som den redan är
+          } else {
+            // Inget schema = dölj (även om det finns gamla automatiska entries)
             processed = {
               punchIn: null,
               punchOut: null,
@@ -215,7 +227,6 @@ export default function TimelistTable({
               source: 'none'
             };
           }
-          // Om shouldShow === true, använd processed som den är
         }
 
         // Dag & veckodag baserat på norsk tid
