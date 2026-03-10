@@ -1,31 +1,39 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
 
 Deno.serve(async () => {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    db: { schema: "cron" },
-  });
-
-  // Try direct SQL via rest endpoint
-  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/delete_old_job_run_details_batch`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${serviceRoleKey}`,
-      "apikey": serviceRoleKey,
-    },
-    body: JSON.stringify({ batch_size: 500, older_than: "1 second" }),
-  });
-
-  const result = await response.json();
+  const dbUrl = Deno.env.get("SUPABASE_DB_URL")!;
   
-  return new Response(JSON.stringify({ 
-    status: response.status,
-    result,
-    message: "Cleanup attempted" 
-  }), {
-    headers: { "Content-Type": "application/json" },
+  const sql = postgres(dbUrl, { 
+    connect_timeout: 55,
+    idle_timeout: 10,
+    max: 1,
   });
+
+  try {
+    // Very small batch with direct SQL
+    const result = await sql`
+      DELETE FROM cron.job_run_details
+      WHERE ctid IN (
+        SELECT ctid FROM cron.job_run_details LIMIT 100
+      )
+    `;
+    
+    await sql.end();
+    
+    return new Response(JSON.stringify({ 
+      success: true,
+      deleted: result.count,
+      message: "Deleted batch" 
+    }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    await sql.end();
+    return new Response(JSON.stringify({ 
+      success: false,
+      error: error.message 
+    }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 });
