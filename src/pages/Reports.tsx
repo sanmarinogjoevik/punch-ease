@@ -449,7 +449,7 @@ export default function Reports() {
     element.classList.add('pdf-compact');
 
     const opt = {
-      margin: [5, 5, 5, 5],
+      margin: [5, 5, 5, 5] as [number, number, number, number],
       filename: `temperaturkontroll_${tempStartDate}_${tempEndDate}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
       html2canvas: { scale: 1.5, useCORS: true, windowWidth: 1100 },
