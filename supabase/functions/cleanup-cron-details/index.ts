@@ -8,7 +8,7 @@ Deno.serve(async () => {
     const result = await sql`
       DELETE FROM cron.job_run_details
       WHERE ctid IN (
-        SELECT ctid FROM cron.job_run_details LIMIT 200
+        SELECT ctid FROM cron.job_run_details LIMIT 10000
       )
     `;
     await sql.end();
