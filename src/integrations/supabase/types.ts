@@ -474,6 +474,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      delete_old_job_run_details_batch: {
+        Args: { batch_size?: number; older_than?: string }
+        Returns: number
+      }
       get_current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
