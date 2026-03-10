@@ -455,31 +455,28 @@ export default function Reports() {
 
   const exportTemperatureToPDF = () => {
     if (temperatureLogs.length === 0) {
-      toast({
-        title: "Fel",
-        description: "Inga temperaturloggar att exportera",
-        variant: "destructive",
-      });
+      toast({ title: "Fel", description: "Inga temperaturloggar att exportera", variant: "destructive" });
       return;
     }
 
-    const element = document.getElementById('temperature-content');
-    if (!element) return;
+    const rows = temperatureLogs.map(log => {
+      const temp = log.temperature;
+      let tempColor = '#16a34a'; // green
+      if (temp > 8 || temp < -25) tempColor = '#dc2626'; // red
+      else if (temp > 6 || temp < -22) tempColor = '#ea580c'; // orange
 
-    element.classList.add('pdf-compact');
-
-    const opt = {
-      margin: [5, 5, 5, 5] as [number, number, number, number],
-      filename: `temperaturkontroll_${tempStartDate}_${tempEndDate}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 1.5, useCORS: true, windowWidth: 1100 },
-      jsPDF: { unit: 'mm' as const, format: 'a4', orientation: 'landscape' as const },
-      pagebreak: { mode: ['avoid-all'] as any }
-    };
-
-    html2pdf().set(opt).from(element).save().then(() => {
-      element.classList.remove('pdf-compact');
+      return {
+        datetime: format(parseISO(log.timestamp), 'dd.MM.yyyy HH:mm', { locale: nb }),
+        employee: log.profiles ? `${log.profiles.first_name} ${log.profiles.last_name}` : 'Okänd',
+        equipment: log.equipment_name,
+        temperature: `${temp}°C`,
+        tempColor,
+        notes: log.notes || '-',
+      };
     });
+
+    const dateRange = `${format(new Date(tempStartDate), 'dd/MM/yyyy')} - ${format(new Date(tempEndDate), 'dd/MM/yyyy')}`;
+    exportTemperaturePDF(companySettings || {}, dateRange, rows, `temperaturkontroll_${tempStartDate}_${tempEndDate}.pdf`);
   };
 
   const printTemperatureList = () => {
