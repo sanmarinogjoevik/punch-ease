@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, getDay, addWeeks, startOfWeek, startOfDay, subMonths, addMonths, subDays, addDays, isAfter } from 'date-fns';
 import { nb, sv } from 'date-fns/locale';
 import html2pdf from 'html2pdf.js';
+import { exportTimelistPDF, exportShiftListPDF, exportTemperaturePDF } from '@/lib/pdfExport';
 import { formatDuration, formatTimeNorway, calculateDurationMinutes, isAfterClosingTime, createUTCFromNorwegianTime } from '@/lib/timeUtils';
 import { processTimeEntry, type TimeEntry as TimeEntryType } from '@/lib/timeEntryUtils';
 import { supabase } from '@/integrations/supabase/client';
@@ -288,32 +289,51 @@ export default function Reports() {
 
   const exportTimelistToPDF = () => {
     if (!selectedEmployeeData) {
-      toast({
-        title: "Fel",
-        description: "Välj en anställd och månad för att exportera",
-        variant: "destructive",
-      });
+      toast({ title: "Fel", description: "Välj en anställd och månad för att exportera", variant: "destructive" });
       return;
     }
 
-    const element = document.getElementById('timelist-content');
-    if (!element) return;
+    // Read rendered table data from the DOM
+    const tableEl = document.querySelector('#timelist-content table');
+    if (!tableEl) return;
 
-    // Add compact class for PDF generation
-    element.classList.add('pdf-compact');
+    const bodyRows = tableEl.querySelectorAll('tbody tr');
+    const rows: { day: string; dayName: string; punchIn: string; punchOut: string; lunch: string; total: string }[] = [];
+    let totalFormatted = '0:00';
 
-    const opt = {
-      margin: [5, 5, 5, 5] as [number, number, number, number],
-      filename: `timelista_${selectedEmployeeData.first_name}_${selectedEmployeeData.last_name}_${selectedMonth}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 1.5, useCORS: true, windowWidth: 800 },
-      jsPDF: { unit: 'mm' as const, format: 'a4', orientation: 'portrait' as const },
-      pagebreak: { mode: ['avoid-all'] as any }
-    };
-
-    html2pdf().set(opt).from(element).save().then(() => {
-      element.classList.remove('pdf-compact');
+    bodyRows.forEach((tr) => {
+      const cells = tr.querySelectorAll('td');
+      if (cells.length >= 6) {
+        // Check if this is the total row (has colspan)
+        const firstCell = cells[0];
+        if (firstCell.getAttribute('colspan')) {
+          totalFormatted = cells[1]?.textContent?.trim() || '0:00';
+          return;
+        }
+        rows.push({
+          day: cells[0]?.textContent?.trim() || '',
+          dayName: cells[1]?.textContent?.trim().replace('(Pågående)', '').trim() || '',
+          punchIn: cells[2]?.textContent?.trim() || '-',
+          punchOut: cells[3]?.textContent?.trim() || '-',
+          lunch: cells[4]?.textContent?.trim() || '-',
+          total: cells[5]?.textContent?.trim() || '-',
+        });
+      }
     });
+
+    const monthLabel = format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb });
+    const employeeName = `${selectedEmployeeData.first_name} ${selectedEmployeeData.last_name}`;
+    const personalNumber = selectedEmployeeData.personal_number || 'Ej angivet';
+
+    exportTimelistPDF(
+      companySettings || {},
+      monthLabel,
+      employeeName,
+      personalNumber,
+      rows,
+      totalFormatted,
+      `timelista_${selectedEmployeeData.first_name}_${selectedEmployeeData.last_name}_${selectedMonth}.pdf`
+    );
   };
 
   const printTimelist = () => {
@@ -362,31 +382,31 @@ export default function Reports() {
 
   const exportShiftListToPDF = () => {
     if (!calendarShifts || calendarShifts.length === 0) {
-      toast({
-        title: "Fel",
-        description: "Inga vakter att exportera för denna period",
-        variant: "destructive",
-      });
+      toast({ title: "Fel", description: "Inga vakter att exportera för denna period", variant: "destructive" });
       return;
     }
 
-    const element = document.getElementById('shiftlist-content');
-    if (!element) return;
+    const monthLabel = format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb });
 
-    element.classList.add('pdf-compact');
+    // Build week data from calendarDays
+    const pdfWeeks: { date: string; dayLabel: string; shifts: { name: string; time: string; location?: string }[] }[][] = [];
+    for (let i = 0; i < calendarDays.length; i += 7) {
+      const week = calendarDays.slice(i, i + 7).map(day => {
+        const dayShifts = getShiftsForDate(day);
+        return {
+          date: format(day, 'yyyy-MM-dd'),
+          dayLabel: format(day, 'd'),
+          shifts: dayShifts.map(s => ({
+            name: `${s.profiles?.first_name || ''} ${s.profiles?.last_name || ''}`.trim(),
+            time: `${formatTimeNorway(s.start_time)} - ${formatTimeNorway(s.end_time)}`,
+            location: s.location || undefined,
+          })),
+        };
+      });
+      pdfWeeks.push(week);
+    }
 
-    const opt = {
-      margin: [5, 5, 5, 5] as [number, number, number, number],
-      filename: `vaktlista_${selectedMonth}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 1.5, useCORS: true, windowWidth: 1100 },
-      jsPDF: { unit: 'mm' as const, format: 'a4', orientation: 'landscape' as const },
-      pagebreak: { mode: ['avoid-all'] as any }
-    };
-
-    html2pdf().set(opt).from(element).save().then(() => {
-      element.classList.remove('pdf-compact');
-    });
+    exportShiftListPDF(companySettings || {}, monthLabel, pdfWeeks, `vaktlista_${selectedMonth}.pdf`);
   };
 
   const printShiftList = () => {
@@ -435,31 +455,28 @@ export default function Reports() {
 
   const exportTemperatureToPDF = () => {
     if (temperatureLogs.length === 0) {
-      toast({
-        title: "Fel",
-        description: "Inga temperaturloggar att exportera",
-        variant: "destructive",
-      });
+      toast({ title: "Fel", description: "Inga temperaturloggar att exportera", variant: "destructive" });
       return;
     }
 
-    const element = document.getElementById('temperature-content');
-    if (!element) return;
+    const rows = temperatureLogs.map(log => {
+      const temp = log.temperature;
+      let tempColor = '#16a34a'; // green
+      if (temp > 8 || temp < -25) tempColor = '#dc2626'; // red
+      else if (temp > 6 || temp < -22) tempColor = '#ea580c'; // orange
 
-    element.classList.add('pdf-compact');
-
-    const opt = {
-      margin: [5, 5, 5, 5] as [number, number, number, number],
-      filename: `temperaturkontroll_${tempStartDate}_${tempEndDate}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 1.5, useCORS: true, windowWidth: 1100 },
-      jsPDF: { unit: 'mm' as const, format: 'a4', orientation: 'landscape' as const },
-      pagebreak: { mode: ['avoid-all'] as any }
-    };
-
-    html2pdf().set(opt).from(element).save().then(() => {
-      element.classList.remove('pdf-compact');
+      return {
+        datetime: format(parseISO(log.timestamp), 'dd.MM.yyyy HH:mm', { locale: nb }),
+        employee: log.profiles ? `${log.profiles.first_name} ${log.profiles.last_name}` : 'Okänd',
+        equipment: log.equipment_name,
+        temperature: `${temp}°C`,
+        tempColor,
+        notes: log.notes || '-',
+      };
     });
+
+    const dateRange = `${format(new Date(tempStartDate), 'dd/MM/yyyy')} - ${format(new Date(tempEndDate), 'dd/MM/yyyy')}`;
+    exportTemperaturePDF(companySettings || {}, dateRange, rows, `temperaturkontroll_${tempStartDate}_${tempEndDate}.pdf`);
   };
 
   const printTemperatureList = () => {

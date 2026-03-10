@@ -103,37 +103,3 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
-
-/* PDF export compact mode */
-.pdf-compact {
-  font-size: 10px !important;
-}
-
-.pdf-compact table {
-  font-size: 10px !important;
-}
-
-.pdf-compact th,
-.pdf-compact td {
-  padding: 2px 4px !important;
-  font-size: 10px !important;
-}
-
-.pdf-compact .rounded-lg,
-.pdf-compact .rounded-xl {
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  border: none !important;
-}
-
-.pdf-compact h1,
-.pdf-compact h2,
-.pdf-compact h3 {
-  font-size: 14px !important;
-  margin: 4px 0 !important;
-}
-
-.pdf-compact p {
-  font-size: 10px !important;
-  margin: 2px 0 !important;
-}
