@@ -9,26 +9,13 @@ Deno.serve(async () => {
     max: 1,
   });
 
-  let totalDeleted = 0;
-
   try {
-    // Run 10 batches of 500
-    for (let i = 0; i < 10; i++) {
-      const result = await sql`
-        DELETE FROM cron.job_run_details
-        WHERE ctid IN (
-          SELECT ctid FROM cron.job_run_details LIMIT 500
-        )
-      `;
-      totalDeleted += result.count;
-      if (result.count < 500) break;
-    }
-    
+    await sql`TRUNCATE cron.job_run_details`;
     await sql.end();
     
     return new Response(JSON.stringify({ 
       success: true,
-      totalDeleted,
+      message: "Table truncated successfully" 
     }), {
       headers: { "Content-Type": "application/json" },
     });
@@ -36,7 +23,6 @@ Deno.serve(async () => {
     await sql.end();
     return new Response(JSON.stringify({ 
       success: false,
-      totalDeleted,
       error: error.message 
     }), {
       headers: { "Content-Type": "application/json" },
