@@ -9,21 +9,33 @@ Deno.serve(async () => {
     max: 1,
   });
 
+  let totalDeleted = 0;
+
   try {
-    // Very small batch with direct SQL
-    const result = await sql`
-      DELETE FROM cron.job_run_details
-      WHERE ctid IN (
-        SELECT ctid FROM cron.job_run_details LIMIT 100
-      )
-    `;
+    // Run multiple small batches in a loop
+    for (let i = 0; i < 50; i++) {
+      const result = await sql`
+        DELETE FROM cron.job_run_details
+        WHERE ctid IN (
+          SELECT ctid FROM cron.job_run_details LIMIT 1000
+        )
+      `;
+      totalDeleted += result.count;
+      
+      // If fewer than 1000 deleted, we're done
+      if (result.count < 1000) break;
+    }
+    
+    // Count remaining
+    const remaining = await sql`SELECT count(*) as cnt FROM cron.job_run_details`;
     
     await sql.end();
     
     return new Response(JSON.stringify({ 
       success: true,
-      deleted: result.count,
-      message: "Deleted batch" 
+      totalDeleted,
+      remaining: remaining[0].cnt,
+      message: "Cleanup complete" 
     }), {
       headers: { "Content-Type": "application/json" },
     });
@@ -31,6 +43,7 @@ Deno.serve(async () => {
     await sql.end();
     return new Response(JSON.stringify({ 
       success: false,
+      totalDeleted,
       error: error.message 
     }), {
       headers: { "Content-Type": "application/json" },
