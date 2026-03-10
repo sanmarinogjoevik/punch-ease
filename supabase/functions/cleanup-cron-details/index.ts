@@ -18,7 +18,7 @@ Deno.serve(async () => {
       )
     `;
     await sql.end();
-    return new Response(JSON.stringify({ success: true, deleted: result.count }), {
+    return new Response(JSON.stringify({ success: true, cron_deleted: cronResult.count, http_deleted: httpResult.count }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
