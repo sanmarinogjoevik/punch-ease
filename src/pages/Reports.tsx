@@ -446,15 +446,20 @@ export default function Reports() {
     const element = document.getElementById('temperature-content');
     if (!element) return;
 
+    element.classList.add('pdf-compact');
+
     const opt = {
-      margin: 1,
+      margin: [5, 5, 5, 5],
       filename: `temperaturkontroll_${tempStartDate}_${tempEndDate}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' as const }
+      html2canvas: { scale: 1.5, useCORS: true, windowWidth: 1100 },
+      jsPDF: { unit: 'mm' as const, format: 'a4', orientation: 'landscape' as const },
+      pagebreak: { mode: ['avoid-all'] as any }
     };
 
-    html2pdf().set(opt).from(element).save();
+    html2pdf().set(opt).from(element).save().then(() => {
+      element.classList.remove('pdf-compact');
+    });
   };
 
   const printTemperatureList = () => {
