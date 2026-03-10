@@ -289,32 +289,51 @@ export default function Reports() {
 
   const exportTimelistToPDF = () => {
     if (!selectedEmployeeData) {
-      toast({
-        title: "Fel",
-        description: "Välj en anställd och månad för att exportera",
-        variant: "destructive",
-      });
+      toast({ title: "Fel", description: "Välj en anställd och månad för att exportera", variant: "destructive" });
       return;
     }
 
-    const element = document.getElementById('timelist-content');
-    if (!element) return;
+    // Read rendered table data from the DOM
+    const tableEl = document.querySelector('#timelist-content table');
+    if (!tableEl) return;
 
-    // Add compact class for PDF generation
-    element.classList.add('pdf-compact');
+    const bodyRows = tableEl.querySelectorAll('tbody tr');
+    const rows: { day: string; dayName: string; punchIn: string; punchOut: string; lunch: string; total: string }[] = [];
+    let totalFormatted = '0:00';
 
-    const opt = {
-      margin: [5, 5, 5, 5] as [number, number, number, number],
-      filename: `timelista_${selectedEmployeeData.first_name}_${selectedEmployeeData.last_name}_${selectedMonth}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 1.5, useCORS: true, windowWidth: 800 },
-      jsPDF: { unit: 'mm' as const, format: 'a4', orientation: 'portrait' as const },
-      pagebreak: { mode: ['avoid-all'] as any }
-    };
-
-    html2pdf().set(opt).from(element).save().then(() => {
-      element.classList.remove('pdf-compact');
+    bodyRows.forEach((tr) => {
+      const cells = tr.querySelectorAll('td');
+      if (cells.length >= 6) {
+        // Check if this is the total row (has colspan)
+        const firstCell = cells[0];
+        if (firstCell.getAttribute('colspan')) {
+          totalFormatted = cells[1]?.textContent?.trim() || '0:00';
+          return;
+        }
+        rows.push({
+          day: cells[0]?.textContent?.trim() || '',
+          dayName: cells[1]?.textContent?.trim().replace('(Pågående)', '').trim() || '',
+          punchIn: cells[2]?.textContent?.trim() || '-',
+          punchOut: cells[3]?.textContent?.trim() || '-',
+          lunch: cells[4]?.textContent?.trim() || '-',
+          total: cells[5]?.textContent?.trim() || '-',
+        });
+      }
     });
+
+    const monthLabel = format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb });
+    const employeeName = `${selectedEmployeeData.first_name} ${selectedEmployeeData.last_name}`;
+    const personalNumber = selectedEmployeeData.personal_number || 'Ej angivet';
+
+    exportTimelistPDF(
+      companySettings || {},
+      monthLabel,
+      employeeName,
+      personalNumber,
+      rows,
+      totalFormatted,
+      `timelista_${selectedEmployeeData.first_name}_${selectedEmployeeData.last_name}_${selectedMonth}.pdf`
+    );
   };
 
   const printTimelist = () => {
