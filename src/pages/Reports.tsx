@@ -303,13 +303,14 @@ export default function Reports() {
 
     bodyRows.forEach((tr) => {
       const cells = tr.querySelectorAll('td');
+      // Check if this is the total row (has colspan)
+      const firstCell = cells[0];
+      if (firstCell?.getAttribute('colspan')) {
+        // Total row: colspan cell + total cell (+ optional action cell)
+        totalFormatted = cells[1]?.textContent?.trim() || '0:00';
+        return;
+      }
       if (cells.length >= 6) {
-        // Check if this is the total row (has colspan)
-        const firstCell = cells[0];
-        if (firstCell.getAttribute('colspan')) {
-          totalFormatted = cells[1]?.textContent?.trim() || '0:00';
-          return;
-        }
         rows.push({
           day: cells[0]?.textContent?.trim() || '',
           dayName: cells[1]?.textContent?.trim().replace('(Pågående)', '').trim() || '',
