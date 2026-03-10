@@ -299,15 +299,21 @@ export default function Reports() {
     const element = document.getElementById('timelist-content');
     if (!element) return;
 
+    // Add compact class for PDF generation
+    element.classList.add('pdf-compact');
+
     const opt = {
-      margin: 1,
+      margin: [5, 5, 5, 5] as [number, number, number, number],
       filename: `timelista_${selectedEmployeeData.first_name}_${selectedEmployeeData.last_name}_${selectedMonth}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' as const }
+      html2canvas: { scale: 1.5, useCORS: true, windowWidth: 800 },
+      jsPDF: { unit: 'mm' as const, format: 'a4', orientation: 'portrait' as const },
+      pagebreak: { mode: ['avoid-all'] as any }
     };
 
-    html2pdf().set(opt).from(element).save();
+    html2pdf().set(opt).from(element).save().then(() => {
+      element.classList.remove('pdf-compact');
+    });
   };
 
   const printTimelist = () => {
@@ -367,15 +373,20 @@ export default function Reports() {
     const element = document.getElementById('shiftlist-content');
     if (!element) return;
 
+    element.classList.add('pdf-compact');
+
     const opt = {
-      margin: 1,
+      margin: [5, 5, 5, 5] as [number, number, number, number],
       filename: `vaktlista_${selectedMonth}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' as const }
+      html2canvas: { scale: 1.5, useCORS: true, windowWidth: 1100 },
+      jsPDF: { unit: 'mm' as const, format: 'a4', orientation: 'landscape' as const },
+      pagebreak: { mode: ['avoid-all'] as any }
     };
 
-    html2pdf().set(opt).from(element).save();
+    html2pdf().set(opt).from(element).save().then(() => {
+      element.classList.remove('pdf-compact');
+    });
   };
 
   const printShiftList = () => {
@@ -435,15 +446,20 @@ export default function Reports() {
     const element = document.getElementById('temperature-content');
     if (!element) return;
 
+    element.classList.add('pdf-compact');
+
     const opt = {
-      margin: 1,
+      margin: [5, 5, 5, 5] as [number, number, number, number],
       filename: `temperaturkontroll_${tempStartDate}_${tempEndDate}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' as const }
+      html2canvas: { scale: 1.5, useCORS: true, windowWidth: 1100 },
+      jsPDF: { unit: 'mm' as const, format: 'a4', orientation: 'landscape' as const },
+      pagebreak: { mode: ['avoid-all'] as any }
     };
 
-    html2pdf().set(opt).from(element).save();
+    html2pdf().set(opt).from(element).save().then(() => {
+      element.classList.remove('pdf-compact');
+    });
   };
 
   const printTemperatureList = () => {
