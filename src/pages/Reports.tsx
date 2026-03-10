@@ -303,7 +303,7 @@ export default function Reports() {
     element.classList.add('pdf-compact');
 
     const opt = {
-      margin: [5, 5, 5, 5],
+      margin: [5, 5, 5, 5] as [number, number, number, number],
       filename: `timelista_${selectedEmployeeData.first_name}_${selectedEmployeeData.last_name}_${selectedMonth}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
       html2canvas: { scale: 1.5, useCORS: true, windowWidth: 800 },
