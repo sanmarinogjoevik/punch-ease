@@ -382,31 +382,31 @@ export default function Reports() {
 
   const exportShiftListToPDF = () => {
     if (!calendarShifts || calendarShifts.length === 0) {
-      toast({
-        title: "Fel",
-        description: "Inga vakter att exportera för denna period",
-        variant: "destructive",
-      });
+      toast({ title: "Fel", description: "Inga vakter att exportera för denna period", variant: "destructive" });
       return;
     }
 
-    const element = document.getElementById('shiftlist-content');
-    if (!element) return;
+    const monthLabel = format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: nb });
 
-    element.classList.add('pdf-compact');
+    // Build week data from calendarDays
+    const pdfWeeks: { date: string; dayLabel: string; shifts: { name: string; time: string; location?: string }[] }[][] = [];
+    for (let i = 0; i < calendarDays.length; i += 7) {
+      const week = calendarDays.slice(i, i + 7).map(day => {
+        const dayShifts = getShiftsForDate(day);
+        return {
+          date: format(day, 'yyyy-MM-dd'),
+          dayLabel: format(day, 'd'),
+          shifts: dayShifts.map(s => ({
+            name: `${s.profiles?.first_name || ''} ${s.profiles?.last_name || ''}`.trim(),
+            time: `${formatTimeNorway(s.start_time)} - ${formatTimeNorway(s.end_time)}`,
+            location: s.location || undefined,
+          })),
+        };
+      });
+      pdfWeeks.push(week);
+    }
 
-    const opt = {
-      margin: [5, 5, 5, 5] as [number, number, number, number],
-      filename: `vaktlista_${selectedMonth}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 1.5, useCORS: true, windowWidth: 1100 },
-      jsPDF: { unit: 'mm' as const, format: 'a4', orientation: 'landscape' as const },
-      pagebreak: { mode: ['avoid-all'] as any }
-    };
-
-    html2pdf().set(opt).from(element).save().then(() => {
-      element.classList.remove('pdf-compact');
-    });
+    exportShiftListPDF(companySettings || {}, monthLabel, pdfWeeks, `vaktlista_${selectedMonth}.pdf`);
   };
 
   const printShiftList = () => {
