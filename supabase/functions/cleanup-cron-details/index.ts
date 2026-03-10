@@ -5,10 +5,16 @@ Deno.serve(async () => {
   const sql = postgres(dbUrl, { connect_timeout: 30, idle_timeout: 5, max: 1 });
 
   try {
-    const result = await sql`
+    const cronResult = await sql`
       DELETE FROM cron.job_run_details
       WHERE ctid IN (
         SELECT ctid FROM cron.job_run_details LIMIT 10000
+      )
+    `;
+    const httpResult = await sql`
+      DELETE FROM net._http_response
+      WHERE ctid IN (
+        SELECT ctid FROM net._http_response LIMIT 10000
       )
     `;
     await sql.end();
